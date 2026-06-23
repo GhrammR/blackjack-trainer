@@ -1,9 +1,21 @@
-import type { Card, DealerUpcardKey, Rank } from '../types'
+import type { Card, DealerUpcardKey, PairRankKey, Rank } from '../types'
 
 /**
  * Turns a situation key (as produced by getSituationKey) back into a
  * concrete player hand + dealer upcard that reproduces that situation.
  */
+
+export const DEALER_KEYS: DealerUpcardKey[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'A']
+export const PAIR_RANKS: PairRankKey[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'A']
+export const HARD_TOTALS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+export const SOFT_TOTALS = [13, 14, 15, 16, 17, 18, 19, 20]
+
+/** Every situation key that generateHand can reproduce. */
+export const ALL_SITUATION_KEYS: string[] = DEALER_KEYS.flatMap((d) => [
+  ...HARD_TOTALS.map((t) => `hard-${t}-vs-${d}`),
+  ...SOFT_TOTALS.map((t) => `soft-${t}-vs-${d}`),
+  ...PAIR_RANKS.map((p) => `pair-${p}-vs-${d}`),
+])
 
 const TEN_BUCKET_RANKS: Rank[] = ['10', 'J', 'Q', 'K']
 
