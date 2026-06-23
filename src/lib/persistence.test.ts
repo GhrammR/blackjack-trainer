@@ -30,25 +30,26 @@ beforeEach(() => {
 
 describe('loadState', () => {
   it('returns defaults when nothing is stored', () => {
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0 })
   })
 
   it('returns defaults for corrupt JSON instead of throwing', () => {
     localStorage.setItem('double-down:v1', '{not json')
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0 })
   })
 
   it('fills in missing fields from a partial object', () => {
     localStorage.setItem('double-down:v1', JSON.stringify({ handsPlayed: 7 }))
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 7 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 7, currentStreak: 0 })
   })
 })
 
 describe('saveState / loadState round trip', () => {
-  it('persists stats and handsPlayed across a save/load cycle', () => {
+  it('persists stats, handsPlayed, and currentStreak across a save/load cycle', () => {
     const state = {
       stats: { 'hard-16-vs-10': { key: 'hard-16-vs-10', attempts: 3, correct: 2, lastSeen: 2, recentResults: [true, false, true] } },
       handsPlayed: 3,
+      currentStreak: 2,
     }
     saveState(state)
     expect(loadState()).toEqual(state)
@@ -57,8 +58,8 @@ describe('saveState / loadState round trip', () => {
 
 describe('clearState', () => {
   it('removes persisted data, reverting loadState to defaults', () => {
-    saveState({ stats: {}, handsPlayed: 5 })
+    saveState({ stats: {}, handsPlayed: 5, currentStreak: 5 })
     clearState()
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0 })
   })
 })

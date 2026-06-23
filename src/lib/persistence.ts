@@ -5,11 +5,13 @@ const STORAGE_KEY = 'double-down:v1'
 export interface PersistedState {
   stats: Stats
   handsPlayed: number
+  currentStreak: number
 }
 
 const DEFAULT_STATE: PersistedState = {
   stats: {},
   handsPlayed: 0,
+  currentStreak: 0,
 }
 
 export function loadState(): PersistedState {
@@ -23,6 +25,7 @@ export function loadState(): PersistedState {
     return {
       stats: typeof parsed.stats === 'object' && parsed.stats !== null ? parsed.stats : {},
       handsPlayed: typeof parsed.handsPlayed === 'number' ? parsed.handsPlayed : 0,
+      currentStreak: typeof parsed.currentStreak === 'number' ? parsed.currentStreak : 0,
     }
   } catch {
     // Corrupt JSON, or localStorage unavailable (privacy mode, etc.) — start fresh.
