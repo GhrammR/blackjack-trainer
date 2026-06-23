@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Action, Card } from '../types'
 import { ALL_SITUATION_KEYS, generateHand } from '../lib/handGenerator'
 import { getAction } from '../lib/strategy'
+import { type Stats, recordResult, selectNextSituation } from '../lib/adaptiveEngine'
 import { HandDisplay } from './HandDisplay'
 import { ActionButtons } from './ActionButtons'
 import { Feedback } from './Feedback'
@@ -9,11 +10,13 @@ import { Feedback } from './Feedback'
 interface Round {
   playerHand: Card[]
   dealerUpcard: Card
+  situationKey: string
 }
 
-function randomRound(): Round {
-  const key = ALL_SITUATION_KEYS[Math.floor(Math.random() * ALL_SITUATION_KEYS.length)]
-  return generateHand(key)
+function buildRound(stats: Stats): Round {
+  const situationKey = selectNextSituation(stats, ALL_SITUATION_KEYS)
+  const { playerHand, dealerUpcard } = generateHand(situationKey)
+  return { playerHand, dealerUpcard, situationKey }
 }
 
 interface Result {
@@ -22,16 +25,21 @@ interface Result {
 }
 
 export function StrategyTrainer() {
-  const [round, setRound] = useState<Round>(randomRound)
+  const [stats, setStats] = useState<Stats>({})
+  const [handsPlayed, setHandsPlayed] = useState(0)
+  const [round, setRound] = useState<Round>(() => buildRound({}))
   const [result, setResult] = useState<Result | null>(null)
 
   function handleSelect(action: Action) {
     if (result) return
-    setResult({ chosen: action, correct: getAction(round.playerHand, round.dealerUpcard) })
+    const correct = getAction(round.playerHand, round.dealerUpcard)
+    setResult({ chosen: action, correct })
+    setStats((prev) => recordResult(prev, round.situationKey, action === correct, handsPlayed))
+    setHandsPlayed((prev) => prev + 1)
   }
 
   function handleNext() {
-    setRound(randomRound())
+    setRound(buildRound(stats))
     setResult(null)
   }
 
