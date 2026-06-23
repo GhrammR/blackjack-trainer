@@ -3,8 +3,9 @@ import type { Action, Card } from '../types'
 import { ALL_SITUATION_KEYS, generateHand } from '../lib/handGenerator'
 import { getAction } from '../lib/strategy'
 import { type Stats, recordResult, selectNextSituation } from '../lib/adaptiveEngine'
-import { lifetimeAccuracy, updateStreak } from '../lib/mastery'
+import { categoryOfSituationKey, lifetimeAccuracy, updateStreak } from '../lib/mastery'
 import { loadState, saveState } from '../lib/persistence'
+import { reasonFor } from '../lib/reasons'
 import { HandDisplay } from './HandDisplay'
 import { ActionButtons } from './ActionButtons'
 import { Feedback } from './Feedback'
@@ -56,7 +57,13 @@ export function StrategyTrainer() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-10 py-12">
+    <div className="flex flex-col items-center gap-10 px-4 py-12">
+      {handsPlayed === 0 && (
+        <p className="max-w-md text-center text-slate-400">
+          Pick the correct play for each hand — Hit, Stand, Double, Split, or Surrender. We'll track your weak
+          spots and bring them back until you've got them down.
+        </p>
+      )}
       <ProgressPanel currentStreak={currentStreak} lifetime={lifetimeAccuracy(stats)} />
       <HandDisplay playerHand={round.playerHand} dealerUpcard={round.dealerUpcard} />
       <ActionButtons onSelect={handleSelect} disabled={result !== null} />
@@ -65,6 +72,11 @@ export function StrategyTrainer() {
           isCorrect={result.chosen === result.correct}
           chosenAction={result.chosen}
           correctAction={result.correct}
+          reason={
+            result.chosen === result.correct
+              ? null
+              : reasonFor(categoryOfSituationKey(round.situationKey), result.correct)
+          }
           onNext={handleNext}
         />
       )}
