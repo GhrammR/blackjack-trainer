@@ -9,6 +9,7 @@ import { HandDisplay } from './HandDisplay'
 import { ActionButtons } from './ActionButtons'
 import { Feedback } from './Feedback'
 import { ProgressPanel } from './ProgressPanel'
+import { WeaknessHeatmap } from './WeaknessHeatmap'
 
 interface Round {
   playerHand: Card[]
@@ -67,6 +68,7 @@ export function StrategyTrainer() {
           onNext={handleNext}
         />
       )}
+      <WeaknessHeatmap stats={stats} />
     </div>
   )
 }
