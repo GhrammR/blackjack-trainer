@@ -171,6 +171,10 @@ export function TrueCountDrill() {
 
       {phase === 'guessing' && (
         <div className="flex flex-col items-center gap-3">
+          <p className="max-w-xs text-center text-xs text-slate-500">
+            How this works: true count = running count ÷ decks remaining (rounded). Estimate decks played first, then
+            subtract from the shoe size to get decks remaining.
+          </p>
           <label className="flex items-center gap-2 text-slate-300">
             Decks played (estimate)
             <input
