@@ -180,3 +180,9 @@ A second mode/tab. Directly relevant to counting players down on the floor. Stil
 - **Progression:** increasing speed/difficulty; track accuracy, speed, and personal-best countdown times; persist via localStorage.
 
 Gate this behind a working, deployed v1. Do not start it before §8 step 10 is complete.
+
+---
+
+## 11. Build notes / TODOs
+
+- **Hard 11 vs Ace.** v1 ships with "always double 11," including vs. dealer Ace — the simpler, widely-taught rule, and what the spec's spot-check tests assert. Some published S17/no-surrender charts instead say Hit vs. Ace for hard 11. TODO: (1) when rule sets become configurable (see "Multiple/selectable rule sets" in the out-of-scope list), make this cell configurable rather than hardcoded; (2) verify which hard-11-vs-Ace play the user's workplace's official chart uses, and default the trainer to match it.
