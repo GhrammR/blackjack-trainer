@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { Card } from '../types'
-import { createShoe, shuffle } from '../lib/shoe'
+import { SHOE_SIZE_OPTIONS, createShoe, shuffle } from '../lib/shoe'
 import { type DealtRound, cardSlotAt, cardsPerRound, dealRound } from '../lib/countingDrill'
 import { runningCount } from '../lib/counting'
+import { signed } from '../lib/format'
 import { PlayingCard } from './PlayingCard'
 
 /** Fixed for this drill — not exposed as a setting yet (only shoe size and speed are, per spec step 3). */
 const SEAT_COUNT = 4
 const SPEED_OPTIONS = [1, 2, 3, 4] as const
-const SHOE_SIZE_OPTIONS = [1, 2, 4, 6, 8] as const
 
 type Phase = 'idle' | 'dealing' | 'guessing' | 'feedback'
 
@@ -97,8 +97,6 @@ export function RunningCountDrill() {
       else visibleDealerCards.push(round.dealerCards[slot.cardIndex])
     }
   }
-
-  const signed = (n: number) => (n >= 0 ? `+${n}` : `${n}`)
 
   return (
     <div className="flex flex-col items-center gap-6 px-4 py-10">
