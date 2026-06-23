@@ -170,16 +170,30 @@ Build in vertical slices so the app always runs. **Deploy the empty shell on day
 
 ## 10. v2 stretch — Card Counting Trainer (ONLY after v1 is deployed and done)
 
-A second mode/tab. Directly relevant to counting players down on the floor. Still fully client-side, zero API cost.
+A second mode/tab. Still fully client-side, zero API cost.
+
+**Framing — this is the whole point of difference.** This trainer is built from the **surveillance / observer side**, not the player side. The user is casino surveillance learning to count players down in review and eventually live — not a player learning to beat the house. Every drill should be designed around what an observer watching a table (or reviewing footage) needs to do: track counts across multiple seats at once, estimate deck depth without being handed the number, and ultimately judge *other people's* play for advantage signals. This is different from a typical player-side counting trainer and should shape drill design choices throughout, not just the headline detection drill.
 
 - **Hi-Lo values:** 2–6 = +1 · 7–9 = 0 · 10/J/Q/K/A = −1.
-- **Drills:**
-  - **Running-count stream:** cards flash at an adjustable speed (cards/sec); user keeps the running count; quiz "what's the count?" on pause or at intervals; grade.
-  - **Deck countdown:** flip through a full 52-card deck as fast as possible; the final running count must be 0; time the run (classic speed drill).
-  - **True count:** given "X decks remaining" (shown, or estimated by the user from a discard-tray visual), quiz `trueCount = runningCount / decksRemaining` (rounded).
-- **Progression:** increasing speed/difficulty; track accuracy, speed, and personal-best countdown times; persist via localStorage.
 
-Gate this behind a working, deployed v1. Do not start it before §8 step 10 is complete.
+### Build sequence (v2)
+
+Same vertical-slice discipline as §8: build, verify, and deploy at each step, one at a time, stopping for verification before moving on.
+
+1. `lib/counting.ts` — Hi-Lo card values + running-count + true-count math, with spot-check unit tests (2-6=+1, 7-9=0, 10/J/Q/K/A=-1).
+2. Navigation shell — tab/toggle in `App.tsx` between "Strategy Trainer" and "Card Counting." Deploy the empty shell.
+3. Running-count drill, dealt as a realistic **observer-seat table** — cards go out to multiple player seats plus the dealer each round, and the user keeps the running count across the whole round from the surveillance vantage point (not single abstract flashing cards). Adjustable speed, configurable shoe size, and mistake feedback (show the actual count and where they likely drifted).
+4. True-count drill with **deck estimation** — show a discard-tray / remaining-cards visual and make the user estimate decks remaining, then compute `trueCount = runningCount / decksRemaining`. Don't gift the decks-remaining number. Feedback on both the estimate and the math.
+5. Shoe countdown speed drill — flip the full shoe as fast as possible, final count must hit 0, timed with personal-best tracking. (The bridge toward counting live.)
+6. Settings + reset + persistence — a lean settings panel for drill speed, counting system, and shoe size; a "reset progress" button with a confirm step; personal bests; progression; extend `persistence.ts`. Do **not** add full strategy rule-set configuration here — that's deferred to a later pass.
+7. Polish + README update — document the v2 counting mode, redeploy.
+
+**Hold until steps 1-7 ship and are verified — do not weave these into the core:**
+
+8. **Counter-detection drill (the headline differentiator).** Show a player's bet spread across a shoe alongside the true-count progression, and have the user judge whether the player's betting correlates with the count and whether they're making count-dependent strategy deviations. This trains the actual surveillance skill of spotting advantage players. Build it as its own phase.
+9. **(Future depth) Index plays / Illustrious 18** — true-count-dependent strategy deviations that connect the v1 strategy engine with the v2 counting engine, and are also relevant to detection since skilled counters use deviations.
+
+Gate the start of step 1 behind a working, deployed v1. Do not start it before §8 step 10 is complete.
 
 ---
 
