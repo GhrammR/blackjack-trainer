@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Action, Card } from '../types'
 import { ALL_SITUATION_KEYS, generateHand } from '../lib/handGenerator'
 import { getAction } from '../lib/strategy'
 import { type Stats, recordResult, selectNextSituation } from '../lib/adaptiveEngine'
+import { loadState, saveState } from '../lib/persistence'
 import { HandDisplay } from './HandDisplay'
 import { ActionButtons } from './ActionButtons'
 import { Feedback } from './Feedback'
@@ -25,10 +26,15 @@ interface Result {
 }
 
 export function StrategyTrainer() {
-  const [stats, setStats] = useState<Stats>({})
-  const [handsPlayed, setHandsPlayed] = useState(0)
-  const [round, setRound] = useState<Round>(() => buildRound({}))
+  const [persisted] = useState(() => loadState())
+  const [stats, setStats] = useState<Stats>(persisted.stats)
+  const [handsPlayed, setHandsPlayed] = useState(persisted.handsPlayed)
+  const [round, setRound] = useState<Round>(() => buildRound(persisted.stats))
   const [result, setResult] = useState<Result | null>(null)
+
+  useEffect(() => {
+    saveState({ stats, handsPlayed })
+  }, [stats, handsPlayed])
 
   function handleSelect(action: Action) {
     if (result) return
