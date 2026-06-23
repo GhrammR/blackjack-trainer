@@ -4,7 +4,7 @@ An adaptive blackjack basic-strategy trainer: it finds your weakest decisions an
 
 ![Screenshot of the trainer mid-session, showing the streak/accuracy panel, a dealt hand, and the weakness heatmap](docs/screenshot.png)
 
-**Live demo:** _add your deployed URL here_
+**Live demo:** https://blackjack-trainer-gules.vercel.app/
 
 ## Stack
 
