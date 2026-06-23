@@ -3,10 +3,11 @@ import { runningCount, trueCount } from './counting'
 
 /**
  * True-count drill (v2 step 4): the user is handed a running count directly
- * (live counting is step 3/5's job, not this drill's) and must estimate
- * decks remaining from a discard-tray visual, then compute the true count
- * from their own estimate. See CLAUDE.md §10 step 4 and §11 for the
- * deliberate scope boundary vs. the "Option B" capstone mode.
+ * (live counting is step 3/5's job, not this drill's). The discard tray
+ * shows decks PLAYED, so that's the estimated quantity; decks remaining is
+ * always derived from it via decksRemainingFromPlayedEstimate, never asked
+ * for directly. See CLAUDE.md §10 step 4 and §11 (including the
+ * played-vs-remaining bug fix and the "Option B" capstone scope boundary).
  */
 
 export const HALF_DECK = 26
@@ -25,7 +26,7 @@ export interface TrueCountScenario {
   /** 0-1, how far into the shoe this scenario sits — drives the tray's fill height. */
   dealtFraction: number
   runningCount: number
-  actualDecksRemaining: number
+  actualDecksPlayed: number
 }
 
 /**
@@ -49,29 +50,67 @@ export function generateTrueCountScenario(shoe: Card[], random: () => number = M
     cardsDealt,
     dealtFraction: cardsDealt / totalCards,
     runningCount: runningCount(dealtCards),
-    actualDecksRemaining: (totalCards - cardsDealt) / 52,
+    actualDecksPlayed: cardsDealt / 52,
   }
+}
+
+/** The subtraction step, named and tested on its own so it's a visible, teachable part of the chain. */
+export function decksRemainingFromPlayedEstimate(numDecks: number, playedEstimate: number): number {
+  return numDecks - playedEstimate
 }
 
 export interface EstimateGrade {
   isGood: boolean
-  /** estimate - actual; positive means they overestimated decks remaining. */
+  /** estimate - actual; positive means they overestimated decks played. */
   delta: number
 }
 
-export function gradeEstimate(estimate: number, actualDecksRemaining: number): EstimateGrade {
-  const delta = estimate - actualDecksRemaining
+/** Generic delta/tolerance check — doesn't care whether the figures are "played" or "remaining." */
+export function gradeEstimate(estimate: number, actual: number): EstimateGrade {
+  const delta = estimate - actual
   return { isGood: Math.abs(delta) <= DECK_ESTIMATE_TOLERANCE, delta }
 }
 
 export interface MathGrade {
   isCorrect: boolean
-  /** What the true count should be, given the user's OWN estimate (not the actual deck count). */
+  /** What the true count should be, given the decks-remaining figure passed in. */
   expected: number
 }
 
-/** Grades the division/rounding step against the user's own estimate, isolating it from estimation accuracy. */
-export function gradeTrueCountMath(runningCountValue: number, estimate: number, submitted: number): MathGrade {
-  const expected = trueCount(runningCountValue, estimate)
+/** Grades the division/rounding step against whatever decks-remaining figure the caller supplies. */
+export function gradeTrueCountMath(runningCountValue: number, decksRemaining: number, submitted: number): MathGrade {
+  const expected = trueCount(runningCountValue, decksRemaining)
   return { isCorrect: submitted === expected, expected }
+}
+
+export type DifficultyLevel = 'beginner' | 'intermediate' | 'expert'
+export const DIFFICULTY_LEVELS: DifficultyLevel[] = ['beginner', 'intermediate', 'expert']
+
+export interface TickMark {
+  /** 0-1, position from the bottom (0 decks played) to the top (the full shoe played). */
+  fraction: number
+  label?: string
+}
+
+/**
+ * Calibration tick marks for the discard tray, by difficulty tier:
+ * beginner = labeled whole-deck ticks + unlabeled half-deck ticks,
+ * intermediate = labeled whole-deck ticks only, expert = none.
+ * See CLAUDE.md §11 for why this exact 3-tier split was chosen.
+ */
+export function tickMarks(numDecks: number, difficulty: DifficultyLevel): TickMark[] {
+  if (difficulty === 'expert') return []
+
+  const ticks: TickMark[] = []
+  for (let wholeDeck = 1; wholeDeck < numDecks; wholeDeck++) {
+    ticks.push({ fraction: wholeDeck / numDecks, label: String(wholeDeck) })
+  }
+
+  if (difficulty === 'beginner') {
+    for (let halfDeck = 1; halfDeck < numDecks * 2; halfDeck += 2) {
+      ticks.push({ fraction: halfDeck / (numDecks * 2) })
+    }
+  }
+
+  return ticks.sort((a, b) => a.fraction - b.fraction)
 }
