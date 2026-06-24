@@ -28,6 +28,11 @@ function row(overrides: Partial<Record<DealerUpcardKey, Action>>, fallback: Acti
 }
 
 export const hardTotals: Record<number, Record<DealerUpcardKey, Action>> = {
+  // Only reachable via getHardSoftAction/getHardSoftSituationKey on a dealt
+  // 2-2 (the only 2-card combo totaling less than 5) — getAction() always
+  // routes actual pairs through the pairs table first, so this entry is
+  // never consulted there. Always Hit, matching the 5-8 band's pattern.
+  4: row({}, 'Hit'),
   5: row({}, 'Hit'),
   6: row({}, 'Hit'),
   7: row({}, 'Hit'),
@@ -51,6 +56,12 @@ export const hardTotals: Record<number, Record<DealerUpcardKey, Action>> = {
 }
 
 export const softTotals: Record<number, Record<DealerUpcardKey, Action>> = {
+  // Only reachable via getHardSoftAction/getHardSoftSituationKey on a dealt
+  // A-A (one ace as 11, one as 1) — getAction() always routes actual pairs
+  // through the pairs table first (which always splits aces), so this entry
+  // is never consulted there. Always Hit, the simple/safe default for a
+  // never-split-aces edge case basic strategy doesn't otherwise define.
+  12: row({}, 'Hit'),
   13: row({ '5': 'Double', '6': 'Double' }, 'Hit'),
   14: row({ '5': 'Double', '6': 'Double' }, 'Hit'),
   15: row({ '4': 'Double', '5': 'Double', '6': 'Double' }, 'Hit'),
@@ -101,6 +112,27 @@ export function getSituationKey(playerHand: Card[], dealerUpcard: Card): string 
     return `pair-${pairRankKey(playerHand[0])}-vs-${dKey}`
   }
 
+  const { total, soft } = handValue(playerHand)
+  return `${soft ? 'soft' : 'hard'}-${total}-vs-${dKey}`
+}
+
+/**
+ * Like getAction, but always resolves via the hard/soft total tables even
+ * when the hand is a pair (i.e. never consults the pairs table / never
+ * returns Split). Used by simulations that don't model player-side
+ * splitting (v2 step 8's counter-detection drill) so a dealt pair is played
+ * — and graded against — its hard/soft total consistently, rather than
+ * spuriously looking like a deviation just because it didn't split.
+ */
+export function getHardSoftAction(playerHand: Card[], dealerUpcard: Card): Action {
+  const dKey = dealerUpcardKey(dealerUpcard)
+  const { total, soft } = handValue(playerHand)
+  return soft ? softTotals[total][dKey] : hardTotals[total][dKey]
+}
+
+/** The getSituationKey counterpart to getHardSoftAction — always "hard-X-vs-Y" or "soft-X-vs-Y", never a pair key. */
+export function getHardSoftSituationKey(playerHand: Card[], dealerUpcard: Card): string {
+  const dKey = dealerUpcardKey(dealerUpcard)
   const { total, soft } = handValue(playerHand)
   return `${soft ? 'soft' : 'hard'}-${total}-vs-${dKey}`
 }

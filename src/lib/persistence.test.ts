@@ -78,6 +78,7 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
     trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
     shoeCountdown: { personalBests: {} },
+    detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
   },
 }
 
@@ -109,13 +110,14 @@ describe('loadCountingState', () => {
 })
 
 describe('saveCountingState / loadCountingState round trip', () => {
-  it('persists settings and progress, including shoe countdown personal bests', () => {
+  it('persists settings and progress, including shoe countdown personal bests and detection sessions', () => {
     const state: CountingState = {
       settings: { numDecks: 1, seatCount: 2, cardsPerSecond: 4 },
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
         shoeCountdown: { personalBests: { 1: 12000, 6: 45000 } },
+        detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
       },
     }
     saveCountingState(state)
@@ -131,6 +133,7 @@ describe('resetCountingProgress', () => {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
         shoeCountdown: { personalBests: { 8: 99000 } },
+        detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
       },
     }
     expect(resetCountingProgress(state)).toEqual({

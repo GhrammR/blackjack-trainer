@@ -3,9 +3,10 @@ import { TabButton } from './TabButton'
 import { RunningCountDrill } from './RunningCountDrill'
 import { TrueCountDrill } from './TrueCountDrill'
 import { ShoeCountdownDrill } from './ShoeCountdownDrill'
+import { DetectionDrill } from './DetectionDrill'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
 
-type DrillTab = 'running' | 'true' | 'countdown'
+type DrillTab = 'running' | 'true' | 'countdown' | 'detection'
 
 interface CardCountingTrainerProps {
   settings: CountingSettings
@@ -34,6 +35,9 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         <TabButton active={tab === 'countdown'} onClick={() => setTab('countdown')}>
           Shoe Countdown
         </TabButton>
+        <TabButton active={tab === 'detection'} onClick={() => setTab('detection')}>
+          Counter Detection
+        </TabButton>
       </nav>
       {tab === 'running' && (
         <RunningCountDrill
@@ -58,6 +62,13 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
           personalBests={progress.shoeCountdown.personalBests}
           onPersonalBestsChange={(personalBests) => onProgressChange({ ...progress, shoeCountdown: { personalBests } })}
           isPaused={isPaused}
+        />
+      )}
+      {tab === 'detection' && (
+        <DetectionDrill
+          numDecks={settings.numDecks}
+          initialProgress={progress.detection}
+          onProgressChange={(detection) => onProgressChange({ ...progress, detection })}
         />
       )}
     </div>

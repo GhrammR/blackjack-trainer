@@ -69,6 +69,7 @@ export interface CountingProgress {
   runningCount: { roundsPlayed: number; roundsCorrect: number }
   trueCount: { roundsPlayed: number; goodEstimates: number; correctMath: number }
   shoeCountdown: { personalBests: PersonalBests }
+  detection: { sessionsPlayed: number; sessionsCorrect: number }
 }
 
 export interface CountingState {
@@ -86,6 +87,7 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
   trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
   shoeCountdown: { personalBests: {} },
+  detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
 }
 
 const DEFAULT_COUNTING_STATE: CountingState = {
@@ -114,6 +116,7 @@ function parseProgress(raw: unknown): CountingProgress {
   const rc = (r.runningCount ?? {}) as Record<string, unknown>
   const tc = (r.trueCount ?? {}) as Record<string, unknown>
   const sc = (r.shoeCountdown ?? {}) as Record<string, unknown>
+  const dt = (r.detection ?? {}) as Record<string, unknown>
   const personalBests = sc.personalBests
 
   return {
@@ -128,6 +131,10 @@ function parseProgress(raw: unknown): CountingProgress {
     },
     shoeCountdown: {
       personalBests: isRecordOfNumbers(personalBests) ? (personalBests as PersonalBests) : {},
+    },
+    detection: {
+      sessionsPlayed: typeof dt.sessionsPlayed === 'number' ? dt.sessionsPlayed : 0,
+      sessionsCorrect: typeof dt.sessionsCorrect === 'number' ? dt.sessionsCorrect : 0,
     },
   }
 }

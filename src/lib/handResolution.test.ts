@@ -1,0 +1,102 @@
+import { describe, expect, it } from 'vitest'
+import type { Card, Rank } from '../types'
+import { resolveDealerHand, resolvePlayerHand } from './handResolution'
+import { COUNTER_PROFILES, FLAT_PROFILE } from './playerProfiles'
+
+const c = (rank: Rank): Card => ({ rank })
+
+function queueDrawer(cards: Card[]): () => Card {
+  const queue = [...cards]
+  return () => {
+    const next = queue.shift()
+    if (!next) throw new Error('drawCard called more times than expected')
+    return next
+  }
+}
+
+describe('resolvePlayerHand', () => {
+  it('plays basic strategy straight when no index play is indicated', () => {
+    const result = resolvePlayerHand([c('10'), c('6')], c('9'), COUNTER_PROFILES.beginner, 0, queueDrawer([c('5')]))
+    expect(result.basicAction).toBe('Hit') // hard 16 vs 9
+    expect(result.initialAction).toBe('Hit')
+    expect(result.deviated).toBe(false)
+    expect(result.deviationType).toBeNull()
+    expect(result.actions).toEqual(['Hit', 'Stand']) // 16 -> draw 5 -> 21 -> Stand
+    expect(result.cards).toEqual([c('10'), c('6'), c('5')])
+  })
+
+  it('applies an index-play deviation when indicated and the compliance roll succeeds', () => {
+    const drawCard = () => {
+      throw new Error('should not draw — Stand never draws')
+    }
+    const result = resolvePlayerHand([c('10'), c('6')], c('10'), COUNTER_PROFILES.beginner, 0, drawCard, () => 0)
+    expect(result.situationKey).toBe('hard-16-vs-10')
+    expect(result.basicAction).toBe('Hit')
+    expect(result.initialAction).toBe('Stand')
+    expect(result.deviated).toBe(true)
+    expect(result.deviationType).toBe('index')
+  })
+
+  it('does not apply the deviation when the compliance roll fails, even though one is indicated', () => {
+    // intermediate has deviationComplianceRate 0.7; force the roll to fail, falling back to basic strategy (Hit, which draws).
+    const result = resolvePlayerHand([c('10'), c('6')], c('10'), COUNTER_PROFILES.intermediate, 0, queueDrawer([c('5')]), () => 0.99)
+    expect(result.initialAction).toBe('Hit')
+    expect(result.deviated).toBe(false)
+    expect(result.deviationType).toBeNull()
+  })
+
+  it('applies a Hit<->Stand cover deviation when nothing is indicated and the cover roll succeeds', () => {
+    const result = resolvePlayerHand([c('10'), c('3')], c('2'), COUNTER_PROFILES.expert, 0, queueDrawer([c('8')]), () => 0)
+    expect(result.basicAction).toBe('Stand') // hard 13 vs 2
+    expect(result.initialAction).toBe('Hit')
+    expect(result.deviated).toBe(true)
+    expect(result.deviationType).toBe('cover')
+  })
+
+  it('never deviates for a flat (non-counting) profile, even at a high true count', () => {
+    const result = resolvePlayerHand([c('10'), c('6')], c('10'), FLAT_PROFILE, 5, queueDrawer([c('5')]), () => 0)
+    expect(result.initialAction).toBe('Hit')
+    expect(result.deviated).toBe(false)
+  })
+
+  it('doubles by drawing exactly one card and stopping', () => {
+    const result = resolvePlayerHand([c('6'), c('5')], c('6'), FLAT_PROFILE, 0, queueDrawer([c('9')]))
+    expect(result.basicAction).toBe('Double') // hard 11 vs anything
+    expect(result.initialAction).toBe('Double')
+    expect(result.cards).toEqual([c('6'), c('5'), c('9')])
+    expect(result.actions).toEqual(['Double'])
+  })
+
+  it('plays a dealt pair via the hard/soft total, not the pairs table (no player-side split)', () => {
+    const result = resolvePlayerHand([c('8'), c('8')], c('10'), FLAT_PROFILE, 0, queueDrawer([c('5')]))
+    expect(result.situationKey).toBe('hard-16-vs-10')
+    expect(result.basicAction).toBe('Hit') // not "Split"
+  })
+
+  it('stops hitting on bust without consulting strategy again', () => {
+    const result = resolvePlayerHand([c('10'), c('6')], c('9'), FLAT_PROFILE, 0, queueDrawer([c('K')]))
+    expect(result.busted).toBe(true)
+    expect(result.cards).toEqual([c('10'), c('6'), c('K')])
+  })
+})
+
+describe('resolveDealerHand', () => {
+  it('hits until reaching 17 or more', () => {
+    const result = resolveDealerHand(c('10'), c('6'), queueDrawer([c('5')]))
+    expect(result.cards).toEqual([c('10'), c('6'), c('5')])
+    expect(result.busted).toBe(false)
+  })
+
+  it('stands on soft 17, never hitting', () => {
+    const result = resolveDealerHand(c('A'), c('6'), () => {
+      throw new Error('should not draw on soft 17')
+    })
+    expect(result.cards).toEqual([c('A'), c('6')])
+    expect(result.busted).toBe(false)
+  })
+
+  it('busts when a hit pushes the total over 21', () => {
+    const result = resolveDealerHand(c('10'), c('6'), queueDrawer([c('K')]))
+    expect(result.busted).toBe(true)
+  })
+})

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getAction, getSituationKey } from './strategy'
+import { getAction, getHardSoftAction, getHardSoftSituationKey, getSituationKey } from './strategy'
 import type { Card, Rank } from '../types'
 
 const c = (rank: Rank): Card => ({ rank })
@@ -50,5 +50,31 @@ describe('getSituationKey', () => {
   it('builds pair keys, bucketing face cards as 10', () => {
     expect(getSituationKey([c('8'), c('8')], c('10'))).toBe('pair-8-vs-10')
     expect(getSituationKey([c('K'), c('Q')], c('5'))).toBe('pair-10-vs-5')
+  })
+})
+
+describe('getHardSoftAction / getHardSoftSituationKey', () => {
+  it('resolves a pair via the hard-total table instead of Split, unlike getAction', () => {
+    expect(getAction([c('8'), c('8')], c('10'))).toBe('Split')
+    expect(getHardSoftAction([c('8'), c('8')], c('10'))).toBe('Hit') // hard 16 vs 10, per the existing spot-check above
+  })
+
+  it('matches getAction/getSituationKey exactly for non-pair hands', () => {
+    expect(getHardSoftAction([c('10'), c('6')], c('10'))).toBe(getAction([c('10'), c('6')], c('10')))
+    expect(getHardSoftSituationKey([c('A'), c('7')], c('9'))).toBe(getSituationKey([c('A'), c('7')], c('9')))
+  })
+
+  it('never returns a pair key, even for a dealt pair', () => {
+    expect(getHardSoftSituationKey([c('8'), c('8')], c('10'))).toBe('hard-16-vs-10')
+  })
+
+  it('handles 2-2 (hard 4, below the normal hard-total table minimum of 5) without throwing', () => {
+    expect(getHardSoftAction([c('2'), c('2')], c('6'))).toBe('Hit')
+    expect(getHardSoftSituationKey([c('2'), c('2')], c('6'))).toBe('hard-4-vs-6')
+  })
+
+  it('handles A-A (soft 12, below the normal soft-total table minimum of 13) without throwing', () => {
+    expect(getHardSoftAction([c('A'), c('A')], c('6'))).toBe('Hit')
+    expect(getHardSoftSituationKey([c('A'), c('A')], c('6'))).toBe('soft-12-vs-6')
   })
 })
