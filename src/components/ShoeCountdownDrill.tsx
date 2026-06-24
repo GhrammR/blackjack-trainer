@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Card } from '../types'
 import { SHOE_SIZE_OPTIONS, createShoe, shuffle } from '../lib/shoe'
 import { runningCount } from '../lib/counting'
-import { type PersonalBests, updatePersonalBest } from '../lib/shoeCountdown'
+import { type PersonalBests, pickStopIndex, updatePersonalBest } from '../lib/shoeCountdown'
 import { formatSeconds } from '../lib/format'
 import { PlayingCard } from './PlayingCard'
 
@@ -11,6 +11,7 @@ type Phase = 'idle' | 'running' | 'finished'
 interface RunFeedback {
   isCorrect: boolean
   answer: number
+  actual: number
   elapsedMs: number
   isNewBest: boolean
 }
@@ -19,6 +20,7 @@ export function ShoeCountdownDrill() {
   const [numDecks, setNumDecks] = useState(6)
   const [phase, setPhase] = useState<Phase>('idle')
   const [shoe, setShoe] = useState<Card[]>([])
+  const [stopIndex, setStopIndex] = useState(0)
   const [revealedCount, setRevealedCount] = useState(0)
   const [startTime, setStartTime] = useState<number | null>(null)
   const [elapsedMs, setElapsedMs] = useState<number | null>(null)
@@ -27,7 +29,9 @@ export function ShoeCountdownDrill() {
   const [personalBests, setPersonalBests] = useState<PersonalBests>({})
 
   function start() {
-    setShoe(shuffle(createShoe(numDecks)))
+    const newShoe = shuffle(createShoe(numDecks))
+    setShoe(newShoe)
+    setStopIndex(pickStopIndex(newShoe.length))
     setRevealedCount(1)
     setStartTime(performance.now())
     setElapsedMs(null)
@@ -43,7 +47,7 @@ export function ShoeCountdownDrill() {
   }
 
   function advance() {
-    if (revealedCount < shoe.length) {
+    if (revealedCount < stopIndex) {
       setRevealedCount((n) => n + 1)
     } else {
       finishRun()
@@ -71,7 +75,7 @@ export function ShoeCountdownDrill() {
   function submit() {
     if (elapsedMs === null) return
     const answer = Number(countAnswer)
-    const actual = runningCount(shoe)
+    const actual = runningCount(shoe.slice(0, stopIndex))
     const isCorrect = answer === actual
 
     let isNewBest = false
@@ -81,7 +85,7 @@ export function ShoeCountdownDrill() {
       setPersonalBests(updated)
     }
 
-    setFeedback({ isCorrect, answer, elapsedMs, isNewBest })
+    setFeedback({ isCorrect, answer, actual, elapsedMs, isNewBest })
   }
 
   function backToIdle() {
@@ -115,8 +119,9 @@ export function ShoeCountdownDrill() {
             Personal best: {personalBest !== undefined ? formatSeconds(personalBest) : '—'}
           </p>
           <p className="max-w-xs text-center text-xs text-slate-500">
-            Flip every card in the shoe as fast as you can, keeping a running count in your head. The count must come
-            back to exactly 0 for a full shoe.
+            Flip cards as fast as you can, keeping a running count in your head. The deal stops at an unpredictable
+            point — you won't know when, so the count has to be right the whole way, not just guessed at the end.
+            1 deck is a quick speed rep; a full multi-deck shoe is the endurance test.
           </p>
           <button
             type="button"
@@ -130,9 +135,7 @@ export function ShoeCountdownDrill() {
 
       {phase === 'running' && currentCard && (
         <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-slate-400">
-            Card {revealedCount} of {shoe.length}
-          </p>
+          <p className="text-sm text-slate-400">Card {revealedCount}</p>
           <PlayingCard card={currentCard} suitIndex={revealedCount} />
           <button
             type="button"
@@ -176,14 +179,14 @@ export function ShoeCountdownDrill() {
       {feedback && (
         <div className="flex flex-col items-center gap-2 text-center">
           <p className={`text-lg font-semibold ${feedback.isCorrect ? 'text-emerald-400' : 'text-red-400'}`}>
-            {feedback.isCorrect ? 'Correct — count came back to 0!' : `Off — you said ${feedback.answer}, should be 0`}
+            {feedback.isCorrect ? 'Correct!' : `Off — you said ${feedback.answer}, actual count was ${feedback.actual}`}
           </p>
           <p className="text-slate-300">Time: {formatSeconds(feedback.elapsedMs)}</p>
           {feedback.isNewBest && <p className="font-semibold text-amber-300">New personal best!</p>}
           {!feedback.isCorrect && (
             <p className="max-w-xs text-xs text-slate-500">
-              A full shoe always nets to 0 — a non-zero answer means a card got missed or miscounted somewhere along
-              the way.
+              The deal stopped at a random point, so the count couldn't be guessed in advance — it had to be tracked
+              the whole way.
             </p>
           )}
           <button
