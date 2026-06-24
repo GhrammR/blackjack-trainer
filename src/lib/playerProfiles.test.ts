@@ -30,12 +30,12 @@ describe('profile presets', () => {
 describe('computeBet', () => {
   it('returns the base unit below the spread threshold, with zero noise at the midpoint random draw', () => {
     const result = computeBet(COUNTER_PROFILES.beginner, -5, () => 0.5)
-    expect(result).toEqual({ units: 1, isCoverBet: false })
+    expect(result).toEqual({ units: 1, isCoverBet: false, isElevatedBet: false })
   })
 
-  it('jumps to the higher step once the true count meets the threshold (boundary-exact)', () => {
-    expect(computeBet(COUNTER_PROFILES.beginner, 1, () => 0.5)).toEqual({ units: 1, isCoverBet: false })
-    expect(computeBet(COUNTER_PROFILES.beginner, 2, () => 0.5)).toEqual({ units: 8, isCoverBet: false })
+  it('jumps to the higher step once the true count meets the threshold (boundary-exact), and that jump is flagged as an elevated (real) bet', () => {
+    expect(computeBet(COUNTER_PROFILES.beginner, 1, () => 0.5)).toEqual({ units: 1, isCoverBet: false, isElevatedBet: false })
+    expect(computeBet(COUNTER_PROFILES.beginner, 2, () => 0.5)).toEqual({ units: 8, isCoverBet: false, isElevatedBet: true })
   })
 
   it('never triggers a cover bet when coverBetRate is 0, regardless of the random draw', () => {
@@ -43,10 +43,16 @@ describe('computeBet', () => {
     expect(computeBet(COUNTER_PROFILES.beginner, 5, () => 0).isCoverBet).toBe(false)
   })
 
-  it('can trigger a cover bet that picks a different step than the count indicates', () => {
+  it('can trigger a cover bet that picks a different step than the count indicates, and a cover bet is never flagged as elevated', () => {
     const result = computeBet(COUNTER_PROFILES.expert, -5, () => 0)
     expect(result.isCoverBet).toBe(true)
     expect(result.units).not.toBe(1) // the indicated (uncamouflaged) base unit at TC -5
+    expect(result.isElevatedBet).toBe(false) // camouflage is designed not to look like a tell
+  })
+
+  it('a flat (single-step) profile is never flagged as an elevated bet, at any true count', () => {
+    expect(computeBet(FLAT_PROFILE, -10, () => 0.5).isElevatedBet).toBe(false)
+    expect(computeBet(FLAT_PROFILE, 10, () => 0.5).isElevatedBet).toBe(false)
   })
 
   it('clamps the final bet at a minimum of 1 unit even under maximum negative noise', () => {

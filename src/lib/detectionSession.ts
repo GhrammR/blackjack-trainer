@@ -41,6 +41,7 @@ export interface RoundRecord {
   trueCountAtBet: number
   bet: number
   isCoverBet: boolean
+  isElevatedBet: boolean
   initialPlayerHand: Card[]
   finalPlayerHand: Card[]
   dealerUpcard: Card
@@ -83,7 +84,7 @@ export function dealSession(shoe: Card[], difficulty: DetectionDifficulty, rando
     if (shoe.length - position < SHOE_SAFETY_MARGIN) break
 
     const trueCountAtBet = trueCount(count, (shoe.length - position) / 52)
-    const { units: bet, isCoverBet } = computeBet(profile, trueCountAtBet, random)
+    const { units: bet, isCoverBet, isElevatedBet } = computeBet(profile, trueCountAtBet, random)
 
     const initialPlayerHand = [drawAndCount(), drawAndCount()]
     const dealerUpcard = drawAndCount()
@@ -100,6 +101,7 @@ export function dealSession(shoe: Card[], difficulty: DetectionDifficulty, rando
       trueCountAtBet,
       bet,
       isCoverBet,
+      isElevatedBet,
       initialPlayerHand,
       finalPlayerHand: playerResult.cards,
       dealerUpcard,

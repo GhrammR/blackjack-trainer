@@ -80,6 +80,7 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     shoeCountdown: { personalBests: {} },
     detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
+    evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
   },
 }
 
@@ -120,6 +121,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
         shoeCountdown: { personalBests: { 1: 12000, 6: 45000 } },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
+        evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
       },
     }
     saveCountingState(state)
@@ -137,6 +139,7 @@ describe('resetCountingProgress', () => {
         shoeCountdown: { personalBests: { 8: 99000 } },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
+        evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
       },
     }
     expect(resetCountingProgress(state)).toEqual({

@@ -93,11 +93,21 @@ export interface ComputedBet {
   units: number
   /** True when this round's bet deliberately ignored the step function as camouflage. */
   isCoverBet: boolean
+  /**
+   * True when the count-indicated step (before any cover-bet override) was above the
+   * profile's base step — i.e. a real, uncamouflaged bet-size tell. Used by the
+   * evidence-flagging drill (step 8 slice 3) as part of its ground truth for "this round
+   * is evidence": a cover bet deliberately picks a *different* step than indicated, so it
+   * is never elevated by this definition even if that different step happens to be higher
+   * than base — camouflage is designed to not look like a tell.
+   */
+  isElevatedBet: boolean
 }
 
 /** Computes a round's bet from the profile and the true count as of the start of the round (before this round's cards are dealt). */
 export function computeBet(profile: PlayerProfile, trueCountAtBet: number, random: () => number = Math.random): ComputedBet {
   const indicated = baseBetUnits(profile.betSpread, trueCountAtBet)
+  const isElevatedBet = indicated > profile.betSpread[0].units
 
   let units = indicated
   let isCoverBet = false
@@ -112,5 +122,5 @@ export function computeBet(profile: PlayerProfile, trueCountAtBet: number, rando
   const noise = (random() * 2 - 1) * profile.betNoiseUnits
   units = Math.max(1, Math.round(units + noise))
 
-  return { units, isCoverBet }
+  return { units, isCoverBet, isElevatedBet: isElevatedBet && !isCoverBet }
 }

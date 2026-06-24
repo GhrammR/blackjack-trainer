@@ -90,6 +90,7 @@ export function dealMultiPlayerSession(
         trueCountAtBet,
         bet: bets[s].units,
         isCoverBet: bets[s].isCoverBet,
+        isElevatedBet: bets[s].isElevatedBet,
         initialPlayerHand: hands[s],
         finalPlayerHand: result.cards,
         dealerUpcard,

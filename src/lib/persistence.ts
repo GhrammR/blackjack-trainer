@@ -71,6 +71,7 @@ export interface CountingProgress {
   shoeCountdown: { personalBests: PersonalBests }
   detection: { sessionsPlayed: number; sessionsCorrect: number }
   tableScan: { sessionsPlayed: number; sessionsCorrect: number }
+  evidence: { sessionsPlayed: number; sessionsCorrect: number }
 }
 
 export interface CountingState {
@@ -90,6 +91,7 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   shoeCountdown: { personalBests: {} },
   detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
   tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
+  evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
 }
 
 const DEFAULT_COUNTING_STATE: CountingState = {
@@ -120,6 +122,7 @@ function parseProgress(raw: unknown): CountingProgress {
   const sc = (r.shoeCountdown ?? {}) as Record<string, unknown>
   const dt = (r.detection ?? {}) as Record<string, unknown>
   const ts = (r.tableScan ?? {}) as Record<string, unknown>
+  const ev = (r.evidence ?? {}) as Record<string, unknown>
   const personalBests = sc.personalBests
 
   return {
@@ -142,6 +145,10 @@ function parseProgress(raw: unknown): CountingProgress {
     tableScan: {
       sessionsPlayed: typeof ts.sessionsPlayed === 'number' ? ts.sessionsPlayed : 0,
       sessionsCorrect: typeof ts.sessionsCorrect === 'number' ? ts.sessionsCorrect : 0,
+    },
+    evidence: {
+      sessionsPlayed: typeof ev.sessionsPlayed === 'number' ? ev.sessionsPlayed : 0,
+      sessionsCorrect: typeof ev.sessionsCorrect === 'number' ? ev.sessionsCorrect : 0,
     },
   }
 }
