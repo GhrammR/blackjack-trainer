@@ -40,7 +40,7 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress }: 
           </select>
         </label>
         <label className="flex items-center justify-between gap-2 text-slate-300">
-          Seats (Running Count)
+          Seats (Running Count, Table Scan)
           <select
             value={settings.seatCount}
             onChange={(e) => onSettingsChange({ ...settings, seatCount: Number(e.target.value) })}
