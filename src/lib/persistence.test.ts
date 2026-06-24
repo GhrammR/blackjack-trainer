@@ -81,6 +81,7 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
+    evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
   },
 }
 
@@ -109,6 +110,15 @@ describe('loadCountingState', () => {
     )
     expect(loadCountingState().progress.shoeCountdown.personalBests).toEqual({})
   })
+
+  it('rejects non-number evasion personal bests, defaulting to null instead of throwing', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({ progress: { evasion: { sessionsPlayed: 3, bestEdgeCapturedPct: 'great', lowestHeat: 'none' } } }),
+    )
+    const evasion = loadCountingState().progress.evasion
+    expect(evasion).toEqual({ sessionsPlayed: 3, bestEdgeCapturedPct: null, lowestHeat: null })
+  })
 })
 
 describe('saveCountingState / loadCountingState round trip', () => {
@@ -122,6 +132,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
+        evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
       },
     }
     saveCountingState(state)
@@ -140,6 +151,7 @@ describe('resetCountingProgress', () => {
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
+        evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
       },
     }
     expect(resetCountingProgress(state)).toEqual({

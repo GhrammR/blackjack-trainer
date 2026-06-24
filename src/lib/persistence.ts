@@ -72,6 +72,8 @@ export interface CountingProgress {
   detection: { sessionsPlayed: number; sessionsCorrect: number }
   tableScan: { sessionsPlayed: number; sessionsCorrect: number }
   evidence: { sessionsPlayed: number; sessionsCorrect: number }
+  /** No single "correct" outcome here (it's a continuous heat/edge trade-off, not a verdict) — tracked as lifetime sessions plus personal bests instead, same pattern as Shoe Countdown. */
+  evasion: { sessionsPlayed: number; bestEdgeCapturedPct: number | null; lowestHeat: number | null }
 }
 
 export interface CountingState {
@@ -92,6 +94,7 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
   tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
   evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
+  evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
 }
 
 const DEFAULT_COUNTING_STATE: CountingState = {
@@ -123,6 +126,7 @@ function parseProgress(raw: unknown): CountingProgress {
   const dt = (r.detection ?? {}) as Record<string, unknown>
   const ts = (r.tableScan ?? {}) as Record<string, unknown>
   const ev = (r.evidence ?? {}) as Record<string, unknown>
+  const ea = (r.evasion ?? {}) as Record<string, unknown>
   const personalBests = sc.personalBests
 
   return {
@@ -149,6 +153,11 @@ function parseProgress(raw: unknown): CountingProgress {
     evidence: {
       sessionsPlayed: typeof ev.sessionsPlayed === 'number' ? ev.sessionsPlayed : 0,
       sessionsCorrect: typeof ev.sessionsCorrect === 'number' ? ev.sessionsCorrect : 0,
+    },
+    evasion: {
+      sessionsPlayed: typeof ea.sessionsPlayed === 'number' ? ea.sessionsPlayed : 0,
+      bestEdgeCapturedPct: typeof ea.bestEdgeCapturedPct === 'number' ? ea.bestEdgeCapturedPct : null,
+      lowestHeat: typeof ea.lowestHeat === 'number' ? ea.lowestHeat : null,
     },
   }
 }

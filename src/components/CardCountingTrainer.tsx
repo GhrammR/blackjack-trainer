@@ -6,9 +6,10 @@ import { ShoeCountdownDrill } from './ShoeCountdownDrill'
 import { DetectionDrill } from './DetectionDrill'
 import { TableScanDrill } from './TableScanDrill'
 import { EvidenceDrill } from './EvidenceDrill'
+import { EvasionDrill } from './EvasionDrill'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
 
-type DrillTab = 'running' | 'true' | 'countdown' | 'detection' | 'tableScan' | 'evidence'
+type DrillTab = 'running' | 'true' | 'countdown' | 'detection' | 'tableScan' | 'evidence' | 'evasion'
 
 interface CardCountingTrainerProps {
   settings: CountingSettings
@@ -45,6 +46,9 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         </TabButton>
         <TabButton active={tab === 'evidence'} onClick={() => setTab('evidence')}>
           Evidence Flagging
+        </TabButton>
+        <TabButton active={tab === 'evasion'} onClick={() => setTab('evasion')}>
+          Evasion
         </TabButton>
       </nav>
       {tab === 'running' && (
@@ -92,6 +96,13 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
           numDecks={settings.numDecks}
           initialProgress={progress.evidence}
           onProgressChange={(evidence) => onProgressChange({ ...progress, evidence })}
+        />
+      )}
+      {tab === 'evasion' && (
+        <EvasionDrill
+          numDecks={settings.numDecks}
+          initialProgress={progress.evasion}
+          onProgressChange={(evasion) => onProgressChange({ ...progress, evasion })}
         />
       )}
     </div>

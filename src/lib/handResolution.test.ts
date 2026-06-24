@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Card, Rank } from '../types'
-import { resolveDealerHand, resolvePlayerHand } from './handResolution'
+import { resolveDealerHand, resolvePlayerHand, resolvePlayerHandWithAction } from './handResolution'
 import { COUNTER_PROFILES, FLAT_PROFILE } from './playerProfiles'
 
 const c = (rank: Rank): Card => ({ rank })
@@ -77,6 +77,58 @@ describe('resolvePlayerHand', () => {
     const result = resolvePlayerHand([c('10'), c('6')], c('9'), FLAT_PROFILE, 0, queueDrawer([c('K')]))
     expect(result.busted).toBe(true)
     expect(result.cards).toEqual([c('10'), c('6'), c('K')])
+  })
+})
+
+describe('resolvePlayerHandWithAction — the user-driven mirror used by the evasion drill (step 8 slice 4)', () => {
+  it('classifies a chosen action matching basic strategy as no deviation', () => {
+    const result = resolvePlayerHandWithAction([c('10'), c('6')], c('9'), 0, 'Hit', queueDrawer([c('5')]))
+    expect(result.basicAction).toBe('Hit') // hard 16 vs 9
+    expect(result.initialAction).toBe('Hit')
+    expect(result.deviated).toBe(false)
+    expect(result.deviationType).toBeNull()
+  })
+
+  it('classifies a chosen action matching the indicated index play as "index"', () => {
+    const drawCard = () => {
+      throw new Error('should not draw — Stand never draws')
+    }
+    const result = resolvePlayerHandWithAction([c('10'), c('6')], c('10'), 0, 'Stand', drawCard)
+    expect(result.situationKey).toBe('hard-16-vs-10') // index play: Stand at TC>=0
+    expect(result.basicAction).toBe('Hit')
+    expect(result.initialAction).toBe('Stand')
+    expect(result.deviated).toBe(true)
+    expect(result.deviationType).toBe('index')
+  })
+
+  it('classifies a chosen action that deviates from basic strategy without matching an indicated play as "cover"', () => {
+    // hard 13 vs 2 -> basic Stand; nothing indicated at TC 0; user chooses Hit anyway.
+    const result = resolvePlayerHandWithAction([c('10'), c('3')], c('2'), 0, 'Hit', queueDrawer([c('8')]))
+    expect(result.basicAction).toBe('Stand')
+    expect(result.initialAction).toBe('Hit')
+    expect(result.deviated).toBe(true)
+    expect(result.deviationType).toBe('cover')
+  })
+
+  it('classifies a chosen action that diverges from both basic strategy and an indicated play as "cover", not "index"', () => {
+    // hard 16 vs 10 -> basic Hit, index says Stand at TC>=0; user instead chooses Double (neither).
+    const result = resolvePlayerHandWithAction([c('10'), c('6')], c('10'), 0, 'Double', queueDrawer([c('5')]))
+    expect(result.basicAction).toBe('Hit')
+    expect(result.initialAction).toBe('Double')
+    expect(result.deviated).toBe(true)
+    expect(result.deviationType).toBe('cover')
+  })
+
+  it('still resolves subsequent cards via plain basic strategy after a Hit, same as the profile-driven path', () => {
+    const result = resolvePlayerHandWithAction([c('10'), c('6')], c('9'), 0, 'Hit', queueDrawer([c('5')]))
+    expect(result.actions).toEqual(['Hit', 'Stand']) // 16 -> draw 5 -> 21 -> Stand
+    expect(result.cards).toEqual([c('10'), c('6'), c('5')])
+  })
+
+  it('doubles by drawing exactly one card and stopping', () => {
+    const result = resolvePlayerHandWithAction([c('6'), c('5')], c('6'), 0, 'Double', queueDrawer([c('9')]))
+    expect(result.cards).toEqual([c('6'), c('5'), c('9')])
+    expect(result.actions).toEqual(['Double'])
   })
 })
 

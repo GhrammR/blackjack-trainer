@@ -81,7 +81,8 @@ export const COUNTER_PROFILES: Record<DetectionDifficulty, PlayerProfile> = {
   },
 }
 
-function baseBetUnits(betSpread: BetSpreadStep[], trueCountAtBet: number): number {
+/** Exported for the evasion drill's baseline scoring (step 8 slice 4), which needs the same step-function logic to compute a reference bet for a given true count without going through a full PlayerProfile. */
+export function baseBetUnits(betSpread: BetSpreadStep[], trueCountAtBet: number): number {
   let units = betSpread[0].units
   for (const step of betSpread) {
     if (trueCountAtBet >= step.minTrueCount) units = step.units

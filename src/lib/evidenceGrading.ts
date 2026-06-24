@@ -11,8 +11,13 @@ import type { RoundRecord } from './detectionSession'
  * and cover deviations are deliberately excluded: they're the player's own
  * camouflage, designed to not look like a tell, so flagging them would be a
  * false positive in real surveillance terms too — confirmed with the user.
+ *
+ * Takes the minimal structural shape rather than the full `RoundRecord` so
+ * the evasion drill's own round records (step 8 slice 4, which has no
+ * `PlayerProfile` and therefore no `isCoverBet`/`bet` fields shaped exactly
+ * like `RoundRecord`'s) can reuse this same classifier unchanged.
  */
-export function isEvidenceRound(round: RoundRecord): boolean {
+export function isEvidenceRound(round: { isElevatedBet: boolean; deviationType: 'index' | 'cover' | null }): boolean {
   return round.isElevatedBet || round.deviationType === 'index'
 }
 

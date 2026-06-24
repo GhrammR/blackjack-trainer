@@ -30,6 +30,43 @@ export interface PlayerHandResult {
   busted: boolean
 }
 
+/** Shared tail end of hand resolution once the initial action is already decided — by a profile's dice rolls (`resolvePlayerHand`) or by a user's explicit choice (`resolvePlayerHandWithAction`, step 8 slice 4). */
+function resolveFromInitialAction(
+  initialCards: Card[],
+  dealerUpcard: Card,
+  situationKey: string,
+  basicAction: Action,
+  initialAction: Action,
+  deviationType: PlayerHandResult['deviationType'],
+  drawCard: () => Card,
+): PlayerHandResult {
+  const cards = [...initialCards]
+  const actions: Action[] = [initialAction]
+
+  if (initialAction === 'Double') {
+    cards.push(drawCard())
+  } else if (initialAction === 'Hit') {
+    let current: Action = initialAction
+    while (current === 'Hit' && !isBust(cards)) {
+      cards.push(drawCard())
+      if (isBust(cards)) break
+      current = getHardSoftAction(cards, dealerUpcard)
+      actions.push(current)
+    }
+  }
+
+  return {
+    cards,
+    actions,
+    situationKey,
+    basicAction,
+    initialAction,
+    deviated: initialAction !== basicAction,
+    deviationType,
+    busted: isBust(cards),
+  }
+}
+
 /**
  * `drawCard` deals the next card from the shoe (and is expected to advance
  * the shoe position / running count as a side effect — this function is
@@ -59,31 +96,33 @@ export function resolvePlayerHand(
     deviationType = 'cover'
   }
 
-  const cards = [...initialCards]
-  const actions: Action[] = [initialAction]
+  return resolveFromInitialAction(initialCards, dealerUpcard, situationKey, basicAction, initialAction, deviationType, drawCard)
+}
 
-  if (initialAction === 'Double') {
-    cards.push(drawCard())
-  } else if (initialAction === 'Hit') {
-    let current: Action = initialAction
-    while (current === 'Hit' && !isBust(cards)) {
-      cards.push(drawCard())
-      if (isBust(cards)) break
-      current = getHardSoftAction(cards, dealerUpcard)
-      actions.push(current)
-    }
-  }
+/**
+ * The evasion drill's mirror of `resolvePlayerHand` (step 8 slice 4): the
+ * initial action is supplied directly by the user instead of rolled from a
+ * `PlayerProfile`'s compliance/cover rates. `deviationType` is derived the
+ * same way it would have come out of the profile-driven path: 'index' if
+ * the chosen action matches what the count actually indicates, 'cover' if
+ * it differs from basic strategy without matching an indicated play, null
+ * if it's just basic strategy played straight.
+ */
+export function resolvePlayerHandWithAction(
+  initialCards: Card[],
+  dealerUpcard: Card,
+  trueCountAtDecision: number,
+  chosenAction: Action,
+  drawCard: () => Card,
+): PlayerHandResult {
+  const situationKey = getHardSoftSituationKey(initialCards, dealerUpcard)
+  const basicAction = getHardSoftAction(initialCards, dealerUpcard)
+  const indexPlay = indicatedDeviation(situationKey, trueCountAtDecision)
 
-  return {
-    cards,
-    actions,
-    situationKey,
-    basicAction,
-    initialAction,
-    deviated: initialAction !== basicAction,
-    deviationType,
-    busted: isBust(cards),
-  }
+  const deviationType: PlayerHandResult['deviationType'] =
+    chosenAction === basicAction ? null : indexPlay && chosenAction === indexPlay.deviateTo ? 'index' : 'cover'
+
+  return resolveFromInitialAction(initialCards, dealerUpcard, situationKey, basicAction, chosenAction, deviationType, drawCard)
 }
 
 export interface DealerHandResult {
