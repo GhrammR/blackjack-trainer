@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { clearState, loadState, saveState } from './persistence'
+import {
+  type CountingState,
+  clearState,
+  loadCountingState,
+  loadState,
+  resetCountingProgress,
+  saveCountingState,
+  saveState,
+} from './persistence'
 
 class MemoryStorage implements Storage {
   private store = new Map<string, string>()
@@ -61,5 +69,73 @@ describe('clearState', () => {
     saveState({ stats: {}, handsPlayed: 5, currentStreak: 5 })
     clearState()
     expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0 })
+  })
+})
+
+const DEFAULT_COUNTING_STATE: CountingState = {
+  settings: { numDecks: 6, seatCount: 4, cardsPerSecond: 2 },
+  progress: {
+    runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
+    trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
+    shoeCountdown: { personalBests: {} },
+  },
+}
+
+describe('loadCountingState', () => {
+  it('returns defaults when nothing is stored', () => {
+    expect(loadCountingState()).toEqual(DEFAULT_COUNTING_STATE)
+  })
+
+  it('returns defaults for corrupt JSON instead of throwing', () => {
+    localStorage.setItem('double-down:counting:v1', '{not json')
+    expect(loadCountingState()).toEqual(DEFAULT_COUNTING_STATE)
+  })
+
+  it('fills in missing fields from a partial object', () => {
+    localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { numDecks: 2 } }))
+    expect(loadCountingState()).toEqual({
+      settings: { numDecks: 2, seatCount: 4, cardsPerSecond: 2 },
+      progress: DEFAULT_COUNTING_STATE.progress,
+    })
+  })
+
+  it('rejects a non-object personalBests value instead of throwing', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({ progress: { shoeCountdown: { personalBests: 'not an object' } } }),
+    )
+    expect(loadCountingState().progress.shoeCountdown.personalBests).toEqual({})
+  })
+})
+
+describe('saveCountingState / loadCountingState round trip', () => {
+  it('persists settings and progress, including shoe countdown personal bests', () => {
+    const state: CountingState = {
+      settings: { numDecks: 1, seatCount: 2, cardsPerSecond: 4 },
+      progress: {
+        runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
+        trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
+        shoeCountdown: { personalBests: { 1: 12000, 6: 45000 } },
+      },
+    }
+    saveCountingState(state)
+    expect(loadCountingState()).toEqual(state)
+  })
+})
+
+describe('resetCountingProgress', () => {
+  it('resets progress to defaults while leaving settings untouched', () => {
+    const state: CountingState = {
+      settings: { numDecks: 8, seatCount: 6, cardsPerSecond: 3 },
+      progress: {
+        runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
+        trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
+        shoeCountdown: { personalBests: { 8: 99000 } },
+      },
+    }
+    expect(resetCountingProgress(state)).toEqual({
+      settings: { numDecks: 8, seatCount: 6, cardsPerSecond: 3 },
+      progress: DEFAULT_COUNTING_STATE.progress,
+    })
   })
 })

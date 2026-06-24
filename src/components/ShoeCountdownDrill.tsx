@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Card } from '../types'
-import { SHOE_SIZE_OPTIONS, createShoe, shuffle } from '../lib/shoe'
+import { createShoe, shuffle } from '../lib/shoe'
 import { runningCount } from '../lib/counting'
 import { type PersonalBests, pickStopIndex, updatePersonalBest } from '../lib/shoeCountdown'
 import { formatSeconds } from '../lib/format'
@@ -16,8 +16,13 @@ interface RunFeedback {
   isNewBest: boolean
 }
 
-export function ShoeCountdownDrill() {
-  const [numDecks, setNumDecks] = useState(6)
+interface ShoeCountdownDrillProps {
+  numDecks: number
+  personalBests: PersonalBests
+  onPersonalBestsChange: (bests: PersonalBests) => void
+}
+
+export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsChange }: ShoeCountdownDrillProps) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [shoe, setShoe] = useState<Card[]>([])
   const [stopIndex, setStopIndex] = useState(0)
@@ -26,7 +31,6 @@ export function ShoeCountdownDrill() {
   const [elapsedMs, setElapsedMs] = useState<number | null>(null)
   const [countAnswer, setCountAnswer] = useState('')
   const [feedback, setFeedback] = useState<RunFeedback | null>(null)
-  const [personalBests, setPersonalBests] = useState<PersonalBests>({})
 
   function start() {
     const newShoe = shuffle(createShoe(numDecks))
@@ -82,7 +86,7 @@ export function ShoeCountdownDrill() {
     if (isCorrect) {
       const updated = updatePersonalBest(personalBests, numDecks, elapsedMs)
       isNewBest = updated !== personalBests
-      setPersonalBests(updated)
+      onPersonalBestsChange(updated)
     }
 
     setFeedback({ isCorrect, answer, actual, elapsedMs, isNewBest })
@@ -101,20 +105,9 @@ export function ShoeCountdownDrill() {
     <div className="flex flex-col items-center gap-6 px-4 py-10">
       {phase === 'idle' && (
         <div className="flex flex-col items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            Shoe size
-            <select
-              value={numDecks}
-              onChange={(e) => setNumDecks(Number(e.target.value))}
-              className="rounded bg-slate-800 px-2 py-1 text-white"
-            >
-              {SHOE_SIZE_OPTIONS.map((d) => (
-                <option key={d} value={d}>
-                  {d} deck{d > 1 ? 's' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="text-sm text-slate-400">
+            {numDecks} deck{numDecks > 1 ? 's' : ''} (change in Settings)
+          </p>
           <p className="text-sm text-slate-400">
             Personal best: {personalBest !== undefined ? formatSeconds(personalBest) : '—'}
           </p>

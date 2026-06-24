@@ -1,13 +1,32 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TabButton } from './TabButton'
 import { RunningCountDrill } from './RunningCountDrill'
 import { TrueCountDrill } from './TrueCountDrill'
 import { ShoeCountdownDrill } from './ShoeCountdownDrill'
+import { CountingSettingsPanel } from './CountingSettingsPanel'
+import {
+  type CountingProgress,
+  type CountingSettings,
+  loadCountingState,
+  resetCountingProgress,
+  saveCountingState,
+} from '../lib/persistence'
 
-type DrillTab = 'running' | 'true' | 'countdown'
+type DrillTab = 'running' | 'true' | 'countdown' | 'settings'
 
 export function CardCountingTrainer() {
   const [tab, setTab] = useState<DrillTab>('running')
+  const [persisted] = useState(() => loadCountingState())
+  const [settings, setSettings] = useState<CountingSettings>(persisted.settings)
+  const [progress, setProgress] = useState<CountingProgress>(persisted.progress)
+
+  useEffect(() => {
+    saveCountingState({ settings, progress })
+  }, [settings, progress])
+
+  function handleResetProgress() {
+    setProgress(resetCountingProgress({ settings, progress }).progress)
+  }
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -21,10 +40,43 @@ export function CardCountingTrainer() {
         <TabButton active={tab === 'countdown'} onClick={() => setTab('countdown')}>
           Shoe Countdown
         </TabButton>
+        <TabButton active={tab === 'settings'} onClick={() => setTab('settings')}>
+          Settings
+        </TabButton>
       </nav>
-      {tab === 'running' && <RunningCountDrill />}
-      {tab === 'true' && <TrueCountDrill />}
-      {tab === 'countdown' && <ShoeCountdownDrill />}
+      {tab === 'running' && (
+        <RunningCountDrill
+          numDecks={settings.numDecks}
+          seatCount={settings.seatCount}
+          cardsPerSecond={settings.cardsPerSecond}
+          initialProgress={progress.runningCount}
+          onProgressChange={(runningCount) => setProgress((prev) => ({ ...prev, runningCount }))}
+        />
+      )}
+      {tab === 'true' && (
+        <TrueCountDrill
+          numDecks={settings.numDecks}
+          initialProgress={progress.trueCount}
+          onProgressChange={(trueCount) => setProgress((prev) => ({ ...prev, trueCount }))}
+        />
+      )}
+      {tab === 'countdown' && (
+        <ShoeCountdownDrill
+          numDecks={settings.numDecks}
+          personalBests={progress.shoeCountdown.personalBests}
+          onPersonalBestsChange={(personalBests) =>
+            setProgress((prev) => ({ ...prev, shoeCountdown: { personalBests } }))
+          }
+        />
+      )}
+      {tab === 'settings' && (
+        <CountingSettingsPanel
+          settings={settings}
+          onSettingsChange={setSettings}
+          progress={progress}
+          onResetProgress={handleResetProgress}
+        />
+      )}
     </div>
   )
 }

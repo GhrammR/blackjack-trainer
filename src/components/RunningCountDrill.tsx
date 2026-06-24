@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { Card } from '../types'
-import { SHOE_SIZE_OPTIONS, createShoe, shuffle } from '../lib/shoe'
+import { createShoe, shuffle } from '../lib/shoe'
 import { type DealtRound, cardSlotAt, cardsPerRound, dealRound } from '../lib/countingDrill'
 import { runningCount } from '../lib/counting'
 import { signed } from '../lib/format'
 import { PlayingCard } from './PlayingCard'
-
-/** Fixed for this drill — not exposed as a setting yet (only shoe size and speed are, per spec step 3). */
-const SEAT_COUNT = 4
-const SPEED_OPTIONS = [1, 2, 3, 4] as const
 
 type Phase = 'idle' | 'dealing' | 'guessing' | 'feedback'
 
@@ -20,10 +16,21 @@ interface Feedback {
   dealerDelta: number
 }
 
-export function RunningCountDrill() {
-  const [numDecks, setNumDecks] = useState(6)
-  const [cardsPerSecond, setCardsPerSecond] = useState(2)
-  const [shoe, setShoe] = useState<Card[]>(() => shuffle(createShoe(6)))
+interface RunningCountProgress {
+  roundsPlayed: number
+  roundsCorrect: number
+}
+
+interface RunningCountDrillProps {
+  numDecks: number
+  seatCount: number
+  cardsPerSecond: number
+  initialProgress: RunningCountProgress
+  onProgressChange: (progress: RunningCountProgress) => void
+}
+
+export function RunningCountDrill({ numDecks, seatCount, cardsPerSecond, initialProgress, onProgressChange }: RunningCountDrillProps) {
+  const [shoe, setShoe] = useState<Card[]>(() => shuffle(createShoe(numDecks)))
   const [position, setPosition] = useState(0)
   const [sessionCount, setSessionCount] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
@@ -31,10 +38,15 @@ export function RunningCountDrill() {
   const [revealedCount, setRevealedCount] = useState(0)
   const [guess, setGuess] = useState('')
   const [feedback, setFeedback] = useState<Feedback | null>(null)
-  const [roundsPlayed, setRoundsPlayed] = useState(0)
-  const [roundsCorrect, setRoundsCorrect] = useState(0)
+  const [roundsPlayed, setRoundsPlayed] = useState(initialProgress.roundsPlayed)
+  const [roundsCorrect, setRoundsCorrect] = useState(initialProgress.roundsCorrect)
 
-  const needed = cardsPerRound(SEAT_COUNT)
+  const needed = cardsPerRound(seatCount)
+
+  useEffect(() => {
+    onProgressChange({ roundsPlayed, roundsCorrect })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundsPlayed, roundsCorrect])
 
   function startRound() {
     let activeShoe = shoe
@@ -45,22 +57,13 @@ export function RunningCountDrill() {
       setShoe(activeShoe)
       setSessionCount(0) // a fresh shoe means a fresh running count
     }
-    const { round: newRound, nextPosition } = dealRound(activeShoe, pos, SEAT_COUNT)
+    const { round: newRound, nextPosition } = dealRound(activeShoe, pos, seatCount)
     setRound(newRound)
     setPosition(nextPosition)
     setRevealedCount(0)
     setFeedback(null)
     setGuess('')
     setPhase('dealing')
-  }
-
-  function handleShoeSizeChange(decks: number) {
-    setNumDecks(decks)
-    setShoe(shuffle(createShoe(decks)))
-    setPosition(0)
-    setSessionCount(0)
-    setRound(null)
-    setPhase('idle')
   }
 
   useEffect(() => {
@@ -88,11 +91,11 @@ export function RunningCountDrill() {
     setPhase('feedback')
   }
 
-  const visibleSeatCards: Card[][] = Array.from({ length: SEAT_COUNT }, () => [] as Card[])
+  const visibleSeatCards: Card[][] = Array.from({ length: seatCount }, () => [] as Card[])
   const visibleDealerCards: Card[] = []
   if (round) {
     for (let i = 0; i < revealedCount; i++) {
-      const slot = cardSlotAt(i, SEAT_COUNT)
+      const slot = cardSlotAt(i, seatCount)
       if (slot.type === 'seat') visibleSeatCards[slot.seat].push(round.seatCards[slot.seat][slot.cardIndex])
       else visibleDealerCards.push(round.dealerCards[slot.cardIndex])
     }
@@ -100,36 +103,11 @@ export function RunningCountDrill() {
 
   return (
     <div className="flex flex-col items-center gap-6 px-4 py-10">
-      <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-300">
-        <label className="flex items-center gap-2">
-          Shoe size
-          <select
-            value={numDecks}
-            disabled={phase !== 'idle'}
-            onChange={(e) => handleShoeSizeChange(Number(e.target.value))}
-            className="rounded bg-slate-800 px-2 py-1 text-white disabled:opacity-50"
-          >
-            {SHOE_SIZE_OPTIONS.map((d) => (
-              <option key={d} value={d}>
-                {d} deck{d > 1 ? 's' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2">
-          Speed
-          <select
-            value={cardsPerSecond}
-            onChange={(e) => setCardsPerSecond(Number(e.target.value))}
-            className="rounded bg-slate-800 px-2 py-1 text-white"
-          >
-            {SPEED_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s} cards/sec
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-400">
+        <span>
+          {numDecks} deck{numDecks > 1 ? 's' : ''} · {seatCount} seat{seatCount > 1 ? 's' : ''} · {cardsPerSecond} cards/sec
+          (change in Settings)
+        </span>
         <span>Cards left in shoe: {shoe.length - position}</span>
       </div>
 

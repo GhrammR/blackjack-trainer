@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { SHOE_SIZE_OPTIONS, createShoe, shuffle } from '../lib/shoe'
+import { useEffect, useState } from 'react'
+import { createShoe, shuffle } from '../lib/shoe'
 import {
   type DifficultyLevel,
   type TrueCountScenario,
@@ -35,8 +35,19 @@ interface RoundFeedback {
   referenceTrueCount: number
 }
 
-export function TrueCountDrill() {
-  const [numDecks, setNumDecks] = useState(6)
+interface TrueCountProgress {
+  roundsPlayed: number
+  goodEstimates: number
+  correctMath: number
+}
+
+interface TrueCountDrillProps {
+  numDecks: number
+  initialProgress: TrueCountProgress
+  onProgressChange: (progress: TrueCountProgress) => void
+}
+
+export function TrueCountDrill({ numDecks, initialProgress, onProgressChange }: TrueCountDrillProps) {
   const [difficulty, setDifficulty] = useState<DifficultyLevel>('beginner')
   const [showScaleReference, setShowScaleReference] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
@@ -44,9 +55,14 @@ export function TrueCountDrill() {
   const [playedInput, setPlayedInput] = useState('')
   const [trueCountInput, setTrueCountInput] = useState('')
   const [feedback, setFeedback] = useState<RoundFeedback | null>(null)
-  const [roundsPlayed, setRoundsPlayed] = useState(0)
-  const [goodEstimates, setGoodEstimates] = useState(0)
-  const [correctMath, setCorrectMath] = useState(0)
+  const [roundsPlayed, setRoundsPlayed] = useState(initialProgress.roundsPlayed)
+  const [goodEstimates, setGoodEstimates] = useState(initialProgress.goodEstimates)
+  const [correctMath, setCorrectMath] = useState(initialProgress.correctMath)
+
+  useEffect(() => {
+    onProgressChange({ roundsPlayed, goodEstimates, correctMath })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundsPlayed, goodEstimates, correctMath])
 
   function newScenario() {
     const freshShoe = shuffle(createShoe(numDecks))
@@ -61,11 +77,6 @@ export function TrueCountDrill() {
     setScenario(null)
     setFeedback(null)
     setPhase('idle')
-  }
-
-  function handleShoeSizeChange(decks: number) {
-    setNumDecks(decks)
-    resetToIdle()
   }
 
   function handleDifficultyChange(level: DifficultyLevel) {
@@ -108,21 +119,9 @@ export function TrueCountDrill() {
   return (
     <div className="flex flex-col items-center gap-6 px-4 py-10">
       <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-300">
-        <label className="flex items-center gap-2">
-          Shoe size
-          <select
-            value={numDecks}
-            disabled={phase !== 'idle'}
-            onChange={(e) => handleShoeSizeChange(Number(e.target.value))}
-            className="rounded bg-slate-800 px-2 py-1 text-white disabled:opacity-50"
-          >
-            {SHOE_SIZE_OPTIONS.map((d) => (
-              <option key={d} value={d}>
-                {d} deck{d > 1 ? 's' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
+        <span className="text-slate-400">
+          {numDecks} deck{numDecks > 1 ? 's' : ''} (change in Settings)
+        </span>
         <label className="flex items-center gap-2">
           Difficulty
           <select
