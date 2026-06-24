@@ -8,6 +8,25 @@ This is a legal personal skill trainer — basic strategy and (in v2) card count
 
 ---
 
+## Build Status & Roadmap
+
+**This section is the single source of truth for "what's done and what's next."** §11 below is the detailed judgment-call history — read it for *why* something was built a certain way, not for *what's left*. Update this checklist every time a slice ships or a sequencing decision changes.
+
+- ✅ **v1 — Strategy Trainer.** All of §8 steps 1-10. Shipped, deployed, public repo + README.
+- ✅ **v2 core — Card Counting Trainer, §10 steps 1-7.** Hi-Lo counting math, Running Count drill, True Count drill, Shoe Countdown (including the random-stop exploit fix), settings/reset/persistence, README update.
+- ✅ **Step 7.5 — Global settings modal + unified reset.** Settings lifted to `App.tsx`, accessible from both tabs via a header modal; independent Reset Strategy / Reset Counting / Reset Everything; pause-on-open for the two time-sensitive mechanics (Running Count's deal timer, Shoe Countdown's stopwatch).
+- ✅ **Step 8, slice 1 — Counter-detection drill: single-player binary verdict (Option A).** `playerProfiles.ts`, `indexPlays.ts`, `handResolution.ts`, `detectionSession.ts`, `DetectionDrill.tsx`. Three difficulty tiers (beginner/intermediate/expert), full hand + dealer resolution with correct hole-card timing, no player-side split.
+- ▶️ **Step 8, slice 2 — Multi-player table scan (Option C). NEXT.** Identify which seat (of several) is counting, reusing slice 1's per-player engine unchanged — N independent `PlayerProfile` instances dealt in parallel instead of one.
+- ⏳ **Step 8, slice 3 — Evidence-flagging (Option B). LATER.** Mark specific suspicious rounds rather than (or alongside) an overall verdict; deferred because the ground-truth grading for "which rounds count as evidence" still needs design work.
+- ⏳ **Step 8, slice 4 — Evasion mirror. LATER.** Player-side camouflage trainer reusing the same `PlayerProfile` model, inverted: the user makes the bet/deviation choices instead of judging them. Build after slices 2 and 3.
+- ⏳ **Step 9 — Index plays / Illustrious 18 (full set). LATER.** Connects v1's strategy engine with v2's counting engine; the four-entry representative set in `indexPlays.ts` was deliberately *not* this — see §11.
+- ⏳ **Future phases (§10 steps 10-12). LATER, no fixed order yet.**
+  - Step 10 — Live Play capstone (full engine integration: play + count + bet sizing as one continuous task).
+  - Step 11 — Realistic table layout (felt, seats, dealer position, shoe rack).
+  - Step 12 — **"Live Count Worksheet"** (operational mode, not a training drill) — gated behind a PII/compliance review with the user's director and casino IT before any real player data can be stored. See §10 step 12 and the related §11 roadmap-capture notes.
+
+---
+
 ## 1. Scope discipline
 
 **In scope for v1:**
@@ -239,7 +258,7 @@ Gate the start of step 1 behind a working, deployed v1. Do not start it before �
   - **The dealer always plays out their hand to completion, even if the player busted.** Decided (not a user-confirmed fork, just a sensible default) because slice 1 only simulates one seat, but a real table usually has others — always resolving the dealer's hand keeps the shoe's count-progression realistic for what a multi-seat table would actually look like, and avoids bust hands producing a shorter/different count trajectory that could become an inadvertent tell unrelated to the modeled ones.
   - **Session length: ~25 rounds (confirmed), but only a ceiling, not a guarantee.** `SESSION_ROUNDS = 25` in `detectionSession.ts`. An average round consumes ~5-6 cards, so 25 rounds needs more than a 1-2 deck shoe reliably has — `generateDetectionSession` clamps to at least `MIN_DECKS_FOR_SESSION = 4` decks regardless of the shared `numDecks` setting (so a user who set a small shoe size for the speed drills doesn't get a starved detection session), and a `SHOE_SAFETY_MARGIN` stops the session early and gracefully if the shoe still runs low.
   - **Correlation coefficient dropped from the primary feedback (confirmed).** The bet-vs-count visualization (the bar chart, color-coded by true-count sign) is the teaching tool; no literal correlation number is computed or shown, since headlining one risks training people to hunt a statistic instead of reading the pattern the way real surveillance actually does it.
-  - **Detection mechanic: single-player binary verdict shipped first (Option A); multi-player table scan (Option C) and evidence-flagging (Option B) explicitly deferred, in that order — evasion mirror deferred further still, as its own later slice within step 8, after both.** All confirmed sequencing from the planning discussion; not built in this slice.
+  - **Detection mechanic choice: single-player binary verdict (Option A) over evidence-flagging (Option B) or a multi-player table scan (Option C) for this first slice.** Chosen because it's the true minimum end-to-end engine + mechanic — every later slice reuses this same per-player engine unchanged. See the Build Status & Roadmap section above for the current slice sequencing; not duplicated here so this note doesn't go stale as slices ship.
   - **No player-side Split.** A dealt pair is played via its hard/soft total (new `getHardSoftAction`/`getHardSoftSituationKey` in `strategy.ts`, which always skip the pairs table) rather than splitting — multi-hand bookkeeping isn't worth it for a feature whose signal is bet size and Hit/Stand/Double deviations, none of which are pair-based.
   - **Two real correctness bugs caught by this addition, fixed in `strategy.ts`'s tables themselves, not worked around:** `hardTotals` only defined totals 5-21 and `softTotals` only 13-21, because `getAction()` always routes an actual pair through the pairs table first, so hard total 4 (2-2) and soft total 12 (A-A) were never reachable before. `getHardSoftAction`/`getHardSoftSituationKey` deliberately skip that pairs routing, surfacing both gaps immediately as crashes in `detectionSession.test.ts`. Fixed by adding `hardTotals[4]` and `softTotals[12]` (both "always Hit" — the simple, safe default for these never-split-aces/twos edge cases), with spot-check regression tests in `strategy.test.ts`. Purely additive — `getAction()` never reads these keys, so v1's existing correctness tests are untouched.
   - **`dealSession` is split out from `generateDetectionSession`** specifically so tests can hand it a fully controlled, hand-built shoe (not just a real shuffled one) and assert exact counting/timing behavior — this is how the hole-card-exposure-timing nuance above gets a precise unit test instead of just statistical confidence from many random runs.
