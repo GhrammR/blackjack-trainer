@@ -82,6 +82,7 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
+    indexPlays: { attempts: 0, correct: 0 },
   },
 }
 
@@ -133,6 +134,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
+        indexPlays: { attempts: 20, correct: 15 },
       },
     }
     saveCountingState(state)
@@ -152,6 +154,7 @@ describe('resetCountingProgress', () => {
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
+        indexPlays: { attempts: 20, correct: 15 },
       },
     }
     expect(resetCountingProgress(state)).toEqual({
