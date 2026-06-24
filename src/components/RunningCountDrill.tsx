@@ -27,9 +27,17 @@ interface RunningCountDrillProps {
   cardsPerSecond: number
   initialProgress: RunningCountProgress
   onProgressChange: (progress: RunningCountProgress) => void
+  isPaused: boolean
 }
 
-export function RunningCountDrill({ numDecks, seatCount, cardsPerSecond, initialProgress, onProgressChange }: RunningCountDrillProps) {
+export function RunningCountDrill({
+  numDecks,
+  seatCount,
+  cardsPerSecond,
+  initialProgress,
+  onProgressChange,
+  isPaused,
+}: RunningCountDrillProps) {
   const [shoe, setShoe] = useState<Card[]>(() => shuffle(createShoe(numDecks)))
   const [position, setPosition] = useState(0)
   const [sessionCount, setSessionCount] = useState(0)
@@ -47,6 +55,15 @@ export function RunningCountDrill({ numDecks, seatCount, cardsPerSecond, initial
     onProgressChange({ roundsPlayed, roundsCorrect })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundsPlayed, roundsCorrect])
+
+  // Resyncs local counters when progress changes externally (e.g. a reset
+  // from the global settings panel while this drill is mounted). A no-op on
+  // the round-trip after this component's own onProgressChange call above,
+  // since initialProgress will already match by the time it fires.
+  useEffect(() => {
+    setRoundsPlayed(initialProgress.roundsPlayed)
+    setRoundsCorrect(initialProgress.roundsCorrect)
+  }, [initialProgress])
 
   function startRound() {
     let activeShoe = shoe
@@ -67,14 +84,14 @@ export function RunningCountDrill({ numDecks, seatCount, cardsPerSecond, initial
   }
 
   useEffect(() => {
-    if (phase !== 'dealing' || !round) return
+    if (phase !== 'dealing' || !round || isPaused) return
     if (revealedCount >= round.dealOrder.length) {
       setPhase('guessing')
       return
     }
     const timer = setTimeout(() => setRevealedCount((n) => n + 1), 1000 / cardsPerSecond)
     return () => clearTimeout(timer)
-  }, [phase, round, revealedCount, cardsPerSecond])
+  }, [phase, round, revealedCount, cardsPerSecond, isPaused])
 
   function submitGuess() {
     if (!round) return

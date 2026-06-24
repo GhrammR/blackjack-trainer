@@ -64,6 +64,14 @@ export function TrueCountDrill({ numDecks, initialProgress, onProgressChange }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roundsPlayed, goodEstimates, correctMath])
 
+  // Resyncs local counters when progress changes externally (e.g. a reset
+  // from the global settings panel while this drill is mounted).
+  useEffect(() => {
+    setRoundsPlayed(initialProgress.roundsPlayed)
+    setGoodEstimates(initialProgress.goodEstimates)
+    setCorrectMath(initialProgress.correctMath)
+  }, [initialProgress])
+
   function newScenario() {
     const freshShoe = shuffle(createShoe(numDecks))
     setScenario(generateTrueCountScenario(freshShoe))

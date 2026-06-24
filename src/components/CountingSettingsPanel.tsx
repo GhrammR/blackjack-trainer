@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { SHOE_SIZE_OPTIONS } from '../lib/shoe'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
 import { formatSeconds } from '../lib/format'
@@ -10,7 +9,6 @@ interface CountingSettingsPanelProps {
   settings: CountingSettings
   onSettingsChange: (settings: CountingSettings) => void
   progress: CountingProgress
-  onResetProgress: () => void
 }
 
 function accuracyLabel(correct: number, attempts: number): string {
@@ -18,20 +16,13 @@ function accuracyLabel(correct: number, attempts: number): string {
   return `${Math.round((correct / attempts) * 100)}%`
 }
 
-export function CountingSettingsPanel({ settings, onSettingsChange, progress, onResetProgress }: CountingSettingsPanelProps) {
-  const [confirmingReset, setConfirmingReset] = useState(false)
-
+export function CountingSettingsPanel({ settings, onSettingsChange, progress }: CountingSettingsPanelProps) {
   const personalBestEntries = Object.entries(progress.shoeCountdown.personalBests)
     .map(([decks, ms]) => [Number(decks), ms] as const)
     .sort((a, b) => a[0] - b[0])
 
-  function handleReset() {
-    onResetProgress()
-    setConfirmingReset(false)
-  }
-
   return (
-    <div className="flex w-full max-w-md flex-col items-center gap-8 px-4 py-10">
+    <div className="flex w-full flex-col items-center gap-8">
       <section className="flex w-full flex-col gap-3 rounded-lg bg-slate-800/50 p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Settings</h2>
         <label className="flex items-center justify-between gap-2 text-slate-300">
@@ -107,41 +98,6 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress, on
             </ul>
           )}
         </div>
-      </section>
-
-      <section className="flex w-full flex-col items-center gap-3">
-        {!confirmingReset ? (
-          <button
-            type="button"
-            onClick={() => setConfirmingReset(true)}
-            className="rounded-md bg-red-900/60 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-900"
-          >
-            Reset progress
-          </button>
-        ) : (
-          <div className="flex flex-col items-center gap-2 text-center">
-            <p className="max-w-xs text-sm text-red-300">
-              This clears all counting personal bests and round history. Settings (shoe size, seats, speed) are kept.
-              This cannot be undone.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
-              >
-                Confirm reset
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmingReset(false)}
-                className="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-600"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </section>
     </div>
   )

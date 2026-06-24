@@ -1,16 +1,69 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StrategyTrainer } from './components/StrategyTrainer'
 import { CardCountingTrainer } from './components/CardCountingTrainer'
 import { TabButton } from './components/TabButton'
+import { GlobalSettingsModal } from './components/GlobalSettingsModal'
+import {
+  type CountingProgress,
+  clearState,
+  loadCountingState,
+  loadState,
+  resetCountingProgress,
+  saveCountingState,
+} from './lib/persistence'
+import { lifetimeAccuracy } from './lib/mastery'
 
 type Tab = 'strategy' | 'counting'
 
 function App() {
   const [tab, setTab] = useState<Tab>('strategy')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [strategyResetKey, setStrategyResetKey] = useState(0)
+  const [counting, setCounting] = useState(() => loadCountingState())
+
+  useEffect(() => {
+    saveCountingState(counting)
+  }, [counting])
+
+  function handleProgressChange(progress: CountingProgress) {
+    setCounting((prev) => ({ ...prev, progress }))
+  }
+
+  function handleResetStrategy() {
+    clearState()
+    setStrategyResetKey((k) => k + 1)
+  }
+
+  function handleResetCounting() {
+    setCounting((prev) => resetCountingProgress(prev))
+  }
+
+  function handleResetAll() {
+    handleResetStrategy()
+    handleResetCounting()
+  }
+
+  const strategySnapshot = (() => {
+    const persisted = loadState()
+    return {
+      handsPlayed: persisted.handsPlayed,
+      currentStreak: persisted.currentStreak,
+      lifetimeAccuracy: lifetimeAccuracy(persisted.stats).accuracy,
+    }
+  })()
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <h1 className="pt-10 text-center text-4xl font-semibold">Double Down</h1>
+      <header className="relative pt-10">
+        <h1 className="text-center text-4xl font-semibold">Double Down</h1>
+        <button
+          type="button"
+          onClick={() => setSettingsOpen(true)}
+          className="absolute right-4 top-4 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
+        >
+          ⚙ Settings
+        </button>
+      </header>
       <nav className="mt-6 flex justify-center gap-2">
         <TabButton active={tab === 'strategy'} onClick={() => setTab('strategy')}>
           Strategy Trainer
@@ -19,7 +72,28 @@ function App() {
           Card Counting
         </TabButton>
       </nav>
-      {tab === 'strategy' ? <StrategyTrainer /> : <CardCountingTrainer />}
+      {tab === 'strategy' ? (
+        <StrategyTrainer key={strategyResetKey} />
+      ) : (
+        <CardCountingTrainer
+          settings={counting.settings}
+          progress={counting.progress}
+          onProgressChange={handleProgressChange}
+          isPaused={settingsOpen}
+        />
+      )}
+      {settingsOpen && (
+        <GlobalSettingsModal
+          onClose={() => setSettingsOpen(false)}
+          countingSettings={counting.settings}
+          onCountingSettingsChange={(settings) => setCounting((prev) => ({ ...prev, settings }))}
+          countingProgress={counting.progress}
+          strategySnapshot={strategySnapshot}
+          onResetStrategy={handleResetStrategy}
+          onResetCounting={handleResetCounting}
+          onResetAll={handleResetAll}
+        />
+      )}
     </div>
   )
 }

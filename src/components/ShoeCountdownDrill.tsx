@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Card } from '../types'
 import { createShoe, shuffle } from '../lib/shoe'
 import { runningCount } from '../lib/counting'
@@ -20,9 +20,10 @@ interface ShoeCountdownDrillProps {
   numDecks: number
   personalBests: PersonalBests
   onPersonalBestsChange: (bests: PersonalBests) => void
+  isPaused: boolean
 }
 
-export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsChange }: ShoeCountdownDrillProps) {
+export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsChange, isPaused }: ShoeCountdownDrillProps) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [shoe, setShoe] = useState<Card[]>([])
   const [stopIndex, setStopIndex] = useState(0)
@@ -31,6 +32,10 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
   const [elapsedMs, setElapsedMs] = useState<number | null>(null)
   const [countAnswer, setCountAnswer] = useState('')
   const [feedback, setFeedback] = useState<RunFeedback | null>(null)
+
+  /** Total time spent paused so far this run, and when the current pause (if any) began. Refs because neither needs to trigger a render. */
+  const pausedMsRef = useRef(0)
+  const pauseStartedAtRef = useRef<number | null>(null)
 
   function start() {
     const newShoe = shuffle(createShoe(numDecks))
@@ -42,13 +47,30 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
     setCountAnswer('')
     setFeedback(null)
     setPhase('running')
+    pausedMsRef.current = 0
+    pauseStartedAtRef.current = null
   }
 
   function finishRun() {
     if (startTime === null) return
-    setElapsedMs(performance.now() - startTime)
+    let totalPaused = pausedMsRef.current
+    if (pauseStartedAtRef.current !== null) {
+      // Defensive: close out an unclosed pause segment rather than undercount it.
+      totalPaused += performance.now() - pauseStartedAtRef.current
+    }
+    setElapsedMs(performance.now() - startTime - totalPaused)
     setPhase('finished')
   }
+
+  useEffect(() => {
+    if (phase !== 'running') return
+    if (isPaused) {
+      pauseStartedAtRef.current = performance.now()
+    } else if (pauseStartedAtRef.current !== null) {
+      pausedMsRef.current += performance.now() - pauseStartedAtRef.current
+      pauseStartedAtRef.current = null
+    }
+  }, [isPaused, phase])
 
   function advance() {
     if (revealedCount < stopIndex) {
@@ -64,7 +86,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
   }
 
   useEffect(() => {
-    if (phase !== 'running') return
+    if (phase !== 'running' || isPaused) return
     function handleKeyDown(e: KeyboardEvent) {
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault()
@@ -74,7 +96,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, revealedCount, shoe])
+  }, [phase, revealedCount, shoe, isPaused])
 
   function submit() {
     if (elapsedMs === null) return
