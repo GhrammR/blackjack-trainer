@@ -30,6 +30,11 @@ export function CardCountingTrainer() {
 
   return (
     <div className="flex flex-col items-center gap-2">
+      <p className="mt-6 max-w-md text-center text-sm text-slate-400">
+        Trained from the surveillance side, not the player's: you're counting tables down from the observer's seat —
+        across multiple hands at once, estimating deck depth without being handed the number — the way casino
+        surveillance actually works a shoe, not how a player works one.
+      </p>
       <nav className="mt-4 flex flex-wrap justify-center gap-2">
         <TabButton active={tab === 'running'} onClick={() => setTab('running')}>
           Running Count
