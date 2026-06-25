@@ -7,6 +7,8 @@ import {
   type LivePlaySessionState,
   type LiveRound,
   type PlayHand,
+  BET_TIERS,
+  correctBetUnits,
   dealRound,
   decide,
   decksRemaining,
@@ -20,7 +22,7 @@ import {
 import { PlayingCard, HiddenCard } from './PlayingCard'
 import { ActionButtons } from './ActionButtons'
 
-type Phase = 'idle' | 'deciding' | 'roundComplete' | 'countCheck'
+type Phase = 'idle' | 'betting' | 'deciding' | 'roundComplete' | 'countCheck'
 
 interface LastDecision {
   chosenAction: Action
@@ -35,6 +37,12 @@ interface CountFeedback {
   trueCountActual: number
 }
 
+interface BetFeedback {
+  guess: number
+  correctUnits: number
+  trueCountAtBet: number
+}
+
 interface LivePlayProgress {
   playAttempts: number
   playCorrect: number
@@ -42,6 +50,8 @@ interface LivePlayProgress {
   countCorrect: number
   trueCountAttempts: number
   trueCountCorrect: number
+  betAttempts: number
+  betCorrect: number
 }
 
 interface LivePlayDrillProps {
@@ -115,6 +125,8 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
   const [countGuess, setCountGuess] = useState('')
   const [trueCountGuess, setTrueCountGuess] = useState('')
   const [countFeedback, setCountFeedback] = useState<CountFeedback | null>(null)
+  const [pendingTrueCountForBet, setPendingTrueCountForBet] = useState(0)
+  const [betFeedback, setBetFeedback] = useState<BetFeedback | null>(null)
   const [progress, setProgress] = useState(initialProgress)
 
   useEffect(() => {
@@ -136,11 +148,16 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
     setCountGuess('')
     setTrueCountGuess('')
     setCountFeedback(null)
+    setBetFeedback(null)
     setPhase('deciding')
   }
 
   function start() {
-    dealNextRound(startLivePlaySession(numDecks))
+    const newSession = startLivePlaySession(numDecks)
+    setSession(newSession)
+    setPendingTrueCountForBet(0)
+    setBetFeedback(null)
+    setPhase('betting')
   }
 
   function choose(action: Action) {
@@ -183,7 +200,24 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
     }))
   }
 
-  function nextHand() {
+  function continueToBetting() {
+    if (!countFeedback) return
+    setPendingTrueCountForBet(countFeedback.trueCountActual)
+    setBetFeedback(null)
+    setPhase('betting')
+  }
+
+  function chooseBet(units: number) {
+    const correctUnits = correctBetUnits(pendingTrueCountForBet)
+    setBetFeedback({ guess: units, correctUnits, trueCountAtBet: pendingTrueCountForBet })
+    setProgress((prev) => ({
+      ...prev,
+      betAttempts: prev.betAttempts + 1,
+      betCorrect: prev.betCorrect + (units === correctUnits ? 1 : 0),
+    }))
+  }
+
+  function dealAfterBet() {
     if (!session) return
     dealNextRound(session)
   }
@@ -195,13 +229,15 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
       <p className="max-w-md text-center text-sm text-slate-400">
         Play full hands against the dealer using basic strategy, while keeping your own running count in your head —
         nothing is shown live. Once per hand, right before the next deal, you'll be shown the decks remaining and
-        asked for both the running count and the true count.
+        asked for both the running count and the true count. You'll then be shown that true count once more and
+        asked to size your bet for EV before the next hand is dealt.
       </p>
       <p className="text-xs text-slate-500">
         Play accuracy: {accuracyLabel(progress.playCorrect, progress.playAttempts)} ({progress.playAttempts}) · Count
         accuracy: {accuracyLabel(progress.countCorrect, progress.countAttempts)} ({progress.countAttempts}) · True
         count accuracy: {accuracyLabel(progress.trueCountCorrect, progress.trueCountAttempts)} (
-        {progress.trueCountAttempts})
+        {progress.trueCountAttempts}) · Bet accuracy: {accuracyLabel(progress.betCorrect, progress.betAttempts)} (
+        {progress.betAttempts})
       </p>
 
       {phase === 'idle' && (
@@ -331,10 +367,55 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
           </p>
           <button
             type="button"
-            onClick={nextHand}
+            onClick={continueToBetting}
             className="mt-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
           >
-            Next hand
+            Continue
+          </button>
+        </div>
+      )}
+
+      {phase === 'betting' && !betFeedback && (
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-sm text-slate-300">
+            True count entering this hand:{' '}
+            <span className="font-semibold text-white">{pendingTrueCountForBet}</span>
+          </p>
+          <p className="text-sm text-slate-400">Place your bet:</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {BET_TIERS.map((units) => (
+              <button
+                key={units}
+                type="button"
+                onClick={() => chooseBet(units)}
+                className="rounded-md bg-slate-700 px-4 py-2 font-medium text-white transition hover:bg-slate-600"
+              >
+                {units} unit{units === 1 ? '' : 's'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {phase === 'betting' && betFeedback && (
+        <div className="flex max-w-md flex-col items-center gap-2 text-center">
+          <p
+            className={`text-lg font-semibold ${betFeedback.guess === betFeedback.correctUnits ? 'text-emerald-400' : 'text-red-400'}`}
+          >
+            {betFeedback.guess === betFeedback.correctUnits
+              ? 'Correct!'
+              : `Incorrect — correct bet was ${betFeedback.correctUnits} unit${betFeedback.correctUnits === 1 ? '' : 's'}`}
+          </p>
+          <p className="text-slate-300">
+            True count was <span className="font-semibold text-white">{betFeedback.trueCountAtBet}</span>; you bet{' '}
+            {betFeedback.guess} unit{betFeedback.guess === 1 ? '' : 's'}
+          </p>
+          <button
+            type="button"
+            onClick={dealAfterBet}
+            className="mt-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
+          >
+            Deal hand
           </button>
         </div>
       )}

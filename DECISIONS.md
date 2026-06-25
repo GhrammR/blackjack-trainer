@@ -506,3 +506,48 @@ running-count → true-count conversion step?
   end-to-end (e.g. RC −2 with 5.9 decks remaining → true count
   `round(−2/5.9) = 0`, matching the on-screen value) across multiple
   consecutive hands with both stats updating independently.
+
+### Slice 3: + bet sizing for EV
+
+Two forks confirmed with the user before building:
+
+- **Bet graded against the just-revealed actual true count**, not the
+  user's own TC guess — same reasoning as slice 2: isolates "can you size a
+  bet correctly for a given count" from "can you count," rather than
+  compounding a counting error into the bet grade too. The betting phase
+  happens immediately after the count-check feedback reveals the actual TC,
+  and that same TC is displayed again at the betting prompt (`pendingTrueCountForBet`)
+  rather than relying on the user to remember it from the previous screen —
+  consistent with handing over the known quantity to isolate the new skill,
+  the same way slice 2 hands over decks-remaining instead of making the user
+  re-estimate it.
+- **Grading: discrete preset bet tiers with exact match**, not a continuous
+  "EV captured %" benchmarked against baselines (the technique step 8 slice
+  4's evasion drill uses for its Edge-captured metric). Chosen to keep the
+  same stat shape as Live Play's other three metrics (play/count/true-count
+  accuracy — all `attempts`/`correct` counters), rather than introducing a
+  differently-shaped session-level percentage just for this one stat.
+  `betAttempts`/`betCorrect` was added to `CountingProgress.livePlay` as a
+  fourth independent counter.
+- **The bet ramp (`EV_BET_RAMP` in `livePlaySession.ts`) is a judgment call,
+  not a single objectively-correct chart** — unlike the Illustrious 18
+  strategy deviations (multi-source verified), optimal bet-spread width
+  depends on bankroll and risk-of-ruin tolerance, which this trainer doesn't
+  model. Shipped as a deliberately conservative, widely-taught ramp (1 unit
+  at TC≤1, 2 at TC≥2, 4 at TC≥3, 6 at TC≥4, 8 at TC≥5, capped at 8 to match
+  the existing detection-family `beginner` profile's max spread rather than
+  introducing a new unit value), reusing `BetSpreadStep`/`baseBetUnits` from
+  `playerProfiles.ts` instead of duplicating the step-function logic. The
+  preset bet buttons (`BET_TIERS`) are derived directly from the ramp so the
+  choices and the grading can never drift apart. Tunable if this judgment
+  changes — flagged as a convention, not a fact, in CLAUDE.md.
+- **No new engine state was needed for betting** — no bankroll, no win/loss
+  tracking (both explicitly deferred to the unscoped "Step 10, later"
+  bucket). The bet phase is purely a graded decision point bookended by
+  "Place your bet" and "Deal hand," with no effect on dealing or grading
+  elsewhere in the round.
+- Verified live via Playwright: the first bet (TC 0, 1 unit) graded
+  Correct; a deliberately wrong bet (TC 0, 4 units) graded Incorrect with
+  the correct tier shown; all four Live Play stats (play/count/true-count/
+  bet accuracy) updated independently across a multi-round session, and the
+  play loop continued normally into the next hand afterward.

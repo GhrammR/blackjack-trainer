@@ -5,6 +5,7 @@ import {
   type LiveRound,
   applyAction,
   correctActionFor,
+  correctBetUnits,
   dealRound,
   decide,
   handOutcome,
@@ -324,6 +325,19 @@ describe('decksRemaining', () => {
     expect(decksRemaining(stateFrom(Array.from({ length: 312 }, () => c('7')), 0))).toBe(6) // 312 remaining = 6 decks
     expect(decksRemaining(stateFrom(Array.from({ length: 312 }, () => c('7')), 260))).toBe(1) // 52 remaining = 1 deck
     expect(decksRemaining(stateFrom(Array.from({ length: 312 }, () => c('7')), 286))).toBe(0.5) // 26 remaining
+  })
+})
+
+describe('correctBetUnits', () => {
+  it('follows the EV_BET_RAMP step function', () => {
+    expect(correctBetUnits(-5)).toBe(1)
+    expect(correctBetUnits(0)).toBe(1)
+    expect(correctBetUnits(1)).toBe(1)
+    expect(correctBetUnits(2)).toBe(2)
+    expect(correctBetUnits(3)).toBe(4)
+    expect(correctBetUnits(4)).toBe(6)
+    expect(correctBetUnits(5)).toBe(8)
+    expect(correctBetUnits(9)).toBe(8)
   })
 })
 

@@ -76,10 +76,11 @@ export interface CountingProgress {
   evasion: { sessionsPlayed: number; bestEdgeCapturedPct: number | null; lowestHeat: number | null }
   indexPlays: { attempts: number; correct: number }
   /**
-   * Three independent stats: play accuracy, running-count accuracy, and (step
-   * 10 slice 2) true-count math accuracy. Conceptually the same split the
-   * True Count drill uses for estimate/math — playing, counting, and
-   * converting to true count are three different skills.
+   * Four independent stats: play accuracy, running-count accuracy,
+   * true-count math accuracy (step 10 slice 2), and (step 10 slice 3)
+   * bet-sizing-for-EV accuracy. Conceptually the same split the True Count
+   * drill uses for estimate/math — playing, counting, converting to true
+   * count, and sizing a bet are four different skills.
    */
   livePlay: {
     playAttempts: number
@@ -88,6 +89,8 @@ export interface CountingProgress {
     countCorrect: number
     trueCountAttempts: number
     trueCountCorrect: number
+    betAttempts: number
+    betCorrect: number
   }
 }
 
@@ -111,7 +114,16 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
   evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
   indexPlays: { attempts: 0, correct: 0 },
-  livePlay: { playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0, trueCountAttempts: 0, trueCountCorrect: 0 },
+  livePlay: {
+    playAttempts: 0,
+    playCorrect: 0,
+    countAttempts: 0,
+    countCorrect: 0,
+    trueCountAttempts: 0,
+    trueCountCorrect: 0,
+    betAttempts: 0,
+    betCorrect: 0,
+  },
 }
 
 const DEFAULT_COUNTING_STATE: CountingState = {
@@ -189,6 +201,8 @@ function parseProgress(raw: unknown): CountingProgress {
       countCorrect: typeof lp.countCorrect === 'number' ? lp.countCorrect : 0,
       trueCountAttempts: typeof lp.trueCountAttempts === 'number' ? lp.trueCountAttempts : 0,
       trueCountCorrect: typeof lp.trueCountCorrect === 'number' ? lp.trueCountCorrect : 0,
+      betAttempts: typeof lp.betAttempts === 'number' ? lp.betAttempts : 0,
+      betCorrect: typeof lp.betCorrect === 'number' ? lp.betCorrect : 0,
     },
   }
 }

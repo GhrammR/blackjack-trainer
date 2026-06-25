@@ -4,6 +4,7 @@ import { hiLoValue } from './counting'
 import { getAction, getHardSoftAction, isPair } from './strategy'
 import { handValue, isBust } from './cards'
 import { resolveDealerHand } from './handResolution'
+import { type BetSpreadStep, baseBetUnits } from './playerProfiles'
 
 /**
  * The Live Play capstone, slice 1 (v2 step 10): the user plays full hands
@@ -51,6 +52,32 @@ export function needsReshuffle(state: LivePlaySessionState): boolean {
  */
 export function decksRemaining(state: LivePlaySessionState): number {
   return (state.shoe.length - state.position) / 52
+}
+
+/**
+ * Slice 3 (step 10) ground-truth bet ramp: pure EV optimization, not a
+ * simulated counter persona (those live in playerProfiles.ts and model
+ * camouflage, which is out of scope here — see DECISIONS.md). Reuses
+ * BetSpreadStep/baseBetUnits rather than duplicating the step-function
+ * logic. Unlike the detection-family profiles, this isn't a single
+ * objectively-correct chart (optimal spread width is a risk-tolerance
+ * judgment call, not a strategy-table fact) — it's a deliberately
+ * conservative, widely-taught ramp, tunable here if that judgment changes.
+ */
+export const EV_BET_RAMP: BetSpreadStep[] = [
+  { minTrueCount: -Infinity, units: 1 },
+  { minTrueCount: 2, units: 2 },
+  { minTrueCount: 3, units: 4 },
+  { minTrueCount: 4, units: 6 },
+  { minTrueCount: 5, units: 8 },
+]
+
+/** The discrete bet sizes a user can choose from, in ramp order — drives both grading and the UI's preset buttons. */
+export const BET_TIERS: number[] = EV_BET_RAMP.map((step) => step.units)
+
+/** The EV-correct bet size for a given true count, per `EV_BET_RAMP`. */
+export function correctBetUnits(trueCountAtBet: number): number {
+  return baseBetUnits(EV_BET_RAMP, trueCountAtBet)
 }
 
 function makeDrawers(shoe: Card[], position: number, count: number) {
