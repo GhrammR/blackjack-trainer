@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { StrategyTrainer } from './components/StrategyTrainer'
 import { CardCountingTrainer } from './components/CardCountingTrainer'
+import { LivePlayDrill } from './components/LivePlayDrill'
 import { TabButton } from './components/TabButton'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import {
@@ -13,7 +14,7 @@ import {
 } from './lib/persistence'
 import { lifetimeAccuracy } from './lib/mastery'
 
-type Tab = 'strategy' | 'counting'
+type Tab = 'strategy' | 'counting' | 'livePlay'
 
 function App() {
   const [tab, setTab] = useState<Tab>('strategy')
@@ -27,6 +28,10 @@ function App() {
 
   function handleProgressChange(progress: CountingProgress) {
     setCounting((prev) => ({ ...prev, progress }))
+  }
+
+  function handleLivePlayProgressChange(livePlay: CountingProgress['livePlay']) {
+    setCounting((prev) => ({ ...prev, progress: { ...prev.progress, livePlay } }))
   }
 
   function handleResetStrategy() {
@@ -71,15 +76,24 @@ function App() {
         <TabButton active={tab === 'counting'} onClick={() => setTab('counting')}>
           Card Counting
         </TabButton>
+        <TabButton active={tab === 'livePlay'} onClick={() => setTab('livePlay')}>
+          Live Play
+        </TabButton>
       </nav>
-      {tab === 'strategy' ? (
-        <StrategyTrainer key={strategyResetKey} />
-      ) : (
+      {tab === 'strategy' && <StrategyTrainer key={strategyResetKey} />}
+      {tab === 'counting' && (
         <CardCountingTrainer
           settings={counting.settings}
           progress={counting.progress}
           onProgressChange={handleProgressChange}
           isPaused={settingsOpen}
+        />
+      )}
+      {tab === 'livePlay' && (
+        <LivePlayDrill
+          numDecks={counting.settings.numDecks}
+          initialProgress={counting.progress.livePlay}
+          onProgressChange={handleLivePlayProgressChange}
         />
       )}
       {settingsOpen && (

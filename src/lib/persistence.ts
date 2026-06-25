@@ -75,6 +75,8 @@ export interface CountingProgress {
   /** No single "correct" outcome here (it's a continuous heat/edge trade-off, not a verdict) — tracked as lifetime sessions plus personal bests instead, same pattern as Shoe Countdown. */
   evasion: { sessionsPlayed: number; bestEdgeCapturedPct: number | null; lowestHeat: number | null }
   indexPlays: { attempts: number; correct: number }
+  /** Two independent stats, same principle as the True Count drill's estimate/math split — playing correctly and counting accurately are different skills. */
+  livePlay: { playAttempts: number; playCorrect: number; countAttempts: number; countCorrect: number }
 }
 
 export interface CountingState {
@@ -97,6 +99,7 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
   evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
   indexPlays: { attempts: 0, correct: 0 },
+  livePlay: { playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0 },
 }
 
 const DEFAULT_COUNTING_STATE: CountingState = {
@@ -130,6 +133,7 @@ function parseProgress(raw: unknown): CountingProgress {
   const ev = (r.evidence ?? {}) as Record<string, unknown>
   const ea = (r.evasion ?? {}) as Record<string, unknown>
   const ip = (r.indexPlays ?? {}) as Record<string, unknown>
+  const lp = (r.livePlay ?? {}) as Record<string, unknown>
   const personalBests = sc.personalBests
 
   return {
@@ -165,6 +169,12 @@ function parseProgress(raw: unknown): CountingProgress {
     indexPlays: {
       attempts: typeof ip.attempts === 'number' ? ip.attempts : 0,
       correct: typeof ip.correct === 'number' ? ip.correct : 0,
+    },
+    livePlay: {
+      playAttempts: typeof lp.playAttempts === 'number' ? lp.playAttempts : 0,
+      playCorrect: typeof lp.playCorrect === 'number' ? lp.playCorrect : 0,
+      countAttempts: typeof lp.countAttempts === 'number' ? lp.countAttempts : 0,
+      countCorrect: typeof lp.countCorrect === 'number' ? lp.countCorrect : 0,
     },
   }
 }

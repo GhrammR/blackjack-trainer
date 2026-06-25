@@ -89,7 +89,8 @@ export const pairs: Record<PairRankKey, Record<DealerUpcardKey, Action>> = {
   A: row({}, 'Split'),
 }
 
-function isPair(hand: Card[]): boolean {
+/** Exported for the Live Play capstone (step 10), which needs to check pair-eligibility itself (for Split legality) independently of getAction's own routing. */
+export function isPair(hand: Card[]): boolean {
   return hand.length === 2 && pairRankKey(hand[0]) === pairRankKey(hand[1])
 }
 
