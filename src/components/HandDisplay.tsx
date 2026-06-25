@@ -1,5 +1,7 @@
 import type { Card } from '../types'
 import { HiddenCard, PlayingCard } from './PlayingCard'
+import { TableFelt } from './TableFelt'
+import { SECTION_LABEL } from './theme'
 
 interface HandDisplayProps {
   playerHand: Card[]
@@ -8,22 +10,26 @@ interface HandDisplayProps {
 
 export function HandDisplay({ playerHand, dealerUpcard }: HandDisplayProps) {
   return (
-    <div className="flex flex-col items-center gap-8">
-      <div className="flex flex-col items-center gap-2">
-        <p className="text-sm uppercase tracking-wide text-slate-400">Dealer</p>
-        <div className="flex gap-2">
-          <PlayingCard card={dealerUpcard} suitIndex={0} />
-          <HiddenCard />
+    <TableFelt
+      dealer={
+        <>
+          <p className={SECTION_LABEL}>Dealer</p>
+          <div className="flex gap-2">
+            <PlayingCard card={dealerUpcard} suitIndex={0} />
+            <HiddenCard />
+          </div>
+        </>
+      }
+      seats={
+        <div className="flex flex-col items-center gap-2">
+          <p className={SECTION_LABEL}>You</p>
+          <div className="flex gap-2">
+            {playerHand.map((card, i) => (
+              <PlayingCard key={i} card={card} suitIndex={i + 1} />
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="flex flex-col items-center gap-2">
-        <p className="text-sm uppercase tracking-wide text-slate-400">You</p>
-        <div className="flex gap-2">
-          {playerHand.map((card, i) => (
-            <PlayingCard key={i} card={card} suitIndex={i + 1} />
-          ))}
-        </div>
-      </div>
-    </div>
+      }
+    />
   )
 }

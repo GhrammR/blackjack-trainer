@@ -24,7 +24,7 @@ export function PlayingCard({ card, suitIndex, size = 'md' }: PlayingCardProps) 
 
   return (
     <div
-      className={`flex flex-col items-center justify-center rounded-lg border border-slate-300 bg-white font-semibold shadow ${SIZE_CLASSES[size]} ${
+      className={`flex flex-col items-center justify-center rounded-xl border border-slate-300 bg-white font-semibold shadow-md ${SIZE_CLASSES[size]} ${
         isRed ? 'text-red-600' : 'text-slate-900'
       }`}
     >
@@ -37,7 +37,7 @@ export function PlayingCard({ card, suitIndex, size = 'md' }: PlayingCardProps) 
 export function HiddenCard({ size = 'md' }: { size?: keyof typeof SIZE_CLASSES }) {
   return (
     <div
-      className={`flex items-center justify-center rounded-lg border border-dashed border-slate-500 text-slate-500 ${SIZE_CLASSES[size]}`}
+      className={`flex items-center justify-center rounded-xl border border-dashed border-slate-500 text-slate-500 ${SIZE_CLASSES[size]}`}
     >
       ?
     </div>

@@ -10,6 +10,7 @@ import {
   decide,
   handOutcome,
   isRoundOver,
+  netUnitsForRound,
   legalActions,
   decksRemaining,
   needsReshuffle,
@@ -310,6 +311,28 @@ describe('handOutcome', () => {
 
   it('reports surrendered regardless of the cards', () => {
     expect(handOutcome(hand([c('10'), c('6')], true), [c('10'), c('9')], false)).toBe('surrendered')
+  })
+})
+
+describe('netUnitsForRound', () => {
+  const hand = (cards: Card[], surrendered = false) => ({
+    cards,
+    isFirstDecision: false,
+    isSplitAces: false,
+    done: true,
+    surrendered,
+  })
+
+  it('weights a single hand by the bet and the outcome multiplier', () => {
+    expect(netUnitsForRound([hand([c('10'), c('9')])], [c('10'), c('7')], false, 4)).toBe(4) // win
+    expect(netUnitsForRound([hand([c('10'), c('6')])], [c('10'), c('9')], false, 4)).toBe(-4) // lose
+    expect(netUnitsForRound([hand([c('10'), c('9')])], [c('10'), c('9')], false, 4)).toBe(0) // push
+    expect(netUnitsForRound([hand([c('10'), c('6')], true)], [c('10'), c('9')], false, 4)).toBe(-2) // surrendered
+  })
+
+  it('sums across multiple hands in a round (e.g. after a split)', () => {
+    const hands = [hand([c('10'), c('9')]), hand([c('10'), c('6')])]
+    expect(netUnitsForRound(hands, [c('10'), c('7')], false, 2)).toBe(0) // +2 win, -2 lose
   })
 })
 

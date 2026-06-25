@@ -551,3 +551,141 @@ Two forks confirmed with the user before building:
   the correct tier shown; all four Live Play stats (play/count/true-count/
   bet accuracy) updated independently across a multi-round session, and the
   play loop continued normally into the next hand afterward.
+
+## v2 scoping pass — closing the step 10 "later" bucket, sequencing steps 11-12
+
+After step 10's three slices shipped, the user asked for an honest
+scoping/sequencing pass on the rest of v2 before committing further work —
+not a "plan because asked," an actual recommendation on what to skip.
+
+- **Step 10's "later" bucket (bankroll tracking + session scoring) — closed
+  as WON'T-BUILD, not deferred.** Three reasons, given as a real
+  recommendation rather than a default plan: (1) it demonstrates no new
+  engineering value over what the capstone's three slices already proved —
+  payout math is the least interesting part of blackjack to show off; (2) it
+  is thematically player-side, directly at odds with the app's repeatedly-
+  stated surveillance/observer framing — every other drill in the app
+  (including the evasion mirror) deliberately avoided real payout
+  simulation for exactly this reason; (3) building real bankroll tracking
+  requires a payout engine that doesn't exist anywhere in the codebase, and
+  session scoring would require reopening slice 1's deliberate, documented
+  choice to make Live Play continuous and open-ended with no end summary —
+  reversing an intentional decision for low payoff. User confirmed this
+  recommendation outright, including the surveillance-framing argument
+  specifically.
+  - **The one approved exception:** a flavor-only "net units this session"
+    display line, computed from data Live Play already has
+    (`handOutcome()` + the bet size already chosen each round) — no
+    bankroll, no payout engine, no persistence. Originally floated as a
+    footnote to fold into step 11 rather than build standalone (cheaper to
+    add once during the visual pass than to build, style, then restyle).
+    The user's approval message initially left this as an unfilled
+    placeholder; clarified via a follow-up question before scoping step 11,
+    and confirmed: include it.
+- **Sequencing: step 11 (visual pass) next; step 12 (Live Count Worksheet)
+  as a separate, non-blocking async track — not "step 11 then step 12,"
+  but explicitly "step 11, with step 12 outside the dependency chain
+  entirely."** Step 12 is gated on a PII/compliance review plus external
+  input from the user's workplace Training Agent — a timeline the user does
+  not control. Step 11 has real portfolio value (a polished, presentable
+  demo) and zero external dependency. Recommended, and the user confirmed,
+  that **v2 is considered "done for portfolio purposes" at the end of step
+  11** — step 12 does not gate moving on to a new portfolio project, and may
+  never land in the public repo at all depending on what compliance review
+  and the Training Agent say. The only real sequencing constraint flagged
+  and resolved: decide the bankroll/net-units question *before* step 11, so
+  the visual layout doesn't need to reserve space for a stat that's later
+  cut, or get redone to fit one added afterward.
+
+## Step 11 — Visual polish (table layout / whole-app presentation pass)
+
+**Explicit, user-set scoping constraint carried through the whole step:**
+this is the kind of work with no objective "done," so the plan fixed a
+tight, finite scope and a hard stopping rule up front — once the bounded
+scope and the done-criteria are met, stop; anything noticed afterward is a
+dated follow-up note, not grounds to reopen the step. This section is the
+record of where that line was actually drawn.
+
+**Scope, fixed before any code:** shared design tokens/primitives; an
+abstract felt "seat-frame" panel (not a literal illustrated table); a
+shoe-rack visual pairing with the existing discard tray; consistent
+card/button/label styling; applied across every tab. Explicitly NOT in
+scope: bankroll/payout simulation beyond the one approved net-units line,
+animations, custom art assets, a theme switcher, responsive/accessibility
+audits, or any logic changes beyond that one flagged exception.
+
+**Three forks resolved with the user, all in the direction of the
+recommended (lower-risk, tighter-scope) option:**
+- **Abstract felt panel + spacing cues, not a literal curved/illustrated
+  table.** Lower effort, fits the app's existing clean/minimal aesthetic,
+  avoids the risk of a more ambitious literal table looking cheesy if not
+  well executed. `TableFelt.tsx` is a plain rounded panel
+  (`bg-gradient-to-b from-emerald-950/50 to-emerald-900/20`) framing a
+  dealer slot and a seats slot — no SVG, no illustrated table edge.
+- **Felt-green confined to the table panel only; the rest of the app keeps
+  its current dark-slate chrome.** No full-app recolor. `theme.ts`'s
+  `FELT_PANEL` token is the only place the green accent appears; the header,
+  nav, and every non-table surface stayed on the existing `bg-slate-900`/
+  `bg-slate-800` palette, just consolidated into shared tokens rather than
+  repeated ad-hoc strings.
+- **Seat-frame treatment only where a single hand-vs-dealer view reads
+  naturally as a table** (Strategy Trainer, Index Plays via the shared
+  `HandDisplay` component, and Live Play) — not applied to Table Scan's
+  dense sparkline-per-seat layout, which keeps its existing structure
+  untouched (token/color consistency only, in slice B) since that density
+  was a deliberate, already-documented tradeoff (see step 8 slice 2's
+  entry above) against ~150 rows of clutter at 6 seats × 25 rounds.
+  Rebuilding it into literal seat slots for visual conformity would have
+  undone that tradeoff for no real gain.
+
+**Slicing:** foundation first (slice A — tokens, global chrome, restyled
+shared primitives, the new `TableFelt`/`ShoeRack` components), verified on
+two representative tabs before any further rollout, exactly the same
+foundation-first discipline used for every other multi-step build in this
+project. Slice B (applying the foundation to the remaining ~8 tabs) is
+explicitly held until slice A's redeploy-and-verify.
+
+**Slice A implementation notes:**
+- **`HandDisplay.tsx` is shared by three consumers** (Strategy Trainer,
+  Index Plays, and the Evasion drill), so restyling it once to use
+  `TableFelt` propagated the felt treatment to all three "for free" —
+  Index Plays and Evasion picked up the new look without being touched
+  directly, the same high-leverage effect already used for `PlayingCard.tsx`
+  (every card everywhere) and `ActionButtons.tsx` (every Hit/Stand-style
+  button everywhere). Not a scope violation: these are the same shared
+  primitives the two verification tabs (Strategy Trainer, Live Play) use,
+  not bespoke per-drill work pulled forward from slice B.
+- **`ShoeRack.tsx` is a new, separate component from the True Count drill's
+  existing `DeckEstimateTray.tsx`**, not a reuse — `DeckEstimateTray` is
+  specifically built for the *estimation* framing (tick marks, difficulty
+  tiers, "guess how much is played"). Live Play already has a known,
+  computed `decksRemaining` value; showing it doesn't need any estimation
+  machinery, so dragging in ticks/difficulty would import unused complexity.
+  The two components intentionally share the same visual texture (the
+  repeating-gradient "card stack" fill) for family resemblance, with the
+  small CSS duplicated directly rather than extracted — consistent with the
+  project's standing preference against premature shared abstractions for a
+  few lines of style.
+- **The net-units exception's actual mechanics:** `netUnitsForRound()`
+  (new, tested function in `livePlaySession.ts`) weights every hand in a
+  resolved round by the single bet placed before that round and a fixed
+  outcome multiplier (win +1, lose/bust −1, push 0, surrendered −0.5).
+  Deliberately does not model double or split bet-doubling (a real table
+  requires an equal extra wager per split hand, and double doubles the
+  original wager) — flagged explicitly in the function's own doc comment as
+  a simplification, since this is a derived, non-persisted flavor number,
+  not a graded or audited mechanic. `LivePlayDrill.tsx` carries the current
+  bet forward in a small local `currentBetUnits` state (set in `chooseBet`,
+  read when the dealer resolves) since `betFeedback` itself is cleared
+  before the round it applies to actually finishes. This was the one
+  explicitly pre-approved exception to "presentation only" for this slice;
+  every other diff this slice touched is JSX/className-only.
+- **Verification:** full test suite went from 247 to 249 — confirmed by
+  diffing the test files that the increase is exactly two new tests for
+  `netUnitsForRound` (the flagged exception's logic), with zero existing
+  assertions modified anywhere, including `persistence.test.ts` (untouched,
+  since the net-units line adds no persisted state). Live-verified on
+  Strategy Trainer (felt panel, restyled cards, action buttons, feedback
+  colors) and Live Play (felt panel around the dealer/hand area, the shoe
+  rack replacing the old bare-text decks-remaining line, and the net-units
+  line updating correctly — e.g. +1.0 after a won 1-unit hand).

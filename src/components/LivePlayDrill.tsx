@@ -16,11 +16,15 @@ import {
   isRoundOver,
   legalActions,
   needsReshuffle,
+  netUnitsForRound,
   resolveDealer,
   startLivePlaySession,
 } from '../lib/livePlaySession'
 import { PlayingCard, HiddenCard } from './PlayingCard'
 import { ActionButtons } from './ActionButtons'
+import { TableFelt } from './TableFelt'
+import { ShoeRack } from './ShoeRack'
+import { ERROR_TEXT, PAGE_WRAPPER, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SECTION_LABEL, SUCCESS_TEXT } from './theme'
 
 type Phase = 'idle' | 'betting' | 'deciding' | 'roundComplete' | 'countCheck'
 
@@ -127,6 +131,8 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
   const [countFeedback, setCountFeedback] = useState<CountFeedback | null>(null)
   const [pendingTrueCountForBet, setPendingTrueCountForBet] = useState(0)
   const [betFeedback, setBetFeedback] = useState<BetFeedback | null>(null)
+  const [currentBetUnits, setCurrentBetUnits] = useState(0)
+  const [netUnits, setNetUnits] = useState(0)
   const [progress, setProgress] = useState(initialProgress)
 
   useEffect(() => {
@@ -177,6 +183,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
       setSession(dealer.state)
       setDealerResolution(dealer)
       setPhase('roundComplete')
+      setNetUnits((prev) => prev + netUnitsForRound(result.round.hands, dealer.dealerCards, dealer.dealerBusted, currentBetUnits))
     }
   }
 
@@ -210,6 +217,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
   function chooseBet(units: number) {
     const correctUnits = correctBetUnits(pendingTrueCountForBet)
     setBetFeedback({ guess: units, correctUnits, trueCountAtBet: pendingTrueCountForBet })
+    setCurrentBetUnits(units)
     setProgress((prev) => ({
       ...prev,
       betAttempts: prev.betAttempts + 1,
@@ -225,7 +233,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
   const showTable = round && (phase === 'deciding' || phase === 'roundComplete')
 
   return (
-    <div className="flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-10">
+    <div className={PAGE_WRAPPER}>
       <p className="max-w-md text-center text-sm text-slate-400">
         Play full hands against the dealer using basic strategy, while keeping your own running count in your head —
         nothing is shown live. Once per hand, right before the next deal, you'll be shown the decks remaining and
@@ -239,41 +247,47 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
         {progress.trueCountAttempts}) · Bet accuracy: {accuracyLabel(progress.betCorrect, progress.betAttempts)} (
         {progress.betAttempts})
       </p>
+      {phase !== 'idle' && (
+        <p className="text-xs text-slate-500">
+          Net units this session:{' '}
+          <span className={netUnits > 0 ? SUCCESS_TEXT : netUnits < 0 ? ERROR_TEXT : 'text-slate-400'}>
+            {netUnits > 0 ? '+' : ''}
+            {netUnits.toFixed(1)}
+          </span>
+        </p>
+      )}
 
       {phase === 'idle' && (
-        <button
-          type="button"
-          onClick={start}
-          className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-        >
+        <button type="button" onClick={start} className={PRIMARY_BUTTON_LG}>
           Start playing
         </button>
       )}
 
       {showTable && round && (
         <div className="flex flex-col items-center gap-6">
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-sm uppercase tracking-wide text-slate-400">Dealer</p>
-            <div className="flex gap-1">
-              <PlayingCard card={round.dealerUpcard} suitIndex={0} />
-              {phase === 'roundComplete' && dealerResolution ? (
-                dealerResolution.dealerCards.slice(1).map((card: Card, i: number) => (
-                  <PlayingCard key={i} card={card} suitIndex={i + 1} />
-                ))
-              ) : (
-                <HiddenCard />
-              )}
-            </div>
-            {phase === 'roundComplete' && dealerResolution && (
-              <p className="text-xs text-slate-400">
-                {handValue(dealerResolution.dealerCards).total}
-                {dealerResolution.dealerBusted ? ' (bust)' : ''}
-              </p>
-            )}
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-4">
-            {round.hands.map((hand, i) => (
+          <TableFelt
+            dealer={
+              <>
+                <p className={SECTION_LABEL}>Dealer</p>
+                <div className="flex gap-1">
+                  <PlayingCard card={round.dealerUpcard} suitIndex={0} />
+                  {phase === 'roundComplete' && dealerResolution ? (
+                    dealerResolution.dealerCards.slice(1).map((card: Card, i: number) => (
+                      <PlayingCard key={i} card={card} suitIndex={i + 1} />
+                    ))
+                  ) : (
+                    <HiddenCard />
+                  )}
+                </div>
+                {phase === 'roundComplete' && dealerResolution && (
+                  <p className="text-xs text-slate-400">
+                    {handValue(dealerResolution.dealerCards).total}
+                    {dealerResolution.dealerBusted ? ' (bust)' : ''}
+                  </p>
+                )}
+              </>
+            }
+            seats={round.hands.map((hand, i) => (
               <HandGroup
                 key={i}
                 hand={hand}
@@ -285,10 +299,10 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
                 }
               />
             ))}
-          </div>
+          />
 
           {lastDecision && (
-            <p className={`text-sm font-medium ${lastDecision.isCorrect ? 'text-emerald-400' : 'text-red-400'}`}>
+            <p className={`text-sm font-medium ${lastDecision.isCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
               {lastDecision.isCorrect ? 'Correct!' : `Incorrect — correct play was ${lastDecision.correctAction}`}
             </p>
           )}
@@ -300,20 +314,14 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
       )}
 
       {phase === 'roundComplete' && (
-        <button
-          type="button"
-          onClick={continueToCountCheck}
-          className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-        >
+        <button type="button" onClick={continueToCountCheck} className={PRIMARY_BUTTON_LG}>
           Continue
         </button>
       )}
 
       {phase === 'countCheck' && !countFeedback && session && (
         <div className="flex flex-col items-center gap-3">
-          <p className="text-sm text-slate-300">
-            Decks remaining: <span className="font-semibold text-white">{decksRemaining(session).toFixed(1)}</span>
-          </p>
+          <ShoeRack decksRemaining={decksRemaining(session)} totalDecks={numDecks} />
           <label className="flex items-center gap-2 text-slate-300">
             What's the running count?
             <input
@@ -337,7 +345,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
             type="button"
             onClick={submitCount}
             disabled={countGuess.trim() === '' || trueCountGuess.trim() === ''}
-            className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className={PRIMARY_BUTTON}
           >
             Submit
           </button>
@@ -346,7 +354,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
 
       {phase === 'countCheck' && countFeedback && (
         <div className="flex max-w-md flex-col items-center gap-2 text-center">
-          <p className={`text-lg font-semibold ${countFeedback.guess === countFeedback.actual ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-lg font-semibold ${countFeedback.guess === countFeedback.actual ? SUCCESS_TEXT : ERROR_TEXT}`}>
             Running count: {countFeedback.guess === countFeedback.actual ? 'Correct!' : `Off by ${Math.abs(countFeedback.guess - countFeedback.actual)}`}
           </p>
           <p className="text-slate-300">
@@ -354,7 +362,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
             {countFeedback.guess})
           </p>
           <p
-            className={`text-lg font-semibold ${countFeedback.trueCountGuess === countFeedback.trueCountActual ? 'text-emerald-400' : 'text-red-400'}`}
+            className={`text-lg font-semibold ${countFeedback.trueCountGuess === countFeedback.trueCountActual ? SUCCESS_TEXT : ERROR_TEXT}`}
           >
             True count:{' '}
             {countFeedback.trueCountGuess === countFeedback.trueCountActual
@@ -365,11 +373,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
             True count: <span className="font-semibold text-white">{countFeedback.trueCountActual}</span> (you said{' '}
             {countFeedback.trueCountGuess})
           </p>
-          <button
-            type="button"
-            onClick={continueToBetting}
-            className="mt-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={continueToBetting} className={`mt-2 ${PRIMARY_BUTTON}`}>
             Continue
           </button>
         </div>
@@ -384,12 +388,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
           <p className="text-sm text-slate-400">Place your bet:</p>
           <div className="flex flex-wrap justify-center gap-3">
             {BET_TIERS.map((units) => (
-              <button
-                key={units}
-                type="button"
-                onClick={() => chooseBet(units)}
-                className="rounded-md bg-slate-700 px-4 py-2 font-medium text-white transition hover:bg-slate-600"
-              >
+              <button key={units} type="button" onClick={() => chooseBet(units)} className={SECONDARY_BUTTON}>
                 {units} unit{units === 1 ? '' : 's'}
               </button>
             ))}
@@ -399,9 +398,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
 
       {phase === 'betting' && betFeedback && (
         <div className="flex max-w-md flex-col items-center gap-2 text-center">
-          <p
-            className={`text-lg font-semibold ${betFeedback.guess === betFeedback.correctUnits ? 'text-emerald-400' : 'text-red-400'}`}
-          >
+          <p className={`text-lg font-semibold ${betFeedback.guess === betFeedback.correctUnits ? SUCCESS_TEXT : ERROR_TEXT}`}>
             {betFeedback.guess === betFeedback.correctUnits
               ? 'Correct!'
               : `Incorrect — correct bet was ${betFeedback.correctUnits} unit${betFeedback.correctUnits === 1 ? '' : 's'}`}
@@ -410,11 +407,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
             True count was <span className="font-semibold text-white">{betFeedback.trueCountAtBet}</span>; you bet{' '}
             {betFeedback.guess} unit{betFeedback.guess === 1 ? '' : 's'}
           </p>
-          <button
-            type="button"
-            onClick={dealAfterBet}
-            className="mt-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={dealAfterBet} className={`mt-2 ${PRIMARY_BUTTON}`}>
             Deal hand
           </button>
         </div>

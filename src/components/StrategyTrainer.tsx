@@ -11,6 +11,7 @@ import { ActionButtons } from './ActionButtons'
 import { Feedback } from './Feedback'
 import { ProgressPanel } from './ProgressPanel'
 import { WeaknessHeatmap } from './WeaknessHeatmap'
+import { PAGE_WRAPPER } from './theme'
 
 interface Round {
   playerHand: Card[]
@@ -57,7 +58,7 @@ export function StrategyTrainer() {
   }
 
   return (
-    <div className="flex flex-col items-center gap-10 px-4 py-12">
+    <div className={PAGE_WRAPPER}>
       {handsPlayed === 0 && (
         <p className="max-w-md text-center text-slate-400">
           Pick the correct play for each hand — Hit, Stand, Double, Split, or Surrender. We'll track your weak

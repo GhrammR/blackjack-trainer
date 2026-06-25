@@ -303,3 +303,22 @@ export function handOutcome(hand: PlayHand, dealerCards: Card[], dealerBusted: b
   if (playerTotal < dealerTotal) return 'lose'
   return 'push'
 }
+
+const OUTCOME_UNIT_MULTIPLIER: Record<HandOutcome, number> = {
+  win: 1,
+  lose: -1,
+  bust: -1,
+  push: 0,
+  surrendered: -0.5,
+}
+
+/**
+ * A flavor-only net-units tally for the step 11 visual pass's one approved
+ * display line — NOT a real payout simulation. Every hand in the round is
+ * weighted by the single bet placed before the round (doubles and extra
+ * split bets are deliberately not modeled), since this is a derived display
+ * value, not a graded or persisted mechanic. See DECISIONS.md.
+ */
+export function netUnitsForRound(hands: PlayHand[], dealerCards: Card[], dealerBusted: boolean, betUnits: number): number {
+  return hands.reduce((sum, hand) => sum + OUTCOME_UNIT_MULTIPLIER[handOutcome(hand, dealerCards, dealerBusted)] * betUnits, 0)
+}

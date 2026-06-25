@@ -59,8 +59,8 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <header className="relative pt-10">
-        <h1 className="text-center text-4xl font-semibold">Double Down</h1>
+      <header className="relative border-b border-slate-800 pb-6 pt-10">
+        <h1 className="text-center text-4xl font-semibold tracking-tight">Double Down</h1>
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}
