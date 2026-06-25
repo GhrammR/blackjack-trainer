@@ -1,0 +1,508 @@
+# DECISIONS.md — Double Down build history & rationale
+
+This is the "why we built it this way" archive. `CLAUDE.md`'s "Build Status &
+Roadmap" covers *what* shipped and what's next; its "Architecture &
+Conventions" section covers the *living rules* future code must follow. This
+file is purely historical — design forks resolved with the user, correctness
+bugs caught and fixed, and tradeoffs accepted on purpose. Organized
+chronologically by build step/slice.
+
+---
+
+## v1 — Strategy Trainer
+
+- **Hard 11 vs Ace.** Ships with "always Double 11," including vs. dealer Ace
+  — the simpler, widely-taught rule, and what the original spot-check tests
+  assert. Some published S17/no-surrender charts say Hit vs. Ace instead. See
+  CLAUDE.md's Open TODOs for the follow-up.
+- **Category mastery badge** (`mastery.ts`) approximates "rolling accuracy
+  over the last N attempts" as lifetime accuracy gated by a minimum attempt
+  count, since the adaptive engine only keeps a short per-situation window,
+  not a full chronological event log. A true rolling window is a known gap
+  (see Open TODOs).
+
+## v2 step 1-3 — Counting math & Running Count drill
+
+- **True count rounds to the nearest whole number** (`Math.round`), per the
+  spec's literal "(rounded)" instruction, not the nearest half-deck some
+  real-world Hi-Lo practice uses (relevant once index plays, keyed to
+  thresholds like +3 or +1, entered scope at step 9 — revisited there, see
+  below, and resolved as "keep whole-number rounding").
+- **Dealer's hole card was originally revealed at deal time** in the Running
+  Count drill (`countingDrill.ts`), rather than only after the dealer plays
+  out the hand — a simplification acceptable for a counting-*mechanics* drill
+  that only simulates the deal phase, not full hand resolution. Properly
+  fixed with correct timing at step 8's `detectionSession.ts` (see below);
+  `countingDrill.ts` itself was left as-is since it's still adequate for its
+  narrower purpose.
+- **Seat count was originally a hardcoded constant (4)** in
+  `RunningCountDrill.tsx`; later made configurable via the shared
+  `CountingSettings.seatCount` at step 6 (see below) — this gap is resolved,
+  not open.
+
+## v2 step 4 — True Count drill
+
+- **Fixed a played-vs-remaining labeling/grading mismatch.** The original
+  build had the discard tray's caption say "estimate how many decks have been
+  played" directly above an input labeled "Decks remaining (estimate)," which
+  grading then used as decks-remaining directly. The math was internally
+  self-consistent (traced: RC −3, decks remaining 1.5 → `Math.round(−3/1.5) =
+  −2`, matching the reported example) — the bug was the contradictory UI, not
+  the formula. Fixed by reframing the estimated quantity as decks **played**
+  (matching the tray's fill direction), adding
+  `decksRemainingFromPlayedEstimate(numDecks, playedEstimate)` as a named,
+  separately-tested subtraction step, and showing the full worked chain in
+  feedback.
+- **Tick-mark difficulty tiers (3 tiers) are a judgment call**, since the
+  original spec didn't define "sparse" precisely: beginner = labeled
+  whole-deck ticks + unlabeled half-deck ticks (matching the drill's own ±0.5
+  grading resolution); intermediate = labeled whole-deck ticks only; expert =
+  none. Default is beginner.
+- **`trueCount`'s negative-half rounding** (`Math.round(-2.5) === -2`, not
+  `-3`) may disagree with someone manually rounding "by hand" toward the
+  larger magnitude. Locked in as a regression test (`trueCountDrill.test.ts`)
+  rather than silently changed — this is step 4, the first place a user
+  manually redoes the rounding and could notice the disagreement.
+- **Scale-reference toggle is idle-phase-only**, unavailable mid-round — an
+  inferred constraint (not explicit in the original request) so it can't
+  function as a live answer key during grading; a calibration aid for
+  before/between rounds only.
+- **Switching the Card Counting sub-tab reset the other drill's in-progress
+  session** (Running Count vs. True Count unmount each other). Accepted as a
+  consequence of deferring persistence to step 6; this specific *in-progress
+  round* gap was not actually closed by step 6's persistence work (which only
+  persists lifetime stats, not mid-round state) — still true today, see
+  CLAUDE.md's Open TODOs.
+
+## v2 step 5 — Shoe Countdown
+
+- **"Back to start" returns to idle**, unlike Running Count/True Count's
+  skip-straight-to-next-round pattern — reasoned as correct here because
+  personal bests are tracked per shoe size, so a finishing user may want to
+  change shoe size before the next attempt.
+- **One card revealed per press**, ending on the press taken while viewing
+  the last (stop-point) card — an inferred mechanic chosen for the cleanest
+  1:1 mapping between "look at a card" and "press." "Give up" abandons
+  mid-run with no time recorded and no PB interaction.
+- **Fixed a real exploit:** a full shoe always nets to 0 in Hi-Lo, so the
+  original build let a user hold spacebar through every card and just type
+  "0" to pass, with zero accuracy pressure. Fixed by no longer dealing the
+  full shoe: `pickStopIndex(shoeLength, random)` picks a random stop point
+  uniformly between `MIN_STOP_FRACTION` (1/3) and `MAX_STOP_FRACTION` (0.9) of
+  the shoe at `start()`, the run ends after `stopIndex` cards, and grading
+  uses `runningCount(shoe.slice(0, stopIndex))` — not knowable in advance and
+  only "accidentally" 0 by chance. The 1/3 floor guarantees a substantial
+  counting effort; the 0.9 ceiling avoids always teasing the literal last
+  card (itself a predictable tell). The progress display was also changed
+  from "Card N of `shoe.length`" to just "Card N" so the denominator can't
+  leak proximity to the stop. Verified live via Playwright: 8 repeated
+  hold-space-and-guess-0 attempts on a 1-deck shoe all failed (actual counts
+  ranged −7 to +5), and a 6-deck run's actual target came back as −10.
+- **Accepted, not engineered around:** on long runs, an attentive user can
+  narrow the stop window as they approach the 0.9 upper bound (e.g. on a
+  1-deck/52-card shoe, the stop always falls in [18, 46]). This is inherent
+  to any bounded random stop — moving the ceiling to 1.0 would just relocate
+  the same predictability to the other edge. Not a flaw: "exploiting" this
+  requires counting every card up to that point anyway, which is the drill
+  working as intended.
+- **Mid-run checkpoints were considered and deliberately deferred**, not
+  built here — a "what's your count right now?" prompt mid-flip is a
+  distinct mechanic (pausing the loop, grading an intermediate answer,
+  deciding how the count continues) rather than a tweak to this slice. Open
+  candidate for a future progression pass.
+
+## v2 step 6 — Settings, reset, persistence
+
+- **Shoe size, seat count, and drill speed were consolidated into one shared
+  settings panel**, replacing three drills' separate local selectors —
+  `CardCountingTrainer.tsx` now owns `CountingSettings` (`numDecks`,
+  `seatCount`, `cardsPerSecond`) and passes it down as props. Tradeoff: a
+  user can't run a 1-deck Shoe Countdown and a 6-deck Running Count session
+  concurrently without revisiting Settings. Cheap to revert since `numDecks`
+  is still just a prop.
+- **"Counting system" is a read-only `Hi-Lo` row**, not a selector — only
+  Hi-Lo is implemented, so a single-option dropdown would just be clutter.
+  Becomes a real selector if a second system is ever added.
+- **"Reset progress" only resets v2 counting progress**, not v1's
+  streak/stats, unless "Reset everything" is used — separate storage keys
+  (`double-down:counting:v1` vs `double-down:v1`). Settings (shoe size,
+  seats, speed) are explicitly preserved across a counting-only reset; only
+  personal bests and round/accuracy history clear.
+- **"Progression" shipped as persisted lifetime counters + personal bests,
+  not an automatic difficulty-unlock system** — per the project's standing
+  discipline against designing for hypothetical future requirements.
+  Difficulty levers (`DECK_ESTIMATE_TOLERANCE`, `MIN_STOP_FRACTION`/
+  `MAX_STOP_FRACTION`) remain manual constants, not wired to an
+  auto-progression system.
+
+## Step 7.5 — Global settings modal + unified reset
+
+- **Strategy Trainer's internal state was deliberately left untouched.**
+  Fixed two real gaps (settings trapped on the Card Counting tab; no reset
+  for Strategy Trainer at all) by lifting `CountingSettings`/
+  `CountingProgress` to `App.tsx` and adding `clearState()` +
+  a `strategyResetKey` prop bump on `<StrategyTrainer key={strategyResetKey}
+  />`, rather than lifting `StrategyTrainer`'s internal `stats`/
+  `handsPlayed`/`currentStreak` too. The key-bump forces a remount that
+  re-runs `useState(() => loadState())` against now-cleared storage — zero
+  changes to `StrategyTrainer.tsx` itself. The modal is an overlay (not a
+  third tab) specifically so it doesn't unmount whichever trainer is active
+  underneath. "Reset everything" is explicitly composed from the other two
+  reset functions, not a separate destructive code path.
+- **Fixed a real bug surfaced by the lift:** `RunningCountDrill`/
+  `TrueCountDrill` only seeded their round counters from `initialProgress`
+  once (`useState(initialProgress.x)`), so an external reset while a drill
+  was mounted would clear persisted progress but leave on-screen counters
+  stale. Fixed with a `useEffect` keyed on `initialProgress` that resyncs
+  local state on every change, including the drill's own echo round-trips
+  (safe since resyncing to the same values is a no-op).
+  `ShoeCountdownDrill` never had this problem — `personalBests` was already
+  a pure controlled prop with no local mirror.
+- **The settings modal pauses both of the app's time-sensitive mechanics**:
+  `RunningCountDrill`'s deal timer and `ShoeCountdownDrill`'s stopwatch +
+  keydown handler, via a new `isPaused` prop. `RunningCountDrill` simply adds
+  `isPaused` to its `setTimeout` early-return guard (resuming restarts the
+  current card's full interval, not exact remaining ms). `ShoeCountdownDrill`
+  tracks accumulated paused duration in a ref and subtracts it from the final
+  elapsed time at `finishRun()`. Only the two non-click mechanisms
+  (`setTimeout`, a `window` keydown listener) needed the guard — other
+  buttons are already blocked by the modal's backdrop. Verified live: a
+  ~2.5s pause froze the deal count correctly, and a Shoe Countdown run's
+  recorded time (880ms) correctly excluded a ~2s pause out of ~3s wall-clock.
+
+## Step 8 — Counter-detection drill family
+
+### Slice 1: single-player binary verdict
+
+Design forks resolved with the user, who does this professionally:
+
+- **Representative deviation set (4 entries):** hard 16 vs 10 (Stand, TC≥0),
+  hard 12 vs 3 (Stand, TC≥2), hard 15 vs 10 (Stand, TC≥4), hard 10 vs 10
+  (Double, TC≥4) — all real Illustrious-18 entries landing on Hit/Stand/
+  Double only. (Superseded by the full 14-entry set at step 9.)
+- **Insurance deliberately excluded** — a real, count-sensitive tell (take
+  insurance at TC≥+3) but unmodelable: the `Action` type has no insurance
+  decision, and hand resolution has no side-bet concept. Needs a new
+  decision-point type; tracked in CLAUDE.md's Open TODOs.
+- **Bet-spread shape: step/threshold function, not a linear ramp**
+  (`BetSpreadStep[]` in `playerProfiles.ts`) — flat at a base unit count
+  until the true count crosses a threshold, then jumps higher. Beginner =
+  big jump (1→8 units) at TC≥+2; intermediate = smaller jump (1→4) at TC≥+3;
+  expert = smallest jump (1→3) at TC≥+4, plus cover bets/deviations layered
+  on top. Camouflage escalates via three independent dials (spread ratio,
+  trigger threshold, noise).
+- **Full hand + dealer resolution with correct hole-card exposure timing.**
+  `detectionSession.ts`'s `dealSession` finally resolves the step-3 gap
+  above: the hole card is dealt (shoe advances) before the player acts, but
+  isn't added to the running count until revealed after decisions lock in.
+  Decks-remaining (true-count denominator) tracks physical depletion
+  including the not-yet-counted hole card, distinct from the running count
+  (numerator, known values only) — covered by a hand-built-shoe unit test in
+  `detectionSession.test.ts`.
+- **The dealer always plays out their hand to completion**, even on a player
+  bust — a sensible default (not a user-confirmed fork) since slice 1
+  simulates one seat but real tables have others; keeps the shoe's count
+  trajectory realistic.
+- **Session length ~25 rounds, a ceiling not a guarantee**
+  (`SESSION_ROUNDS = 25`). `generateDetectionSession` clamps to at least
+  `MIN_DECKS_FOR_SESSION = 4` decks regardless of the shared `numDecks`
+  setting, and a `SHOE_SAFETY_MARGIN` stops the session early/gracefully if
+  the shoe runs low.
+- **Correlation coefficient dropped from feedback** — the bet-vs-count bar
+  chart is the teaching tool; no literal correlation number is shown, to
+  avoid training people to hunt a statistic instead of reading the pattern.
+- **Mechanic choice: single-player binary verdict (Option A)** over
+  evidence-flagging (Option B) or multi-player table scan (Option C) for
+  this first slice — the true minimum end-to-end engine, reused unchanged by
+  every later slice.
+- **No player-side Split.** A dealt pair is played via its hard/soft total
+  (`getHardSoftAction`/`getHardSoftSituationKey` in `strategy.ts`, skipping
+  the pairs table) — multi-hand bookkeeping wasn't worth it for a feature
+  whose signal is bet size and Hit/Stand/Double deviations.
+- **Two real correctness bugs caught by this addition:** `hardTotals` only
+  defined totals 5-21 and `softTotals` only 13-21, because `getAction()`
+  always routes an actual pair through the pairs table first — so hard 4
+  (2-2) and soft 12 (A-A) were never reachable. The new bypass functions
+  skip that routing, surfacing both gaps as crashes in
+  `detectionSession.test.ts`. Fixed by adding `hardTotals[4]` and
+  `softTotals[12]` (both "always Hit"), with spot-check regression tests.
+  Purely additive — `getAction()` never reads these keys.
+- **`dealSession` is split out from `generateDetectionSession`** so tests can
+  hand it a fully controlled, hand-built shoe and assert exact
+  counting/timing behavior precisely, not just statistically.
+
+**Roadmap captures logged alongside slice 1 (2026-06-24):**
+- The future "Live Count Worksheet" phase's session-metadata-header and
+  tuned-report concepts could optionally appear in a lighter form within the
+  detection drill's feedback view later — not a commitment, just a plausible
+  future borrow.
+- No auth/backend now. A simple name/date leaderboard (no PII) is a
+  plausible low-stakes training-mode feature within the current
+  architecture. Real auth + backend is a much bigger, separate step, only
+  worth revisiting if the Live Count Worksheet gains real operational
+  traction, and only as a deliberate, director-sanctioned decision.
+
+### Slice 2: multi-player table scan
+
+- **Exactly one counter per session, always** — the one genuine new fork.
+  Asked directly whether "no one is counting" should ever be the correct
+  answer (more realistic, forces judgment every session) vs. always exactly
+  one counter among N seats (simpler grading, matches the spec's literal
+  wording). User chose **always exactly one counter**
+  (`dealMultiPlayerSession` always assigns one seat a `COUNTER_PROFILES`
+  tier, every other seat `FLAT_PROFILE`). Revisit if real practice shows
+  this lets users shortcut to "pick whichever seat looks most different."
+- **Shared shoe, shared running/true count across seats** — the central new
+  mechanic. `trueCountAtBet` is computed once per round before any seat's
+  cards are dealt. Seats resolve in seat order within the round (slice 1's
+  `resolvePlayerHand` via `Array.prototype.map`, synchronous index order), so
+  a later seat's `trueCountAtDecision` reflects cards already drawn by
+  earlier seats' hits — free extra table realism slice 1 didn't need.
+- **Required shoe size scales with seat count**: `generateMultiPlayerSession`
+  clamps to `MIN_DECKS_FOR_SESSION + seatCount * 2` decks and scales the
+  safety margin by `SHOE_SAFETY_MARGIN_PER_SEAT * seatCount` — the `* 2`
+  multiplier was tuned empirically against a 6-seat session landing 1-2
+  rounds short of the `SESSION_ROUNDS` ceiling.
+- **Seat count reuses the existing shared `CountingSettings.seatCount`**
+  (relabeled "Seats (Running Count, Table Scan)"), not a new setting.
+- **UI: a compact bet-spread "sparkline" per seat** (`MiniBetBar`/`SeatRow`)
+  rather than slice 1's full per-round row repeated per seat — at up to 6
+  seats × 25 rounds, the detailed view would be ~150 rows of clutter.
+- **Verdict UI is select-a-seat-then-submit**, not click-to-lock-in — a
+  separate "Submit: Seat N" button (disabled until chosen) commits the
+  verdict, fitting an N-way choice the way slice 1's separate
+  Counting/Not-counting buttons fit a binary one.
+- **Progress tracked as its own counter** (`tableScan`), separate from
+  slice 1's `detection` counter — different skills (binary judgment vs. seat
+  ID) and different chance baselines (50% vs. `1/seatCount`). Neither is yet
+  surfaced in the Settings panel's Progress section.
+
+### Slice 3: evidence-flagging
+
+Three forks confirmed with the user, since the roadmap explicitly flagged
+ground-truth grading as needing design work:
+
+- **Verdict + flagging together**, not flagging-instead-of-verdict —
+  `EvidenceDrill.tsx` keeps slice 1's binary verdict and adds round-flagging
+  as a second task on the same session, graded and shown separately.
+- **Evidence ground truth: a real, uncamouflaged bet-size tell or a real
+  count-driven deviation — camouflage explicitly excluded.**
+  `isEvidenceRound` = `round.isElevatedBet || round.deviationType ===
+  'index'`. Cover bets/deviations don't count — they're the counter's own
+  camouflage, and flagging them would be a false-positive judgment in real
+  surveillance terms. Required adding `isElevatedBet` to `ComputedBet` and
+  threading it through `RoundRecord` in both session engines — purely
+  additive; `RoundRecord` is now shared infrastructure across slices 1-3.
+- **Grading: precision and recall as two separate numbers**, not one blended
+  score — missing real evidence and crying wolf on innocent rounds are
+  different failure modes a real reviewer needs to see distinctly.
+  `precision` is `null` when nothing was flagged; `recall` is `null` when a
+  session has zero real evidence rounds (nothing to catch) — both confirmed
+  via dedicated unit tests rather than left as edge cases to discover live.
+
+### Slice 4: evasion mirror
+
+Three forks confirmed with the user, since this slice inverts the engine's
+role rather than extending the review mechanic:
+
+- **The true count is shown directly each round**, not tracked by the user —
+  keeps this slice scoped to the camouflage *decision* layer (bet sizing +
+  deviation choices), leaving the perception/counting layer to the future
+  Live Play capstone, which is explicitly defined as the combined task.
+- **Decision scope is bet sizing AND deviation choices**, not bet sizing
+  alone. Required `resolvePlayerHandWithAction` in `handResolution.ts` — the
+  user-driven mirror of `resolvePlayerHand`, taking an explicit chosen action
+  instead of rolling a `PlayerProfile`'s rates, deriving `deviationType`
+  (`null`/`'index'`/`'cover'`) by comparing the choice to basic strategy and
+  the indicated index play. Shared post-decision logic (Hit loop, Double
+  draw) was extracted into a private `resolveFromInitialAction` helper so
+  both functions stay in sync; `resolvePlayerHand`'s existing tests passed
+  unchanged after the refactor.
+- **Scoring: Heat + Edge captured, two independent axes** — Heat reuses
+  slice 3's `isEvidenceRound` classifier unchanged. Since there's no
+  `PlayerProfile` here to define a "base" bet step, the user's own *lowest*
+  bet of the session stands in as their personal baseline for
+  `isElevatedBet` (computed only after the session ends, since Heat can't be
+  shown mid-session without leaking the answer). Edge captured is a
+  deliberately simple bet-size × true-count proxy (not a real payout
+  simulation), benchmarked against a flat-bettor baseline and an
+  aggressive/uncamouflaged-counter baseline over the same true-count
+  trajectory the session actually produced — valid because bet size never
+  affects which cards get drawn, only play actions do. `edgeCapturedPct` is
+  `null` when the aggressive and flat baselines coincide.
+- **Structurally interactive (round-by-round)**, unlike slices 1-3's
+  generate-then-review shape — `evasionSession.ts`'s `dealRound`/
+  `resolveRound` split mirrors slice 1's hole-card-timing discipline but is
+  built to be called once per round across separate React events.
+
+## Step 9 — Index plays / Illustrious 18
+
+Three forks confirmed with the user, plus a verification process and a real
+source disagreement worth recording given this data's correctness stakes:
+
+- **Scope: a new "Index Plays" drill connecting v1 and v2 directly**, not
+  just a backend dataset expansion. The dataset expansion was needed either
+  way; the user confirmed the new drill too, as the most literal reading of
+  "connects v1's strategy engine with v2's counting engine."
+- **Insurance stays excluded** — same reasoning as step 8, confirmed again
+  rather than assumed.
+- **Dataset: full 17 non-insurance plays, verified against reliable sources
+  — two turned out unrepresentable, surfaced only by doing the
+  verification:**
+  - **Verification method:** cross-referenced three independent sources
+    (blackjack3000.com, gamblingcalc.com, a Schlesinger-attributed summary).
+    The 13 positive-correlation entries agreed exactly across all three. The
+    5 negative-correlation entries did NOT all agree: a fourth source
+    (casinonewsdaily.com) gave different thresholds for 12-vs-5 (−1 instead
+    of −2) and 13-vs-2 (0 instead of −1) — a real, material disagreement
+    between reputable-looking sources. The three agreeing sources' values
+    were used; casinonewsdaily's were treated as a transcription error.
+  - **Two entries (10,10 vs 5 Split@+5, 10,10 vs 6 Split@+4) are omitted
+    entirely**, not just unused by v2 — this dataset is shared by the new
+    drill and v2's simulated-counter engine, which never models player-side
+    Split. v2's engine would never look these up anyway (it always queries
+    via `getHardSoftSituationKey`), but leaving Split-valued entries that one
+    consumer can use and the other silently can't felt like the wrong
+    default. Final count: 14 entries, not 17.
+  - **A third entry (11 vs A, Double@+1) is a genuine no-op in this
+    codebase** — v1's `hardTotals[11]` always returns Double regardless of
+    dealer upcard (the existing hard-11-vs-Ace gap), but the real
+    Illustrious 18 entry assumes a rule variant where basic strategy is Hit
+    vs Ace. Since this app already always doubles 11, there's nothing to
+    deviate from. Excluded rather than forced in; would become meaningful if
+    hard-11-vs-Ace is ever made configurable.
+- **The new drill reuses v1's `getAction`/`getSituationKey`** (full
+  pairs/Split support), not v2's bypass — it's a decision-only drill (grades
+  the choice, never resolves a played-out hand, same v1 scope rule), so
+  Split is a perfectly gradable answer here. `generateScenario` weights hand
+  generation 70% "targeted" (pick one of the 14 entries, generate that exact
+  hand, sample a true count ~50/50 on either side of the threshold so
+  resisting a false trigger gets tested as often as taking a real one) and
+  30% fully random — a uniformly random deal would land on one of 14
+  specific cells too rarely to train anything.
+
+## Step 10 — Live Play capstone
+
+### Slice 1: core loop
+
+Six forks resolved with the user across two rounds of questions, since this
+is the biggest build left and several choices reopened sub-questions:
+
+- **Slicing confirmed as proposed by the user.** Slice 1 = play + count
+  together; slice 2 = + true-count conversion; slice 3 = + EV bet sizing;
+  bankroll/session-scoring pushed to an unscoped "later" bucket. Considered
+  giving "play a hand to completion" its own slice before adding counting,
+  and rejected it: playing without counting would just rebuild v1's existing
+  single-decision drill with extra steps — the *integration* of play and
+  count together is what's actually new.
+- **No player-side Split was the default everywhere else (steps 8/9's
+  shared engine) — the user explicitly chose to break that precedent here.**
+  Full Split resolution, not graded-but-unresolved or disabled. A genuinely
+  bigger engine than recommended: a multi-hand "queue of hands to play"
+  replaces the single-hand loop, since a round can now produce 2-4 player
+  hands.
+- **Resplitting allowed up to the standard cap (4 hands total)**, not capped
+  at one split — the multi-hand state is recursive (a split-result hand can
+  itself draw into a new pair and split again, up to the cap).
+- **Split Aces: the near-universal real-table rule** — one card each, then
+  the hand stands automatically (no further hits, no double), regardless of
+  DAS. Confirmed rather than assumed, since the fixed rule set's "double
+  after split allowed" wording has no explicit ace carve-out.
+- **Single-seat**, not multi-seat — avoids stacking the new multi-decision
+  interactive loop (plus full split-tree resolution) with multi-seat dealing
+  in the same slice. Multi-seat live play (reusing Running Count's
+  `seatCount` mechanic) remains a plausible future enrichment.
+- **Running count checked once per hand, revealed immediately afterward** —
+  confirmed by re-reading `RunningCountDrill.tsx` directly rather than
+  recalling its behavior from memory. Matches that drill's existing pattern
+  rather than a stricter no-reveal mode or an unstructured on-demand check.
+- **Continuous, open-ended session with lifetime stats**, not a
+  fixed-length session with an end summary — matches Running Count/True
+  Count's existing shape rather than the detection family's
+  bounded-session-then-summary shape. Consistent with the roadmap's own
+  deferral of "session scoring" to a later, unscoped bullet. The shoe
+  reshuffles (and running count resets to 0) once it runs low mid-session,
+  same trigger `RunningCountDrill` already uses.
+- **Engine design, worked out before building:** the post-split grading
+  story turned out simpler than the "full Split" choice first suggested —
+  post-split hands grade against the *same* hard/soft chart as any normal
+  hand (DAS already covers doubling; no new chart data needed), so the only
+  genuinely new piece is orchestration: a queue of in-progress hands
+  processed one at a time, where choosing Split replaces the current hand
+  with two new ones (or, for Aces, two immediately-terminal one-card hands).
+  The hole card stays uncounted until *all* hands in the queue reach a
+  terminal state, then the dealer's hand is compared against each completed
+  player hand independently.
+- **Two non-obvious correctness fixes caught during implementation, not
+  anticipated in planning:**
+  - **Split is illegal once the hand cap (4) is reached, but the real pairs
+    table doesn't know that.** `correctActionFor` checks for this and falls
+    back to `getHardSoftAction` (the same pairs-bypass the detection-family
+    engines use) whenever the chart says Split but `canSplit()` says no.
+    Caught by reasoning through the cap before writing code; verified with a
+    test that drives three real splits to reach 4 hands and confirms the
+    5th would-be split is illegal and no longer the graded-correct answer.
+  - **Double is illegal after a hand's first decision, but several chart
+    cells unconditionally say "Double" regardless of card count** — hard 11
+    most notably, reachable via a Hit (e.g. 2+3 hit into +6 = 11) just as
+    easily as the initial deal. Naively falling back to "Hit" is wrong:
+    checking every Double cell in `hardTotals`/`softTotals` by hand, every
+    one collapses to Hit except soft 18 (≥18, already strong enough to
+    Stand once doubling for value is off the table). `noDoubleAlternative()`
+    encodes "Stand if total ≥ 18, else Hit" — regression-tested for both the
+    hard-11→Hit case and the soft-18→Stand case.
+- **`ActionButtons.tsx` gained an optional `actions` prop** (defaulting to
+  all five) rather than a new component — Live Play passes
+  `legalActions(round)` to restrict buttons after the first decision; no
+  existing call site needed to change.
+- **No new shared "multi-hand display" component** — `HandDisplay` assumes
+  exactly one player hand, so a small local `HandGroup` was built directly
+  inside `LivePlayDrill.tsx` (active hand ring-highlighted, completed hands
+  labeled Stood/Busted/Surrendered, then Win/Lose/Push/Busted once the
+  dealer resolves), consistent with `DetectionDrill.tsx`'s precedent of
+  defining one-off subcomponents locally.
+- **In-hand decisions get inline, non-blocking feedback; round-boundary
+  moments get an explicit click.** Choosing an action immediately shows
+  "Correct!"/"Incorrect — correct play was X" alongside the next decision's
+  buttons, without forcing a "Continue" click in between — clicking through
+  a Hit-Hit-Hit sequence one acknowledgment at a time would be tedious. An
+  explicit click is still required at the two real checkpoints (round
+  complete → count check, count check → next hand).
+- **Live Play needs no `isPaused` prop** — every transition is click-gated,
+  so the settings modal's backdrop already blocks interaction with no extra
+  wiring, unlike Running Count's deal timer or Shoe Countdown's stopwatch.
+- **Lives as a third top-level tab ("Live Play")**, not nested under Card
+  Counting's already-crowded sub-nav — a plain decision during planning
+  (not put to a formal fork) given its low stakes and reversibility.
+
+### Slice 2: + true-count conversion
+
+One fork confirmed with the user, since the roadmap had explicitly left it
+open: should the user re-estimate decks remaining themselves (stacking
+deck-estimation + division + recall into one combined skill test), or should
+the engine show decks-remaining directly so this slice isolates just the
+running-count → true-count conversion step?
+
+- **User confirmed: engine shows decks remaining.** Deck estimation is
+  already trained standalone by the True Count drill, so re-testing it here
+  would conflate two skills. `decksRemaining(state)` in `livePlaySession.ts`
+  computes `(shoe.length - position) / 52` directly from session state — no
+  estimation step, no tray visual, no tick marks (those stay specific to the
+  True Count drill).
+- **Both the running count and the true count are entered and graded at the
+  same once-per-hand checkpoint**, not the true count replacing the
+  running-count entry — running-count tracking stays graded independently
+  (`countAttempts`/`countCorrect`, unchanged) alongside a new, separate
+  true-count stat (`trueCountAttempts`/`trueCountCorrect`) — three
+  independent stats total (play/count/true-count), mirroring the True Count
+  drill's estimate/math split.
+- **Reuses `trueCount()` from `counting.ts` unchanged** — no
+  `gradeTrueCountMath`-style duplication was needed since there's no
+  separate "what decks-remaining figure was supplied" question to thread
+  through; the engine's own `decksRemaining(state)` is the only input.
+- **No new component-level tests** (consistent with the rest of the
+  codebase). Added a `decksRemaining` test block to `livePlaySession.test.ts`;
+  verified the full checkpoint UI live via Playwright, confirming the math
+  end-to-end (e.g. RC −2 with 5.9 decks remaining → true count
+  `round(−2/5.9) = 0`, matching the on-screen value) across multiple
+  consecutive hands with both stats updating independently.
