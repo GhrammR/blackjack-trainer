@@ -83,7 +83,7 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
     indexPlays: { attempts: 0, correct: 0 },
-    livePlay: { playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0 },
+    livePlay: { playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0, trueCountAttempts: 0, trueCountCorrect: 0 },
   },
 }
 
@@ -136,7 +136,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
         indexPlays: { attempts: 20, correct: 15 },
-        livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10 },
+        livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27 },
       },
     }
     saveCountingState(state)
@@ -157,7 +157,7 @@ describe('resetCountingProgress', () => {
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
         indexPlays: { attempts: 20, correct: 15 },
-        livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10 },
+        livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27 },
       },
     }
     expect(resetCountingProgress(state)).toEqual({

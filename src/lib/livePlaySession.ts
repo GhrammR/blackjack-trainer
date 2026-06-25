@@ -42,6 +42,17 @@ export function needsReshuffle(state: LivePlaySessionState): boolean {
   return state.shoe.length - state.position < SAFETY_MARGIN
 }
 
+/**
+ * Decks remaining in the shoe right now. Slice 2 (step 10) hands this to the
+ * user directly at the count checkpoint rather than asking them to estimate
+ * it — deck estimation is already trained standalone by the True Count
+ * drill, so this isolates just the running-count -> true-count conversion
+ * step. See CLAUDE.md §11.
+ */
+export function decksRemaining(state: LivePlaySessionState): number {
+  return (state.shoe.length - state.position) / 52
+}
+
 function makeDrawers(shoe: Card[], position: number, count: number) {
   let pos = position
   let cnt = count

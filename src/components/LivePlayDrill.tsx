@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Action, Card } from '../types'
 import { handValue, isBust } from '../lib/cards'
+import { trueCount } from '../lib/counting'
 import {
   type DealerResolution,
   type LivePlaySessionState,
@@ -8,6 +9,7 @@ import {
   type PlayHand,
   dealRound,
   decide,
+  decksRemaining,
   handOutcome,
   isRoundOver,
   legalActions,
@@ -29,6 +31,8 @@ interface LastDecision {
 interface CountFeedback {
   guess: number
   actual: number
+  trueCountGuess: number
+  trueCountActual: number
 }
 
 interface LivePlayProgress {
@@ -36,6 +40,8 @@ interface LivePlayProgress {
   playCorrect: number
   countAttempts: number
   countCorrect: number
+  trueCountAttempts: number
+  trueCountCorrect: number
 }
 
 interface LivePlayDrillProps {
@@ -107,6 +113,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
   const [lastDecision, setLastDecision] = useState<LastDecision | null>(null)
   const [dealerResolution, setDealerResolution] = useState<DealerResolution | null>(null)
   const [countGuess, setCountGuess] = useState('')
+  const [trueCountGuess, setTrueCountGuess] = useState('')
   const [countFeedback, setCountFeedback] = useState<CountFeedback | null>(null)
   const [progress, setProgress] = useState(initialProgress)
 
@@ -127,6 +134,7 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
     setLastDecision(null)
     setDealerResolution(null)
     setCountGuess('')
+    setTrueCountGuess('')
     setCountFeedback(null)
     setPhase('deciding')
   }
@@ -163,11 +171,15 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
     if (!session) return
     const guess = Number(countGuess)
     const actual = session.count
-    setCountFeedback({ guess, actual })
+    const trueCountGuessValue = Number(trueCountGuess)
+    const trueCountActual = trueCount(actual, decksRemaining(session))
+    setCountFeedback({ guess, actual, trueCountGuess: trueCountGuessValue, trueCountActual })
     setProgress((prev) => ({
       ...prev,
       countAttempts: prev.countAttempts + 1,
       countCorrect: prev.countCorrect + (guess === actual ? 1 : 0),
+      trueCountAttempts: prev.trueCountAttempts + 1,
+      trueCountCorrect: prev.trueCountCorrect + (trueCountGuessValue === trueCountActual ? 1 : 0),
     }))
   }
 
@@ -182,11 +194,14 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
     <div className="flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-10">
       <p className="max-w-md text-center text-sm text-slate-400">
         Play full hands against the dealer using basic strategy, while keeping your own running count in your head —
-        nothing is shown live. The count is checked once per hand, right before the next deal.
+        nothing is shown live. Once per hand, right before the next deal, you'll be shown the decks remaining and
+        asked for both the running count and the true count.
       </p>
       <p className="text-xs text-slate-500">
         Play accuracy: {accuracyLabel(progress.playCorrect, progress.playAttempts)} ({progress.playAttempts}) · Count
-        accuracy: {accuracyLabel(progress.countCorrect, progress.countAttempts)} ({progress.countAttempts})
+        accuracy: {accuracyLabel(progress.countCorrect, progress.countAttempts)} ({progress.countAttempts}) · True
+        count accuracy: {accuracyLabel(progress.trueCountCorrect, progress.trueCountAttempts)} (
+        {progress.trueCountAttempts})
       </p>
 
       {phase === 'idle' && (
@@ -258,8 +273,11 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
         </button>
       )}
 
-      {phase === 'countCheck' && !countFeedback && (
+      {phase === 'countCheck' && !countFeedback && session && (
         <div className="flex flex-col items-center gap-3">
+          <p className="text-sm text-slate-300">
+            Decks remaining: <span className="font-semibold text-white">{decksRemaining(session).toFixed(1)}</span>
+          </p>
           <label className="flex items-center gap-2 text-slate-300">
             What's the running count?
             <input
@@ -270,10 +288,19 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
               className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
             />
           </label>
+          <label className="flex items-center gap-2 text-slate-300">
+            What's the true count?
+            <input
+              type="number"
+              value={trueCountGuess}
+              onChange={(e) => setTrueCountGuess(e.target.value)}
+              className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
+            />
+          </label>
           <button
             type="button"
             onClick={submitCount}
-            disabled={countGuess.trim() === ''}
+            disabled={countGuess.trim() === '' || trueCountGuess.trim() === ''}
             className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Submit
@@ -284,11 +311,23 @@ export function LivePlayDrill({ numDecks, initialProgress, onProgressChange }: L
       {phase === 'countCheck' && countFeedback && (
         <div className="flex max-w-md flex-col items-center gap-2 text-center">
           <p className={`text-lg font-semibold ${countFeedback.guess === countFeedback.actual ? 'text-emerald-400' : 'text-red-400'}`}>
-            {countFeedback.guess === countFeedback.actual ? 'Correct!' : `Off by ${Math.abs(countFeedback.guess - countFeedback.actual)}`}
+            Running count: {countFeedback.guess === countFeedback.actual ? 'Correct!' : `Off by ${Math.abs(countFeedback.guess - countFeedback.actual)}`}
           </p>
           <p className="text-slate-300">
             Running count: <span className="font-semibold text-white">{countFeedback.actual}</span> (you said{' '}
             {countFeedback.guess})
+          </p>
+          <p
+            className={`text-lg font-semibold ${countFeedback.trueCountGuess === countFeedback.trueCountActual ? 'text-emerald-400' : 'text-red-400'}`}
+          >
+            True count:{' '}
+            {countFeedback.trueCountGuess === countFeedback.trueCountActual
+              ? 'Correct!'
+              : `Off by ${Math.abs(countFeedback.trueCountGuess - countFeedback.trueCountActual)}`}
+          </p>
+          <p className="text-slate-300">
+            True count: <span className="font-semibold text-white">{countFeedback.trueCountActual}</span> (you said{' '}
+            {countFeedback.trueCountGuess})
           </p>
           <button
             type="button"

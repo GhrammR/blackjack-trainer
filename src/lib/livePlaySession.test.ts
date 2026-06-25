@@ -10,6 +10,7 @@ import {
   handOutcome,
   isRoundOver,
   legalActions,
+  decksRemaining,
   needsReshuffle,
   resolveDealer,
   startLivePlaySession,
@@ -315,6 +316,14 @@ describe('needsReshuffle', () => {
   it('is false comfortably above the safety margin and true once below it', () => {
     expect(needsReshuffle(stateFrom(Array.from({ length: 30 }, () => c('7')), 5))).toBe(false) // 25 remaining
     expect(needsReshuffle(stateFrom(Array.from({ length: 30 }, () => c('7')), 15))).toBe(true) // 15 remaining
+  })
+})
+
+describe('decksRemaining', () => {
+  it('converts cards remaining into decks remaining', () => {
+    expect(decksRemaining(stateFrom(Array.from({ length: 312 }, () => c('7')), 0))).toBe(6) // 312 remaining = 6 decks
+    expect(decksRemaining(stateFrom(Array.from({ length: 312 }, () => c('7')), 260))).toBe(1) // 52 remaining = 1 deck
+    expect(decksRemaining(stateFrom(Array.from({ length: 312 }, () => c('7')), 286))).toBe(0.5) // 26 remaining
   })
 })
 
