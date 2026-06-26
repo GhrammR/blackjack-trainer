@@ -5,6 +5,7 @@ import { type DealtRound, cardSlotAt, cardsPerRound, dealRound } from '../lib/co
 import { runningCount } from '../lib/counting'
 import { signed } from '../lib/format'
 import { PlayingCard } from './PlayingCard'
+import { PAGE_WRAPPER, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, ERROR_TEXT } from './theme'
 
 type Phase = 'idle' | 'dealing' | 'guessing' | 'feedback'
 
@@ -119,7 +120,7 @@ export function RunningCountDrill({
   }
 
   return (
-    <div className="flex flex-col items-center gap-6 px-4 py-10">
+    <div className={PAGE_WRAPPER}>
       <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-400">
         <span>
           {numDecks} deck{numDecks > 1 ? 's' : ''} · {seatCount} seat{seatCount > 1 ? 's' : ''} · {cardsPerSecond} cards/sec
@@ -129,11 +130,7 @@ export function RunningCountDrill({
       </div>
 
       {phase === 'idle' && (
-        <button
-          type="button"
-          onClick={startRound}
-          className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-        >
+        <button type="button" onClick={startRound} className={PRIMARY_BUTTON_LG}>
           Deal round
         </button>
       )}
@@ -141,7 +138,7 @@ export function RunningCountDrill({
       {round && phase !== 'idle' && (
         <div className="flex flex-col items-center gap-6">
           <div className="flex flex-col items-center gap-2">
-            <p className="text-sm uppercase tracking-wide text-slate-400">Dealer</p>
+            <p className={SECTION_LABEL}>Dealer</p>
             <div className="flex gap-1">
               {visibleDealerCards.map((card, i) => (
                 <PlayingCard key={i} card={card} suitIndex={i} size="sm" />
@@ -175,12 +172,7 @@ export function RunningCountDrill({
               className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
             />
           </label>
-          <button
-            type="button"
-            onClick={submitGuess}
-            disabled={guess.trim() === ''}
-            className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          <button type="button" onClick={submitGuess} disabled={guess.trim() === ''} className={PRIMARY_BUTTON}>
             Submit
           </button>
         </div>
@@ -188,7 +180,7 @@ export function RunningCountDrill({
 
       {phase === 'feedback' && feedback && (
         <div className="flex max-w-md flex-col items-center gap-2 text-center">
-          <p className={`text-lg font-semibold ${feedback.guess === feedback.actual ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-lg font-semibold ${feedback.guess === feedback.actual ? SUCCESS_TEXT : ERROR_TEXT}`}>
             {feedback.guess === feedback.actual ? 'Correct!' : `Off by ${Math.abs(feedback.guess - feedback.actual)}`}
           </p>
           <p className="text-slate-300">
@@ -203,11 +195,7 @@ export function RunningCountDrill({
           <p className="text-xs text-slate-500">
             Rounds: {roundsPlayed} · Correct: {roundsCorrect}
           </p>
-          <button
-            type="button"
-            onClick={startRound}
-            className="mt-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={startRound} className={`mt-2 ${PRIMARY_BUTTON}`}>
             Next round
           </button>
         </div>

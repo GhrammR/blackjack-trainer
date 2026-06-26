@@ -5,6 +5,7 @@ import { runningCount } from '../lib/counting'
 import { type PersonalBests, pickStopIndex, updatePersonalBest } from '../lib/shoeCountdown'
 import { formatSeconds } from '../lib/format'
 import { PlayingCard } from './PlayingCard'
+import { PAGE_WRAPPER, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SUCCESS_TEXT, ERROR_TEXT } from './theme'
 
 type Phase = 'idle' | 'running' | 'finished'
 
@@ -124,7 +125,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
   const personalBest = personalBests[numDecks]
 
   return (
-    <div className="flex flex-col items-center gap-6 px-4 py-10">
+    <div className={PAGE_WRAPPER}>
       {phase === 'idle' && (
         <div className="flex flex-col items-center gap-4">
           <p className="text-sm text-slate-400">
@@ -138,11 +139,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
             point — you won't know when, so the count has to be right the whole way, not just guessed at the end.
             1 deck is a quick speed rep; a full multi-deck shoe is the endurance test.
           </p>
-          <button
-            type="button"
-            onClick={start}
-            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={start} className={PRIMARY_BUTTON_LG}>
             Start
           </button>
         </div>
@@ -152,11 +149,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
         <div className="flex flex-col items-center gap-4">
           <p className="text-sm text-slate-400">Card {revealedCount}</p>
           <PlayingCard card={currentCard} suitIndex={revealedCount} />
-          <button
-            type="button"
-            onClick={advance}
-            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={advance} className={PRIMARY_BUTTON_LG}>
             Next card (Space)
           </button>
           <button type="button" onClick={giveUp} className="text-xs text-slate-500 underline hover:text-slate-400">
@@ -180,12 +173,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
               className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
             />
           </label>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={countAnswer.trim() === ''}
-            className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          <button type="button" onClick={submit} disabled={countAnswer.trim() === ''} className={PRIMARY_BUTTON}>
             Submit
           </button>
         </div>
@@ -193,7 +181,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
 
       {feedback && (
         <div className="flex flex-col items-center gap-2 text-center">
-          <p className={`text-lg font-semibold ${feedback.isCorrect ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-lg font-semibold ${feedback.isCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
             {feedback.isCorrect ? 'Correct!' : `Off — you said ${feedback.answer}, actual count was ${feedback.actual}`}
           </p>
           <p className="text-slate-300">Time: {formatSeconds(feedback.elapsedMs)}</p>
@@ -204,11 +192,7 @@ export function ShoeCountdownDrill({ numDecks, personalBests, onPersonalBestsCha
               the whole way.
             </p>
           )}
-          <button
-            type="button"
-            onClick={backToIdle}
-            className="mt-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={backToIdle} className={`mt-2 ${PRIMARY_BUTTON}`}>
             Back to start
           </button>
         </div>

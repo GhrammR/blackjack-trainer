@@ -4,6 +4,7 @@ import { type IndexPlayScenario, generateScenario } from '../lib/indexPlayDrill'
 import { HandDisplay } from './HandDisplay'
 import { ActionButtons } from './ActionButtons'
 import { Feedback } from './Feedback'
+import { PAGE_WRAPPER } from './theme'
 
 interface IndexPlayProgress {
   attempts: number
@@ -54,7 +55,7 @@ export function IndexPlayDrill({ initialProgress, onProgressChange }: IndexPlayD
   const isCorrect = chosenAction !== null && chosenAction === scenario.correctAction
 
   return (
-    <div className="flex w-full max-w-2xl flex-col items-center gap-6 px-4 py-10">
+    <div className={PAGE_WRAPPER}>
       <p className="max-w-md text-center text-sm text-slate-400">
         Basic strategy plus the count: the true count is shown directly — your job is to know when it indicates a
         real deviation from basic strategy, and when it doesn't.

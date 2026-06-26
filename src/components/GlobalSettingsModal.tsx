@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
 import { CountingSettingsPanel } from './CountingSettingsPanel'
+import { SECONDARY_BUTTON } from './theme'
 
 export interface StrategySnapshot {
   handsPlayed: number
@@ -133,11 +134,7 @@ export function GlobalSettingsModal({
                 >
                   Confirm
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirming(null)}
-                  className="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-600"
-                >
+                <button type="button" onClick={() => setConfirming(null)} className={SECONDARY_BUTTON}>
                   Cancel
                 </button>
               </div>

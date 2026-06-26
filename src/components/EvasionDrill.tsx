@@ -12,6 +12,7 @@ import {
 } from '../lib/evasionSession'
 import { finalizeRounds, scoreSession } from '../lib/evasionScoring'
 import { HandDisplay } from './HandDisplay'
+import { PAGE_WRAPPER, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON } from './theme'
 
 type Phase = 'idle' | 'betting' | 'playing' | 'roundDone' | 'summary'
 
@@ -128,7 +129,7 @@ export function EvasionDrill({ numDecks, initialProgress, onProgressChange }: Ev
   const showCoverButton = flip !== null && flip !== dealt?.indicatedAction
 
   return (
-    <div className="flex w-full max-w-2xl flex-col items-center gap-6 px-4 py-10">
+    <div className={PAGE_WRAPPER}>
       {phase === 'idle' && (
         <div className="flex flex-col items-center gap-4">
           <p className="max-w-md text-center text-sm text-slate-400">
@@ -139,11 +140,7 @@ export function EvasionDrill({ numDecks, initialProgress, onProgressChange }: Ev
             Sessions played: {progress.sessionsPlayed} · Best edge captured: {formatPercent(progress.bestEdgeCapturedPct)} ·
             Lowest heat: {progress.lowestHeat ?? '—'}
           </p>
-          <button
-            type="button"
-            onClick={startSession}
-            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={startSession} className={PRIMARY_BUTTON_LG}>
             Start session
           </button>
         </div>
@@ -170,11 +167,7 @@ export function EvasionDrill({ numDecks, initialProgress, onProgressChange }: Ev
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={placeBet}
-            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={placeBet} className={PRIMARY_BUTTON_LG}>
             Deal ({bet}u)
           </button>
         </div>
@@ -187,11 +180,7 @@ export function EvasionDrill({ numDecks, initialProgress, onProgressChange }: Ev
           </p>
           <HandDisplay playerHand={dealt.initialPlayerHand} dealerUpcard={dealt.dealerUpcard} />
           <div className="flex flex-wrap justify-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => choosePlay(dealt.basicAction)}
-              className="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-600"
-            >
+            <button type="button" onClick={() => choosePlay(dealt.basicAction)} className={SECONDARY_BUTTON}>
               Play it straight: {dealt.basicAction}
             </button>
             {dealt.indicatedAction && (
@@ -223,11 +212,7 @@ export function EvasionDrill({ numDecks, initialProgress, onProgressChange }: Ev
             {lastRecord.actions.join(' → ')}
             {lastRecord.playerBusted && <span className="text-red-400"> (bust)</span>}.
           </p>
-          <button
-            type="button"
-            onClick={nextRound}
-            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={nextRound} className={PRIMARY_BUTTON_LG}>
             Next round
           </button>
         </div>
@@ -255,11 +240,7 @@ export function EvasionDrill({ numDecks, initialProgress, onProgressChange }: Ev
             Sessions played: {progress.sessionsPlayed} · Best edge captured: {formatPercent(progress.bestEdgeCapturedPct)} ·
             Lowest heat: {progress.lowestHeat ?? '—'}
           </p>
-          <button
-            type="button"
-            onClick={backToStart}
-            className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={backToStart} className={PRIMARY_BUTTON}>
             Back to start
           </button>
         </div>

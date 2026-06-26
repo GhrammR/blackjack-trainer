@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { generateMultiPlayerSession, type MultiPlayerSession } from '../lib/multiPlayerSession'
 import type { RoundRecord } from '../lib/detectionSession'
 import type { DetectionDifficulty } from '../lib/playerProfiles'
+import { PAGE_WRAPPER, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SUCCESS_TEXT, ERROR_TEXT } from './theme'
 
 type Phase = 'idle' | 'reviewing' | 'feedback'
 
@@ -132,7 +133,7 @@ export function TableScanDrill({ numDecks, seatCount, initialProgress, onProgres
   }
 
   return (
-    <div className="flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-10">
+    <div className={PAGE_WRAPPER}>
       {phase === 'idle' && (
         <div className="flex flex-col items-center gap-4">
           <p className="max-w-md text-center text-sm text-slate-400">
@@ -157,11 +158,7 @@ export function TableScanDrill({ numDecks, seatCount, initialProgress, onProgres
           <p className="text-xs text-slate-500">
             Sessions played: {sessionsPlayed} · Correct: {sessionsCorrect}
           </p>
-          <button
-            type="button"
-            onClick={startSession}
-            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={startSession} className={PRIMARY_BUTTON_LG}>
             Start scan
           </button>
         </div>
@@ -188,7 +185,7 @@ export function TableScanDrill({ numDecks, seatCount, initialProgress, onProgres
               type="button"
               onClick={submitVerdict}
               disabled={selectedSeat === null}
-              className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+              className={PRIMARY_BUTTON_LG}
             >
               {selectedSeat === null ? 'Select a seat' : `Submit: Seat ${selectedSeat + 1}`}
             </button>
@@ -199,7 +196,7 @@ export function TableScanDrill({ numDecks, seatCount, initialProgress, onProgres
       {phase === 'feedback' && session && (
         <div className="flex w-full flex-col gap-4">
           <div className="flex flex-col items-center gap-2 text-center">
-            <p className={`text-lg font-semibold ${isCorrect ? 'text-emerald-400' : 'text-red-400'}`}>
+            <p className={`text-lg font-semibold ${isCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
               {isCorrect ? 'Correct!' : 'Incorrect'}
             </p>
             <p className="text-slate-300">
@@ -226,11 +223,7 @@ export function TableScanDrill({ numDecks, seatCount, initialProgress, onProgres
           </p>
 
           <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => setPhase('idle')}
-              className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
-            >
+            <button type="button" onClick={() => setPhase('idle')} className={PRIMARY_BUTTON}>
               Back to start
             </button>
           </div>

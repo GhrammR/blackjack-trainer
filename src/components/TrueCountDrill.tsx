@@ -12,6 +12,7 @@ import {
 import { trueCount } from '../lib/counting'
 import { signed } from '../lib/format'
 import { DeckEstimateTray, DeckScaleReference } from './DeckEstimateTray'
+import { PAGE_WRAPPER, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT } from './theme'
 
 type Phase = 'idle' | 'guessing' | 'feedback'
 
@@ -125,7 +126,7 @@ export function TrueCountDrill({ numDecks, initialProgress, onProgressChange }: 
   const canSubmit = playedInput.trim() !== '' && Number(playedInput) >= 0 && trueCountInput.trim() !== ''
 
   return (
-    <div className="flex flex-col items-center gap-6 px-4 py-10">
+    <div className={PAGE_WRAPPER}>
       <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-slate-300">
         <span className="text-slate-400">
           {numDecks} deck{numDecks > 1 ? 's' : ''} (change in Settings)
@@ -149,19 +150,11 @@ export function TrueCountDrill({ numDecks, initialProgress, onProgressChange }: 
 
       {phase === 'idle' && (
         <div className="flex flex-col items-center gap-4">
-          <button
-            type="button"
-            onClick={() => setShowScaleReference((v) => !v)}
-            className="rounded-md bg-slate-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-600"
-          >
+          <button type="button" onClick={() => setShowScaleReference((v) => !v)} className={SECONDARY_BUTTON}>
             {showScaleReference ? 'Hide scale reference' : 'Show scale reference'}
           </button>
           {showScaleReference && <DeckScaleReference totalDecks={numDecks} />}
-          <button
-            type="button"
-            onClick={newScenario}
-            className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={newScenario} className={PRIMARY_BUTTON_LG}>
             New scenario
           </button>
         </div>
@@ -203,12 +196,7 @@ export function TrueCountDrill({ numDecks, initialProgress, onProgressChange }: 
               className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
             />
           </label>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canSubmit}
-            className="rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          <button type="button" onClick={submit} disabled={!canSubmit} className={PRIMARY_BUTTON}>
             Submit
           </button>
         </div>
@@ -216,10 +204,10 @@ export function TrueCountDrill({ numDecks, initialProgress, onProgressChange }: 
 
       {phase === 'feedback' && feedback && (
         <div className="flex max-w-md flex-col items-center gap-2 text-center">
-          <p className={`text-lg font-semibold ${feedback.estimateGood ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-lg font-semibold ${feedback.estimateGood ? SUCCESS_TEXT : ERROR_TEXT}`}>
             {feedback.estimateGood ? 'Good estimate' : `Estimate off by ${Math.abs(feedback.estimateDelta).toFixed(1)} decks`}
           </p>
-          <p className={`text-lg font-semibold ${feedback.mathCorrect ? 'text-emerald-400' : 'text-red-400'}`}>
+          <p className={`text-lg font-semibold ${feedback.mathCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
             {feedback.mathCorrect ? 'Correct math' : `Math off — should be ${feedback.expectedFromEstimate}`}
           </p>
 
@@ -243,11 +231,7 @@ export function TrueCountDrill({ numDecks, initialProgress, onProgressChange }: 
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={newScenario}
-            className="mt-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500"
-          >
+          <button type="button" onClick={newScenario} className={`mt-2 ${PRIMARY_BUTTON}`}>
             Next scenario
           </button>
         </div>
