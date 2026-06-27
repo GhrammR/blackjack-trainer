@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { StrategyTrainer } from './components/StrategyTrainer'
+import { BasicStrategyMode } from './components/v2/modes/BasicStrategyMode'
 import { CardCountingTrainer } from './components/CardCountingTrainer'
 import { LivePlayDrill } from './components/LivePlayDrill'
 import { TabButton } from './components/TabButton'
@@ -80,7 +80,7 @@ function App() {
           Live Play
         </TabButton>
       </nav>
-      {tab === 'strategy' && <StrategyTrainer key={strategyResetKey} />}
+      {tab === 'strategy' && <BasicStrategyMode key={strategyResetKey} />}
       {tab === 'counting' && (
         <CardCountingTrainer
           settings={counting.settings}
