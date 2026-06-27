@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { TabButton } from './TabButton'
-import { RunningCountDrill } from './RunningCountDrill'
+import { RunningCountMode } from './v2/modes/RunningCountMode'
 import { TrueCountDrill } from './TrueCountDrill'
 import { ShoeCountdownDrill } from './ShoeCountdownDrill'
 import { DetectionDrill } from './DetectionDrill'
@@ -56,7 +56,7 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         </TabButton>
       </nav>
       {tab === 'running' && (
-        <RunningCountDrill
+        <RunningCountMode
           numDecks={settings.numDecks}
           seatCount={settings.seatCount}
           cardsPerSecond={settings.cardsPerSecond}
