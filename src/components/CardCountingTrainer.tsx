@@ -7,7 +7,7 @@ import { DetectionDrill } from './DetectionDrill'
 import { TableScanDrill } from './TableScanDrill'
 import { EvidenceDrill } from './EvidenceDrill'
 import { EvasionDrill } from './EvasionDrill'
-import { IndexPlayDrill } from './IndexPlayDrill'
+import { IndexPlayMode } from './v2/modes/IndexPlayMode'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
 
 type DrillTab = 'running' | 'true' | 'countdown' | 'detection' | 'tableScan' | 'evidence' | 'evasion' | 'indexPlays'
@@ -110,7 +110,7 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         />
       )}
       {tab === 'indexPlays' && (
-        <IndexPlayDrill
+        <IndexPlayMode
           initialProgress={progress.indexPlays}
           onProgressChange={(indexPlays) => onProgressChange({ ...progress, indexPlays })}
         />
