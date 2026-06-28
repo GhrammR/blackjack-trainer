@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
+import { type DifficultyLevel, tickMarks } from '../../../lib/trueCountDrill'
 
 interface DiscardRackProps {
   fillFraction: number  // 0–1; 0 = empty, 1 = full shoe played
   totalDecks?: number
+  /** When set, renders calibration tick marks for the True Count drill's deck-estimation challenge. */
+  difficulty?: DifficultyLevel
 }
 
 const TRAY_W = 46
@@ -13,19 +16,24 @@ const INNER_H = TRAY_H - 14
 /**
  * Clear-acrylic discard tray. Shows played cards accumulating from the bottom.
  * Decorative (fillFraction=0) in modes without shoe tracking.
+ * Pass `difficulty` to overlay calibration tick marks for the True Count drill.
  */
-export function DiscardRack({ fillFraction }: DiscardRackProps): ReactNode {
+export function DiscardRack({ fillFraction, totalDecks = 6, difficulty }: DiscardRackProps): ReactNode {
   const fill = Math.max(0, Math.min(1, fillFraction))
   const cardH = Math.round(fill * INNER_H)
   const innerLeft = (TRAY_W - INNER_W) / 2
+  const ticks = difficulty ? tickMarks(totalDecks, difficulty) : []
 
   return (
-    <div style={{ position: 'relative', width: TRAY_W, height: TRAY_H }}>
+    <div style={{ position: 'relative', width: TRAY_W + (ticks.some(t => t.label) ? 14 : 0), height: TRAY_H }}>
       {/* Outer acrylic shell — faint blue-tint border like clear plastic */}
       <div
         style={{
           position: 'absolute',
-          inset: 0,
+          top: 0,
+          left: 0,
+          width: TRAY_W,
+          height: TRAY_H,
           borderRadius: 5,
           border: '1.5px solid rgba(160,205,240,0.22)',
           background:
@@ -72,7 +80,41 @@ export function DiscardRack({ fillFraction }: DiscardRackProps): ReactNode {
               />
             </div>
           )}
+
+          {/* Calibration tick marks for deck estimation (True Count drill only) */}
+          {ticks.map((tick, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: `${tick.fraction * 100}%`,
+                borderTop: tick.label
+                  ? '1px solid rgba(200,220,255,0.55)'
+                  : '1px solid rgba(180,200,240,0.25)',
+              }}
+            />
+          ))}
         </div>
+
+        {/* Tick labels — rendered to the right of the inner well, inside the shell */}
+        {ticks.filter(t => t.label).map((tick, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              right: 2,
+              bottom: `calc(${tick.fraction * INNER_H}px + 5px - 4px)`,
+              fontSize: 7,
+              lineHeight: 1,
+              color: 'rgba(180,210,255,0.70)',
+              pointerEvents: 'none',
+            }}
+          >
+            {tick.label}
+          </div>
+        ))}
 
         {/* Acrylic top-edge sheen */}
         <div

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { DifficultyLevel } from '../../../lib/trueCountDrill'
 import { DealingShoe } from './DealingShoe'
 import { DiscardRack } from './DiscardRack'
 import { TableSeat } from './TableSeat'
@@ -74,6 +75,8 @@ interface CasinoTableProps {
   decksRemaining?: number
   /** DiscardRack fill fraction 0–1. Defaults to 0. */
   discardFraction?: number
+  /** Calibration tick marks on the discard rack (True Count drill). Defaults to no ticks. */
+  discardDifficulty?: DifficultyLevel
   /** Felt color preset. Defaults to 'green'. */
   feltColor?: FeltColor
 }
@@ -98,6 +101,7 @@ export function CasinoTable({
   totalDecks = 6,
   decksRemaining,
   discardFraction = 0,
+  discardDifficulty,
   feltColor = 'green',
 }: CasinoTableProps) {
   const decksFill = decksRemaining ?? totalDecks
@@ -253,7 +257,7 @@ export function CasinoTable({
                   gap: 16,
                 }}
               >
-                <DiscardRack fillFraction={discardFraction} totalDecks={totalDecks} />
+                <DiscardRack fillFraction={discardFraction} totalDecks={totalDecks} difficulty={discardDifficulty} />
                 <div
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
                 >
