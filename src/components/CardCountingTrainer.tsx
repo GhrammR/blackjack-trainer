@@ -4,7 +4,7 @@ import { RunningCountMode } from './v2/modes/RunningCountMode'
 import { TrueCountMode } from './v2/modes/TrueCountMode'
 import { ShoeCountdownMode } from './v2/modes/ShoeCountdownMode'
 import { CounterDetectionMode } from './v2/modes/CounterDetectionMode'
-import { TableScanDrill } from './TableScanDrill'
+import { TableScanMode } from './v2/modes/TableScanMode'
 import { EvidenceDrill } from './EvidenceDrill'
 import { EvasionDrill } from './EvasionDrill'
 import { IndexPlayMode } from './v2/modes/IndexPlayMode'
@@ -88,7 +88,7 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         />
       )}
       {tab === 'tableScan' && (
-        <TableScanDrill
+        <TableScanMode
           numDecks={settings.numDecks}
           seatCount={settings.seatCount}
           initialProgress={progress.tableScan}
