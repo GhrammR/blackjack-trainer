@@ -3,7 +3,7 @@ import { TabButton } from './TabButton'
 import { RunningCountMode } from './v2/modes/RunningCountMode'
 import { TrueCountMode } from './v2/modes/TrueCountMode'
 import { ShoeCountdownMode } from './v2/modes/ShoeCountdownMode'
-import { DetectionDrill } from './DetectionDrill'
+import { CounterDetectionMode } from './v2/modes/CounterDetectionMode'
 import { TableScanDrill } from './TableScanDrill'
 import { EvidenceDrill } from './EvidenceDrill'
 import { EvasionDrill } from './EvasionDrill'
@@ -81,7 +81,7 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         />
       )}
       {tab === 'detection' && (
-        <DetectionDrill
+        <CounterDetectionMode
           numDecks={settings.numDecks}
           initialProgress={progress.detection}
           onProgressChange={(detection) => onProgressChange({ ...progress, detection })}
