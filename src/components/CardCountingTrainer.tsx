@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { TabButton } from './TabButton'
 import { RunningCountMode } from './v2/modes/RunningCountMode'
 import { TrueCountMode } from './v2/modes/TrueCountMode'
-import { ShoeCountdownDrill } from './ShoeCountdownDrill'
+import { ShoeCountdownMode } from './v2/modes/ShoeCountdownMode'
 import { DetectionDrill } from './DetectionDrill'
 import { TableScanDrill } from './TableScanDrill'
 import { EvidenceDrill } from './EvidenceDrill'
@@ -73,7 +73,7 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         />
       )}
       {tab === 'countdown' && (
-        <ShoeCountdownDrill
+        <ShoeCountdownMode
           numDecks={settings.numDecks}
           personalBests={progress.shoeCountdown.personalBests}
           onPersonalBestsChange={(personalBests) => onProgressChange({ ...progress, shoeCountdown: { personalBests } })}
