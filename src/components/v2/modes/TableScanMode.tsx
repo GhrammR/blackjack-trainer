@@ -112,7 +112,13 @@ export function TableScanMode({
   }, [initialProgress])
 
   function startSession() {
-    setSession(generateMultiPlayerSession(numDecks, seatCount, difficulty))
+    // Deep multi-seat shoes (12 decks for 4 seats) rarely produce TC≥2 in 25 rounds.
+    // Retry until the counter has at least one elevated bet so the drill is identifiable.
+    let sess = generateMultiPlayerSession(numDecks, seatCount, difficulty)
+    for (let i = 0; i < 10 && sess.rounds.every(r => r.seats[sess.counterSeatIndex].bet <= 1); i++) {
+      sess = generateMultiPlayerSession(numDecks, seatCount, difficulty)
+    }
+    setSession(sess)
     setSelectedSeat(null)
     setIsCorrect(null)
     setPhase('reviewing')
@@ -189,9 +195,9 @@ export function TableScanMode({
       {/* ── Comparison panel ─────────────────────────────────────────────────── */}
       {/* One column per seat, side by side. Each column: 25 rounds of chip stacks.
           Click a column header to select that seat as the counter.
-          Count hidden during review (chip heights = bet sizes are fully visible);
-          TC revealed per round in feedback, counter column highlighted green. */}
-      {session && (
+          Chip stacks always visible during review (no gate, no toggle).
+          TC revealed per round in feedback only; counter column highlighted green. */}
+      {(phase === 'reviewing' || phase === 'feedback') && session && (
         <div
           className="w-full max-w-2xl rounded border border-slate-800"
           style={{ overflowX: 'auto' }}
@@ -249,8 +255,8 @@ export function TableScanMode({
                 </tr>
               </thead>
               <tbody>
-                {session.rounds.map((round, roundIdx) => (
-                  <tr key={roundIdx}>
+                {[...session.rounds].reverse().map((round) => (
+                  <tr key={round.roundNumber}>
                     {round.seats.map((seatRound, seatIdx) => (
                       <td
                         key={seatIdx}

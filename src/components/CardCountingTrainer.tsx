@@ -5,7 +5,7 @@ import { TrueCountMode } from './v2/modes/TrueCountMode'
 import { ShoeCountdownMode } from './v2/modes/ShoeCountdownMode'
 import { CounterDetectionMode } from './v2/modes/CounterDetectionMode'
 import { TableScanMode } from './v2/modes/TableScanMode'
-import { EvidenceDrill } from './EvidenceDrill'
+import { EvidenceFlaggingMode } from './v2/modes/EvidenceFlaggingMode'
 import { EvasionDrill } from './EvasionDrill'
 import { IndexPlayMode } from './v2/modes/IndexPlayMode'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
@@ -96,7 +96,7 @@ export function CardCountingTrainer({ settings, progress, onProgressChange, isPa
         />
       )}
       {tab === 'evidence' && (
-        <EvidenceDrill
+        <EvidenceFlaggingMode
           numDecks={settings.numDecks}
           initialProgress={progress.evidence}
           onProgressChange={(evidence) => onProgressChange({ ...progress, evidence })}

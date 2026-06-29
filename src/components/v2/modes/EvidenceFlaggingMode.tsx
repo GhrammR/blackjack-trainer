@@ -4,8 +4,16 @@ import {
   type RoundRecord,
   generateDetectionSession,
 } from '../../../lib/detectionSession'
+import { type FlagGrade, gradeFlags, isEvidenceRound } from '../../../lib/evidenceGrading'
 import type { DetectionDifficulty } from '../../../lib/playerProfiles'
-import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT } from '../../theme'
+import {
+  SECTION_LABEL,
+  PRIMARY_BUTTON,
+  PRIMARY_BUTTON_LG,
+  SECONDARY_BUTTON,
+  SUCCESS_TEXT,
+  ERROR_TEXT,
+} from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 // ── Difficulty config ──────────────────────────────────────────────────────────
@@ -17,27 +25,21 @@ const DIFFICULTY_LABELS: Record<DetectionDifficulty, string> = {
 }
 const DIFFICULTIES: DetectionDifficulty[] = ['beginner', 'intermediate', 'expert']
 
-// ── Chip stack ─────────────────────────────────────────────────────────────────
-//
-// Each chip: 22px circle, CSS concentric ring via box-shadow.
-// CHIP_OFFSET = 11px (half the chip diameter) means each stacked chip shows
-// its full lower half below the one above — clearly countable separate discs.
-// Stack grows upward; row height = stack height so 1u vs 8u rows are 4.5×
-// different in height, unmistakable when scanning down the column.
+// ── Chip stack (exact copy from CounterDetectionMode, slice 6) ─────────────────
 
-const CHIP_SIZE = 22     // diameter px
-const CHIP_OFFSET = 11   // visible px of each chip below the one above (= half chip)
-const CHIP_MAX = 10      // cap at 10 chips in display
+const CHIP_SIZE = 22
+const CHIP_OFFSET = 11
+const CHIP_MAX = 10
 
 const CHIP_COLOR: Record<number, string> = {
-  1: '#94a3b8',   // slate  — "white chip" (minimum bet)
-  2: '#f87171',   // red
-  3: '#4ade80',   // green
-  4: '#60a5fa',   // blue
-  5: '#a78bfa',   // violet
-  6: '#fb923c',   // orange
-  7: '#f472b6',   // pink
-  8: '#fbbf24',   // gold   — maximum bet
+  1: '#94a3b8',
+  2: '#f87171',
+  3: '#4ade80',
+  4: '#60a5fa',
+  5: '#a78bfa',
+  6: '#fb923c',
+  7: '#f472b6',
+  8: '#fbbf24',
 }
 
 function resolveChipColor(units: number): string {
@@ -74,54 +76,97 @@ function ChipStack({ units }: { units: number }) {
   )
 }
 
-// ── Per-round detail ───────────────────────────────────────────────────────────
+// ── Per-round detail row ───────────────────────────────────────────────────────
 //
-// Row height is determined by the chip stack, not a fixed minimum.
-// 1u row ≈ 30px tall; 8u row ≈ 105px tall — 3.5× difference, unmistakable
-// when scanning down the column.
+// Extends slice 6's RoundRow with:
+//   • A flag checkbox + click-anywhere-to-toggle during review.
+//   • A left-border color + result badge in feedback:
+//       emerald  = flagged — evidence (true positive)
+//       red      = flagged — not evidence (false positive)
+//       amber    = missed evidence (false negative)
+//       none     = correctly ignored
 //
-// Layout: two side-by-side columns.
-//   Left: #N · situation → actions · deviation label* — flex, fills height,
-//         text vertically centered so it reads cleanly even in tall rows.
-//   Right: ChipStack (grows upward, bottom-aligned) + TC ±N* beside it.
-// * revealed=false during review (TC hidden; chip sizes fully visible)
-// * revealed=true in feedback (TC column appears beside each stack)
+// Row height is still driven by the chip stack, as in slice 6, so 1u vs 8u
+// rows are unmistakably different heights when scanning down the panel.
 
 function formatSituation(situationKey: string): string {
   const [category, total, , dealer] = situationKey.split('-')
   return `${category[0].toUpperCase()}${category.slice(1)} ${total} vs ${dealer}`
 }
 
-function RoundRow({ round, revealed }: { round: RoundRecord; revealed: boolean }) {
+function RoundRow({
+  round,
+  revealed,
+  flagged,
+  onToggleFlag,
+  grade,
+}: {
+  round: RoundRecord
+  revealed: boolean
+  flagged: boolean
+  onToggleFlag?: () => void
+  grade: FlagGrade | null
+}) {
   const actionText = round.actions.join(' → ')
   const stackH = CHIP_SIZE + (Math.min(round.bet, CHIP_MAX) - 1) * CHIP_OFFSET
-  const rowH = stackH + 12  // 6px padding top + bottom
+  const rowH = stackH + 12
+
+  let badge: { text: string; color: string } | null = null
+  let leftBorderColor = 'transparent'
+  if (revealed && grade) {
+    if (grade.truePositives.includes(round.roundNumber)) {
+      badge = { text: 'flagged — evidence', color: '#4ade80' }
+      leftBorderColor = '#4ade80'
+    } else if (grade.falsePositives.includes(round.roundNumber)) {
+      badge = { text: 'flagged — not evidence', color: '#f87171' }
+      leftBorderColor = '#f87171'
+    } else if (grade.falseNegatives.includes(round.roundNumber)) {
+      badge = { text: 'missed evidence', color: '#fcd34d' }
+      leftBorderColor = '#fcd34d'
+    }
+  }
 
   return (
     <div
+      onClick={onToggleFlag}
       style={{
         display: 'flex',
         alignItems: 'stretch',
         gap: 8,
         height: rowH,
         borderBottom: '1px solid #1e293b',
-        padding: '6px 0',
+        borderLeft: `3px solid ${leftBorderColor}`,
+        padding: '6px 0 6px 4px',
+        background: flagged && !revealed ? 'rgba(29,78,216,0.12)' : undefined,
+        cursor: onToggleFlag ? 'pointer' : 'default',
+        transition: 'background 0.1s',
       }}
     >
-      {/* Left column: round number + situation text + deviation labels */}
+      {/* Left: checkbox + round number */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, width: 56, flexShrink: 0 }}>
+        <input
+          type="checkbox"
+          readOnly
+          checked={flagged}
+          style={{ pointerEvents: 'none', width: 13, height: 13 }}
+        />
+        <span style={{ color: '#64748b', fontSize: 12 }}>#{round.roundNumber}</span>
+      </div>
+
+      {/* Center: situation + actions + deviation labels + result badge */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-        <span style={{ width: 32, color: '#64748b', fontSize: 12, flexShrink: 0 }}>
-          #{round.roundNumber}
-        </span>
         <span style={{ flex: 1, color: '#cbd5e1', fontSize: 12, minWidth: 0 }}>
           {formatSituation(round.situationKey)} → {actionText}
           {round.playerBusted && <span style={{ color: '#f87171' }}> (bust)</span>}
         </span>
         {revealed && round.deviated && (
-          <span style={{
-            fontSize: 11, flexShrink: 0,
-            color: round.deviationType === 'index' ? '#fcd34d' : '#7dd3fc',
-          }}>
+          <span
+            style={{
+              fontSize: 11,
+              flexShrink: 0,
+              color: round.deviationType === 'index' ? '#fcd34d' : '#7dd3fc',
+            }}
+          >
             {round.deviationType === 'index'
               ? `dev: ${round.basicAction}`
               : `cover: ${round.basicAction}`}
@@ -130,9 +175,14 @@ function RoundRow({ round, revealed }: { round: RoundRecord; revealed: boolean }
         {revealed && round.isCoverBet && (
           <span style={{ fontSize: 11, color: '#7dd3fc', flexShrink: 0 }}>cover bet</span>
         )}
+        {badge && (
+          <span style={{ fontSize: 11, fontWeight: 600, color: badge.color, flexShrink: 0 }}>
+            {badge.text}
+          </span>
+        )}
       </div>
 
-      {/* Right column: chip stack (bottom-aligned, grows upward) + TC */}
+      {/* Right: chip stack (grows upward, bottom-aligned) + TC hidden during review */}
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
         <ChipStack units={round.bet} />
         {revealed ? (
@@ -147,26 +197,38 @@ function RoundRow({ round, revealed }: { round: RoundRecord; revealed: boolean }
   )
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function formatPercent(value: number | null): string {
+  return value === null ? '—' : `${Math.round(value * 100)}%`
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 type Phase = 'idle' | 'reviewing' | 'feedback'
 
-interface DetectionProgress {
+interface EvidenceProgress {
   sessionsPlayed: number
   sessionsCorrect: number
 }
 
-interface CounterDetectionModeProps {
+interface EvidenceFlaggingModeProps {
   numDecks: number
-  initialProgress: DetectionProgress
-  onProgressChange: (p: DetectionProgress) => void
+  initialProgress: EvidenceProgress
+  onProgressChange: (p: EvidenceProgress) => void
 }
 
-export function CounterDetectionMode({ numDecks, initialProgress, onProgressChange }: CounterDetectionModeProps) {
+export function EvidenceFlaggingMode({
+  numDecks,
+  initialProgress,
+  onProgressChange,
+}: EvidenceFlaggingModeProps) {
   const [difficulty, setDifficulty] = useState<DetectionDifficulty>('beginner')
   const [phase, setPhase] = useState<Phase>('idle')
   const [session, setSession] = useState<DetectionSession | null>(null)
+  const [flagged, setFlagged] = useState<Set<number>>(new Set())
   const [verdict, setVerdict] = useState<boolean | null>(null)
+  const [grade, setGrade] = useState<FlagGrade | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [sessionsPlayed, setSessionsPlayed] = useState(initialProgress.sessionsPlayed)
   const [sessionsCorrect, setSessionsCorrect] = useState(initialProgress.sessionsCorrect)
@@ -183,21 +245,35 @@ export function CounterDetectionMode({ numDecks, initialProgress, onProgressChan
 
   function startSession() {
     setSession(generateDetectionSession(numDecks, difficulty))
+    setFlagged(new Set())
     setVerdict(null)
+    setGrade(null)
     setPhase('reviewing')
+  }
+
+  function toggleFlag(roundNumber: number) {
+    setFlagged((prev) => {
+      const next = new Set(prev)
+      if (next.has(roundNumber)) next.delete(roundNumber)
+      else next.add(roundNumber)
+      return next
+    })
   }
 
   function submitVerdict(saysCounting: boolean) {
     if (!session) return
-    const isCorrect = saysCounting === session.isCounting
+    const verdictCorrect = saysCounting === session.isCounting
+    const flagGrade = gradeFlags(session.rounds, flagged)
     setVerdict(saysCounting)
+    setGrade(flagGrade)
     setSessionsPlayed((n) => n + 1)
-    if (isCorrect) setSessionsCorrect((n) => n + 1)
+    if (verdictCorrect) setSessionsCorrect((n) => n + 1)
     setDetailOpen(true)
     setPhase('feedback')
   }
 
-  const isCorrect = session && verdict !== null ? verdict === session.isCounting : null
+  const isVerdictCorrect = session && verdict !== null ? verdict === session.isCounting : null
+  const evidenceCount = session ? session.rounds.filter(isEvidenceRound).length : 0
 
   const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
 
@@ -236,8 +312,9 @@ export function CounterDetectionMode({ numDecks, initialProgress, onProgressChan
         {phase === 'idle' && (
           <div className="flex flex-col items-center gap-3">
             <p className="max-w-md text-center text-sm text-slate-400">
-              You're reviewing one simulated player's last hands at a table. Watch how their bet size moves and
-              whether any of their plays look off — then judge: counting, or not?
+              Review one player's hands and flag every round you think shows real evidence of
+              counting — a genuine bet-size tell or a count-driven strategy deviation — then give
+              your overall verdict.
             </p>
             <button type="button" onClick={startSession} className={PRIMARY_BUTTON_LG}>
               Start review
@@ -248,21 +325,42 @@ export function CounterDetectionMode({ numDecks, initialProgress, onProgressChan
         {/* ── REVIEWING ── */}
         {phase === 'reviewing' && session && (
           <div className="flex w-full flex-col gap-4">
+
+            {/* Always-visible round panel — click any row to flag it */}
             <div className="w-full rounded border border-slate-800">
+              <p className="px-3 py-2 text-sm text-slate-400">
+                Click rounds to flag as evidence{flagged.size > 0 ? ` · ${flagged.size} flagged` : ''}
+              </p>
               <div className="flex flex-col px-2">
                 {session.rounds.map((round) => (
-                  <RoundRow key={round.roundNumber} round={round} revealed={false} />
+                  <RoundRow
+                    key={round.roundNumber}
+                    round={round}
+                    revealed={false}
+                    flagged={flagged.has(round.roundNumber)}
+                    onToggleFlag={() => toggleFlag(round.roundNumber)}
+                    grade={null}
+                  />
                 ))}
               </div>
             </div>
 
+            {/* Verdict — fires both the binary verdict and gradeFlags together */}
             <div className="flex flex-col items-center gap-3 border-t border-slate-800 pt-4">
               <p className="text-slate-200">Was this player counting cards?</p>
               <div className="flex gap-3">
-                <button type="button" onClick={() => submitVerdict(true)} className={PRIMARY_BUTTON_LG}>
+                <button
+                  type="button"
+                  onClick={() => submitVerdict(true)}
+                  className={PRIMARY_BUTTON_LG}
+                >
                   Counting
                 </button>
-                <button type="button" onClick={() => submitVerdict(false)} className={SECONDARY_BUTTON}>
+                <button
+                  type="button"
+                  onClick={() => submitVerdict(false)}
+                  className={SECONDARY_BUTTON}
+                >
                   Not counting
                 </button>
               </div>
@@ -271,37 +369,53 @@ export function CounterDetectionMode({ numDecks, initialProgress, onProgressChan
         )}
 
         {/* ── FEEDBACK ── */}
-        {phase === 'feedback' && session && (
+        {phase === 'feedback' && session && grade && (
           <div className="flex w-full flex-col gap-4">
+
+            {/* Summary */}
             <div className="flex flex-col items-center gap-2 text-center">
-              <p className={`text-lg font-semibold ${isCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
-                {isCorrect ? 'Correct!' : 'Incorrect'}
+              <p className={`text-lg font-semibold ${isVerdictCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
+                Verdict: {isVerdictCorrect ? 'Correct!' : 'Incorrect'}
               </p>
               <p className="text-slate-300">
                 This player was{' '}
                 <span className="font-semibold text-white">{session.profileName}</span>
                 {session.isCounting ? ` (${DIFFICULTY_LABELS[session.difficulty]})` : ''}.
               </p>
-              <p className="max-w-md text-sm text-slate-400">
-                {session.isCounting
-                  ? "Their bet size tracked the true count — bigger bets when the count favored them — and they made at least one count-dependent strategy deviation a recreational player wouldn't know to make."
-                  : "Their bets stayed flat regardless of the count, and every play matched plain basic strategy — no count-dependent signal anywhere in this session."}
+              <p className="text-sm text-slate-400">
+                {evidenceCount} real evidence round{evidenceCount === 1 ? '' : 's'} ·{' '}
+                Precision {formatPercent(grade.precision)} · Recall {formatPercent(grade.recall)}
+              </p>
+              <p className="max-w-md text-xs text-slate-500">
+                Precision: of the rounds you flagged, how many were real evidence.
+                Recall: of the real evidence rounds, how many you caught.
               </p>
             </div>
 
+            {/* Round detail — auto-expanded on submit, collapsible */}
             <div className="w-full rounded border border-slate-800">
               <button
                 type="button"
                 onClick={() => setDetailOpen((v) => !v)}
                 className="flex w-full items-center justify-between rounded px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 hover:text-slate-200"
               >
-                <span>{detailOpen ? 'Hide round detail' : `View round detail (${session.rounds.length} rounds)`}</span>
+                <span>
+                  {detailOpen
+                    ? 'Hide round detail'
+                    : `View round detail (${session.rounds.length} rounds)`}
+                </span>
                 <span aria-hidden>{detailOpen ? '▲' : '▼'}</span>
               </button>
               {detailOpen && (
                 <div className="flex flex-col px-2">
                   {session.rounds.map((round) => (
-                    <RoundRow key={round.roundNumber} round={round} revealed={true} />
+                    <RoundRow
+                      key={round.roundNumber}
+                      round={round}
+                      revealed={true}
+                      flagged={flagged.has(round.roundNumber)}
+                      grade={grade}
+                    />
                   ))}
                 </div>
               )}
