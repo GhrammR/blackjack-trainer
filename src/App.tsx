@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BasicStrategyMode } from './components/v2/modes/BasicStrategyMode'
 import { CardCountingTrainer } from './components/CardCountingTrainer'
-import { LivePlayDrill } from './components/LivePlayDrill'
+import { LivePlayMode } from './components/v2/modes/LivePlayMode'
 import { TabButton } from './components/TabButton'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import {
@@ -90,7 +90,7 @@ function App() {
         />
       )}
       {tab === 'livePlay' && (
-        <LivePlayDrill
+        <LivePlayMode
           numDecks={counting.settings.numDecks}
           initialProgress={counting.progress.livePlay}
           onProgressChange={handleLivePlayProgressChange}
