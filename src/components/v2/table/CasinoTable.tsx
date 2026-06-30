@@ -182,7 +182,7 @@ export function CasinoTable({
                   Verified S17: STAND (not hit). */}
               <svg
                 viewBox="0 0 1000 345"
-                preserveAspectRatio="none"
+                preserveAspectRatio="xMidYMid slice"
                 aria-hidden="true"
                 style={{
                   position: 'absolute',

@@ -1,23 +1,96 @@
 # Double Down
 
-An adaptive blackjack basic-strategy trainer: it finds your weakest decisions and weights practice toward them until you can run 150 hands with zero errors.
-
-![Screenshot of the trainer mid-session, showing the streak/accuracy panel, a dealt hand, and the weakness heatmap](docs/screenshot.png)
+A blackjack and card-counting trainer built from the **casino surveillance
+perspective** — not a player-side tool for beating the house, but a training
+platform for learning to watch a table the way casino surveillance does:
+tracking counts across multiple hands at once, reading bet patterns for
+advantage signals, and judging a shoe from the outside rather than playing it
+from the inside.
 
 **Live demo:** https://blackjack-trainer-gules.vercel.app/
 
+![The Double Down lobby showing the four-section curriculum](docs/screenshot-lobby.png)
+
+## What it trains
+
+Ten modes across four sections of a structured curriculum:
+
+### Basic Strategy
+
+**Strategy Trainer** — Grade every decision against a verified basic-strategy
+chart (6-deck, S17, DAS, no surrender). Adaptive weighting steers practice
+toward your weak situations; a 150-hand perfect streak is the headline goal.
+A weakness heatmap shows at a glance which hard/soft/pair situations need
+more work.
+
+![Strategy Trainer on the felt table — dealer upcard, player cards, streak counter, and weakness heatmap](docs/screenshot-strategy.png)
+
+### Counting Fundamentals
+
+- **Running Count** — Cards are dealt round-by-round across multiple seats
+  plus the dealer, the way a real table actually deals. Count the whole round
+  from the observer's position, not a single stream of flashing cards.
+- **True Count** — Given a running count and a visual discard tray, estimate
+  decks remaining from the tray depth, then compute the true count. Both
+  steps are graded independently.
+- **Shoe Countdown** — Flip a full shoe to zero as fast as possible. The shoe
+  stops at a randomized point (so the count can't be back-calculated); speed
+  is timed and personal bests tracked per deck count.
+- **Index Plays** — Make count-driven strategy deviations (the Illustrious
+  18) when the true count crosses a threshold. Bridges the strategy and
+  counting engines directly.
+
+![Running Count drill — four seats dealt round-by-round from the observer position](docs/screenshot-running-count.png)
+
+### Surveillance & Detection
+
+- **Counter Detection** — Watch a simulated player through a full shoe and
+  render a verdict: were they counting? Bet spread and index-play deviations
+  are your evidence. Three difficulty tiers.
+- **Table Scan** — Multiple seats, one counter hidden among flat bettors.
+  Identify the counter from a full shoe of bet data. Three difficulty tiers.
+- **Evidence Flagging** — Flag the individual rounds within a shoe that are
+  genuine tells — a real uncamouflaged bet spike or a real index deviation,
+  not a cover play. Scored on precision and recall separately.
+- **Evasion** — Switch sides: play as the counter. Choose your bets and
+  deviations to maximize EV while keeping heat — rounds that read as evidence
+  to the Detection classifier — low. Scored on two independent axes mirroring
+  the Detection drill's grading.
+
+### Capstone
+
+**Live Play** — Play actual blackjack hands while keeping your own running
+count, converting to true count, and sizing bets for EV. All four skills
+tested together in one unbroken session — basic strategy decisions, running
+count, true-count conversion, and EV bet sizing — the way a real observer
+actually works a table. Late surrender is available as a legal option.
+
+## Achievement system
+
+Each mode has three mastery tiers derived from existing accuracy and volume
+data — no new persistence, no gambling framing. Pip indicators on each mode
+card show progress; section headers track how many modes in that section
+you've mastered. The pinnacle: **Double Down** — tier 3 earned across all
+ten modes.
+
 ## Stack
 
-- Vite + React + TypeScript
-- Tailwind CSS
-- Vitest for unit tests
-- localStorage for persistence (no backend, no API keys, zero running cost)
+- **Vite + React + TypeScript** — fully client-side SPA, no backend
+- **Tailwind CSS**
+- **Vitest** — ~249 unit tests covering the strategy chart, counting math,
+  and all session engines
+- **localStorage** — all progress persists in two independent keys (strategy
+  and counting); no accounts, no API keys, zero running cost
+- Deploys as a static site (Vercel / Netlify / GitHub Pages)
 
-## Rule set (fixed for v1)
+## Rule set
 
-6 decks · dealer stands on soft 17 · double after split allowed · no surrender · blackjack pays 3:2.
+6 decks · dealer stands on soft 17 · double after split allowed · no
+surrender (the strategy chart never recommends it; Surrender is always wrong
+in strategy drills) · blackjack pays 3:2.
 
-The trainer grades every decision against a basic-strategy chart for exactly this rule set — see `src/lib/strategy.ts` and `CLAUDE.md` §11 for a couple of judgment calls made while encoding it (e.g. hard 11 vs. dealer Ace).
+See `src/lib/strategy.ts` for the chart encoding and `CLAUDE.md §11` for
+a few judgment calls made while encoding it (e.g. hard 11 vs. dealer Ace).
 
 ## Setup
 
@@ -26,23 +99,13 @@ npm install
 npm run dev
 ```
 
-Run the test suite with `npm test`, or build for production with `npm run build`.
+Run the test suite: `npm test`. Production build: `npm run build`.
 
 ## How the adaptive engine works
 
-Every decision you make is tracked per situation (e.g. "hard 16 vs. dealer 10," "soft 18 vs. 9," "pair of 8s vs. 10") with a rolling-window accuracy. Each time you're dealt a new hand, the trainer draws mostly — but not exclusively — from your weakest situations, so struggling spots come back often while mastered ones still recur occasionally instead of disappearing. The headline goal is a 150-hand streak with zero mistakes; missing one resets the streak to 0, and a weakness heatmap shows exactly which hard/soft/pair situations need more work.
-
-## Card Counting Trainer (v2)
-
-![Screenshot of the card counting trainer's Running Count drill, showing a dealt round across four seats plus the dealer](docs/screenshot-counting.png)
-
-A second mode, trained from the **casino surveillance / observer side, not the player's side**. Instead of learning to beat the house from a player's seat, you're learning to watch a table the way surveillance actually does: counting across multiple hands at once, estimating deck depth without being handed the number, and judging a shoe from the outside rather than playing it from the inside. The counting system is fixed to **Hi-Lo** (2–6 = +1, 7–9 = 0, 10/J/Q/K/A = −1).
-
-Four drills, switchable via their own sub-tabs:
-
-- **Running Count** — a full round is dealt across multiple seats plus the dealer, the way a real table actually deals (round-robin, twice), and you keep the running count across the whole round from the observer's vantage point.
-- **True Count** — you're handed a running count and a discard-tray visual; estimate decks played, derive decks remaining, then compute the true count. Difficulty tiers control how many calibration tick marks the tray shows.
-- **Shoe Countdown** — flip cards as fast as you can. The deal stops at an unpredictable point (not always the full shoe), so the count has to be tracked for real and can't be guessed at the end — speed is timed and personal bests are tracked per shoe size.
-- **Settings** — shoe size, seat count, and dealing speed in one shared panel; lifetime accuracy and personal bests; a two-step "reset progress" confirm that clears progress without touching your strategy-trainer streak.
-
-Settings and progress (personal bests, rounds played, accuracy) persist across reloads via localStorage, in a separate key from the v1 strategy trainer so the two trackers never interfere with each other.
+Every decision is tracked per situation (e.g. "hard 16 vs. dealer 10,"
+"soft 18 vs. 9," "pair of 8s vs. 10") with a rolling accuracy window. Each
+new hand draws mostly from your weakest situations, with a random floor so
+mastered situations still recur occasionally instead of disappearing. The
+150-hand perfect-streak goal is the headline challenge; a weakness heatmap
+shows exactly which situations need more work.
