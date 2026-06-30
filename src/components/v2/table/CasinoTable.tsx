@@ -23,8 +23,8 @@ const RAIL_PX = 24          // rail thickness
 const CORNER_RADIUS = 110   // px — large fillet matches real-table rail rounding
 const SEAT_SCALE_X = 0.72   // seat-curve x-radius as fraction of table x-radius
 const SEAT_SCALE_Y = 0.78   // seat-curve y-radius as fraction of table height
-const ARC_MIN = 0.18        // rightmost seat: t = ARC_MIN × π
-const ARC_MAX = 0.82        // leftmost seat:  t = ARC_MAX × π
+const ARC_MIN = 0.23        // rightmost seat: t = ARC_MIN × π  (narrowed from 0.18 for 800px table)
+const ARC_MAX = 0.77        // leftmost seat:  t = ARC_MAX × π  (narrowed from 0.82)
 
 // Dark padded bumper rail — near-black leather cushion with top-surface highlight
 // and deep shadow at the outer/bottom edge to suggest a convex cross-section.
@@ -117,7 +117,7 @@ export function CasinoTable({
     // Outermost: positions the ambient glow and the table together.
     // The glow div uses transform:scale so its gradient visually extends beyond the
     // table bounds without disturbing layout or the drop-shadow filter on the table.
-    <div className="mx-auto w-full max-w-[1400px]" style={{ position: 'relative' }}>
+    <div className="mx-auto w-full max-w-[800px]" style={{ position: 'relative' }}>
       {/* Ambient glow — dim radial halo behind the table, like a light over the felt */}
       <div
         aria-hidden="true"
@@ -134,7 +134,7 @@ export function CasinoTable({
       <div
         style={{
           position: 'relative',
-          aspectRatio: '2.7 / 1',
+          aspectRatio: '2.0 / 1',
           filter: 'drop-shadow(0 22px 55px rgba(0,0,0,0.85))',
         }}
       >

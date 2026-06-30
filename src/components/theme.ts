@@ -6,7 +6,7 @@
  * deliberately confined accent (see DECISIONS.md).
  */
 
-export const PAGE_WRAPPER = 'flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-10'
+export const PAGE_WRAPPER = 'flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-4'
 
 export const FELT_PANEL =
   'rounded-2xl border border-emerald-900/40 bg-gradient-to-b from-emerald-950/50 to-emerald-900/20 p-6 shadow-inner'

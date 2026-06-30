@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
 import { BasicStrategyMode } from './components/v2/modes/BasicStrategyMode'
-import { CardCountingTrainer } from './components/CardCountingTrainer'
+import { RunningCountMode } from './components/v2/modes/RunningCountMode'
+import { TrueCountMode } from './components/v2/modes/TrueCountMode'
+import { ShoeCountdownMode } from './components/v2/modes/ShoeCountdownMode'
+import { IndexPlayMode } from './components/v2/modes/IndexPlayMode'
+import { CounterDetectionMode } from './components/v2/modes/CounterDetectionMode'
+import { TableScanMode } from './components/v2/modes/TableScanMode'
+import { EvidenceFlaggingMode } from './components/v2/modes/EvidenceFlaggingMode'
+import { EvasionMode } from './components/v2/modes/EvasionMode'
 import { LivePlayMode } from './components/v2/modes/LivePlayMode'
-import { TabButton } from './components/TabButton'
+import { Lobby, type ModeId } from './components/Lobby'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import {
   type CountingProgress,
@@ -14,10 +21,8 @@ import {
 } from './lib/persistence'
 import { lifetimeAccuracy } from './lib/mastery'
 
-type Tab = 'strategy' | 'counting' | 'livePlay'
-
 function App() {
-  const [tab, setTab] = useState<Tab>('strategy')
+  const [currentMode, setCurrentMode] = useState<ModeId | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [strategyResetKey, setStrategyResetKey] = useState(0)
   const [counting, setCounting] = useState(() => loadCountingState())
@@ -28,10 +33,6 @@ function App() {
 
   function handleProgressChange(progress: CountingProgress) {
     setCounting((prev) => ({ ...prev, progress }))
-  }
-
-  function handleLivePlayProgressChange(livePlay: CountingProgress['livePlay']) {
-    setCounting((prev) => ({ ...prev, progress: { ...prev.progress, livePlay } }))
   }
 
   function handleResetStrategy() {
@@ -57,45 +58,130 @@ function App() {
     }
   })()
 
+  const { settings, progress } = counting
+
+  function renderMode() {
+    switch (currentMode) {
+      case 'strategy':
+        return <BasicStrategyMode key={strategyResetKey} />
+      case 'runningCount':
+        return (
+          <RunningCountMode
+            numDecks={settings.numDecks}
+            seatCount={settings.seatCount}
+            cardsPerSecond={settings.cardsPerSecond}
+            initialProgress={progress.runningCount}
+            onProgressChange={(runningCount) =>
+              handleProgressChange({ ...progress, runningCount })
+            }
+            isPaused={settingsOpen}
+          />
+        )
+      case 'trueCount':
+        return (
+          <TrueCountMode
+            numDecks={settings.numDecks}
+            initialProgress={progress.trueCount}
+            onProgressChange={(trueCount) => handleProgressChange({ ...progress, trueCount })}
+          />
+        )
+      case 'shoeCountdown':
+        return (
+          <ShoeCountdownMode
+            numDecks={settings.numDecks}
+            personalBests={progress.shoeCountdown.personalBests}
+            onPersonalBestsChange={(personalBests) =>
+              handleProgressChange({ ...progress, shoeCountdown: { personalBests } })
+            }
+            isPaused={settingsOpen}
+          />
+        )
+      case 'indexPlays':
+        return (
+          <IndexPlayMode
+            initialProgress={progress.indexPlays}
+            onProgressChange={(indexPlays) => handleProgressChange({ ...progress, indexPlays })}
+          />
+        )
+      case 'counterDetection':
+        return (
+          <CounterDetectionMode
+            numDecks={settings.numDecks}
+            initialProgress={progress.detection}
+            onProgressChange={(detection) => handleProgressChange({ ...progress, detection })}
+          />
+        )
+      case 'tableScan':
+        return (
+          <TableScanMode
+            numDecks={settings.numDecks}
+            seatCount={settings.seatCount}
+            initialProgress={progress.tableScan}
+            onProgressChange={(tableScan) => handleProgressChange({ ...progress, tableScan })}
+          />
+        )
+      case 'evidenceFlagging':
+        return (
+          <EvidenceFlaggingMode
+            numDecks={settings.numDecks}
+            initialProgress={progress.evidence}
+            onProgressChange={(evidence) => handleProgressChange({ ...progress, evidence })}
+          />
+        )
+      case 'evasion':
+        return (
+          <EvasionMode
+            numDecks={settings.numDecks}
+            initialProgress={progress.evasion}
+            onProgressChange={(evasion) => handleProgressChange({ ...progress, evasion })}
+          />
+        )
+      case 'livePlay':
+        return (
+          <LivePlayMode
+            numDecks={settings.numDecks}
+            initialProgress={progress.livePlay}
+            onProgressChange={(livePlay) => handleProgressChange({ ...progress, livePlay })}
+          />
+        )
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <header className="relative border-b border-slate-800 pb-6 pt-10">
-        <h1 className="text-center text-4xl font-semibold tracking-tight">Double Down</h1>
+      <header className="relative flex items-center justify-center border-b border-slate-800 py-4">
+        {currentMode !== null && (
+          <button
+            type="button"
+            onClick={() => setCurrentMode(null)}
+            className="absolute left-4 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
+          >
+            ← Back
+          </button>
+        )}
+        <h1 className="text-3xl font-semibold tracking-tight">Double Down</h1>
         <button
           type="button"
           onClick={() => setSettingsOpen(true)}
-          className="absolute right-4 top-4 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
+          className="absolute right-4 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
         >
           ⚙ Settings
         </button>
       </header>
-      <nav className="mt-6 flex justify-center gap-2">
-        <TabButton active={tab === 'strategy'} onClick={() => setTab('strategy')}>
-          Strategy Trainer
-        </TabButton>
-        <TabButton active={tab === 'counting'} onClick={() => setTab('counting')}>
-          Card Counting
-        </TabButton>
-        <TabButton active={tab === 'livePlay'} onClick={() => setTab('livePlay')}>
-          Live Play
-        </TabButton>
-      </nav>
-      {tab === 'strategy' && <BasicStrategyMode key={strategyResetKey} />}
-      {tab === 'counting' && (
-        <CardCountingTrainer
-          settings={counting.settings}
-          progress={counting.progress}
-          onProgressChange={handleProgressChange}
-          isPaused={settingsOpen}
+
+      {currentMode === null ? (
+        <Lobby
+          strategySnapshot={strategySnapshot}
+          countingProgress={progress}
+          numDecks={settings.numDecks}
+          onEnter={setCurrentMode}
         />
+      ) : (
+        renderMode()
       )}
-      {tab === 'livePlay' && (
-        <LivePlayMode
-          numDecks={counting.settings.numDecks}
-          initialProgress={counting.progress.livePlay}
-          onProgressChange={handleLivePlayProgressChange}
-        />
-      )}
+
       {settingsOpen && (
         <GlobalSettingsModal
           onClose={() => setSettingsOpen(false)}
