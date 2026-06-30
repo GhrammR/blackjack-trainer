@@ -51,35 +51,6 @@ function tierChipColor(units: number): string {
   return TIER_CHIP_COLOR[units] ?? '#94a3b8'
 }
 
-function ChipStack({ units }: { units: number }) {
-  const count = Math.min(Math.max(units, 1), CHIP_MAX)
-  const color = tierChipColor(units)
-  const stackH = CHIP_SIZE + (count - 1) * CHIP_OFFSET
-
-  return (
-    <div style={{ position: 'relative', width: CHIP_SIZE + 2, height: stackH, flexShrink: 0 }}>
-      {Array.from({ length: count }, (_, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute',
-            bottom: i * CHIP_OFFSET,
-            width: CHIP_SIZE,
-            height: CHIP_SIZE,
-            borderRadius: '50%',
-            background: color,
-            border: '1.5px solid rgba(255,255,255,0.40)',
-            boxShadow: [
-              `inset 0 0 0 4px ${color}`,
-              'inset 0 0 0 7px rgba(255,255,255,0.28)',
-              '0 1px 3px rgba(0,0,0,0.60)',
-            ].join(', '),
-          }}
-        />
-      ))}
-    </div>
-  )
-}
 
 // ── Hand group (one hand within the user's seat) ───────────────────────────────
 // Local copy — not extracted as a shared component (consistent with convention).
