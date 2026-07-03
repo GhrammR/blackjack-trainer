@@ -11,6 +11,7 @@ import {
 } from '../../../lib/trueCountDrill'
 import { trueCount } from '../../../lib/counting'
 import { signed } from '../../../lib/format'
+import { SignedNumberInput } from '../../SignedNumberInput'
 import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT } from '../../theme'
 import { DiscardRack } from '../table/DiscardRack'
 import { CasinoTable } from '../table/CasinoTable'
@@ -211,12 +212,10 @@ export function TrueCountMode({ numDecks, initialProgress, onProgressChange }: T
             </label>
             <label className="flex items-center gap-2 text-slate-300">
               True count
-              <input
-                type="number"
+              <SignedNumberInput
                 value={trueCountInput}
-                onChange={(e) => setTrueCountInput(e.target.value)}
+                onChange={setTrueCountInput}
                 onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) submit() }}
-                className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
               />
             </label>
             <button type="button" onClick={submit} disabled={!canSubmit} className={PRIMARY_BUTTON}>

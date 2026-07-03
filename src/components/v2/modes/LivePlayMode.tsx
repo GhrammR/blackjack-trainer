@@ -23,6 +23,7 @@ import {
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
 import { ShoeRack } from '../../ShoeRack'
+import { SignedNumberInput } from '../../SignedNumberInput'
 import {
   ERROR_TEXT,
   PRIMARY_BUTTON,
@@ -493,22 +494,11 @@ export function LivePlayMode({ numDecks, initialProgress, onProgressChange }: Li
             <ShoeRack decksRemaining={decksRemaining(session)} totalDecks={numDecks} />
             <label className="flex items-center gap-2 text-slate-300">
               Running count?
-              <input
-                type="number"
-                value={countGuess}
-                onChange={(e) => setCountGuess(e.target.value)}
-                autoFocus
-                className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
-              />
+              <SignedNumberInput value={countGuess} onChange={setCountGuess} autoFocus />
             </label>
             <label className="flex items-center gap-2 text-slate-300">
               True count?
-              <input
-                type="number"
-                value={trueCountGuess}
-                onChange={(e) => setTrueCountGuess(e.target.value)}
-                className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
-              />
+              <SignedNumberInput value={trueCountGuess} onChange={setTrueCountGuess} />
             </label>
             <button
               type="button"

@@ -6,6 +6,7 @@ import { type PersonalBests, pickStopIndex, updatePersonalBest } from '../../../
 import { formatSeconds } from '../../../lib/format'
 import { signed } from '../../../lib/format'
 import { PlayingCard } from '../../PlayingCard'
+import { SignedNumberInput } from '../../SignedNumberInput'
 import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, ERROR_TEXT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
@@ -227,13 +228,11 @@ export function ShoeCountdownMode({
             </p>
             <label className="flex items-center gap-2 text-slate-300">
               What's your final count?
-              <input
+              <SignedNumberInput
                 ref={countInputRef}
-                type="number"
                 value={countAnswer}
-                onChange={(e) => setCountAnswer(e.target.value)}
+                onChange={setCountAnswer}
                 onKeyDown={(e) => { if (e.key === 'Enter' && countAnswer.trim() !== '') submit() }}
-                className="w-20 rounded bg-slate-800 px-2 py-1 text-center text-white"
               />
             </label>
             <button
