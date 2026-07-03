@@ -6,6 +6,8 @@ interface DiscardRackProps {
   totalDecks?: number
   /** When set, renders calibration tick marks for the True Count drill's deck-estimation challenge. */
   difficulty?: DifficultyLevel
+  /** Uniform scale applied to the whole glyph, 0-1. Lets CasinoTable shrink this in proportion to its own rendered width on narrow screens without touching the pixel geometry below. Defaults to 1 (native size, matches every pre-mobile-fix render). */
+  scale?: number
 }
 
 const TRAY_W = 46
@@ -18,14 +20,16 @@ const INNER_H = TRAY_H - 14
  * Decorative (fillFraction=0) in modes without shoe tracking.
  * Pass `difficulty` to overlay calibration tick marks for the True Count drill.
  */
-export function DiscardRack({ fillFraction, totalDecks = 6, difficulty }: DiscardRackProps): ReactNode {
+export function DiscardRack({ fillFraction, totalDecks = 6, difficulty, scale = 1 }: DiscardRackProps): ReactNode {
   const fill = Math.max(0, Math.min(1, fillFraction))
   const cardH = Math.round(fill * INNER_H)
   const innerLeft = (TRAY_W - INNER_W) / 2
   const ticks = difficulty ? tickMarks(totalDecks, difficulty) : []
+  const nativeWidth = TRAY_W + (ticks.some(t => t.label) ? 14 : 0)
 
   return (
-    <div style={{ position: 'relative', width: TRAY_W + (ticks.some(t => t.label) ? 14 : 0), height: TRAY_H }}>
+    <div style={{ position: 'relative', width: nativeWidth * scale, height: TRAY_H * scale }}>
+    <div style={{ position: 'relative', width: nativeWidth, height: TRAY_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
       {/* Outer acrylic shell — faint blue-tint border like clear plastic */}
       <div
         style={{
@@ -142,6 +146,7 @@ export function DiscardRack({ fillFraction, totalDecks = 6, difficulty }: Discar
           }}
         />
       </div>
+    </div>
     </div>
   )
 }

@@ -151,24 +151,30 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <header className="relative flex items-center justify-center border-b border-slate-800 py-4">
-        {currentMode !== null && (
+      <header className="flex items-center gap-2 border-b border-slate-800 px-2 py-3 sm:px-4 sm:py-4">
+        <div className="flex w-16 shrink-0 justify-start sm:w-28">
+          {currentMode !== null && (
+            <button
+              type="button"
+              onClick={() => setCurrentMode(null)}
+              className="rounded-md bg-slate-800 px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-3 sm:text-sm"
+            >
+              ← Back
+            </button>
+          )}
+        </div>
+        <h1 className="flex-1 truncate text-center text-lg font-semibold tracking-tight sm:text-3xl">
+          Double Down
+        </h1>
+        <div className="flex w-16 shrink-0 justify-end sm:w-28">
           <button
             type="button"
-            onClick={() => setCurrentMode(null)}
-            className="absolute left-4 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
+            onClick={() => setSettingsOpen(true)}
+            className="rounded-md bg-slate-800 px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-3 sm:text-sm"
           >
-            ← Back
+            ⚙ Settings
           </button>
-        )}
-        <h1 className="text-3xl font-semibold tracking-tight">Double Down</h1>
-        <button
-          type="button"
-          onClick={() => setSettingsOpen(true)}
-          className="absolute right-4 rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-300 transition hover:bg-slate-700"
-        >
-          ⚙ Settings
-        </button>
+        </div>
       </header>
 
       {currentMode === null ? (

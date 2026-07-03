@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 interface DealingShoeProps {
   decksRemaining: number
   totalDecks?: number
+  /** Uniform scale applied to the whole glyph, 0-1. Lets CasinoTable shrink this in proportion to its own rendered width on narrow screens without touching the pixel geometry below. Defaults to 1 (native size, matches every pre-mobile-fix render). */
+  scale?: number
 }
 
 const SHOE_W = 52
@@ -11,13 +13,14 @@ const SLOT_W = 36
 const SLOT_H = 64
 const SLOT_TOP = 10
 
-export function DealingShoe({ decksRemaining, totalDecks = 6 }: DealingShoeProps): ReactNode {
+export function DealingShoe({ decksRemaining, totalDecks = 6, scale = 1 }: DealingShoeProps): ReactNode {
   const fill = Math.max(0, Math.min(1, decksRemaining / totalDecks))
   const slotLeft = (SHOE_W - SLOT_W) / 2
   const stackH = fill > 0 ? Math.max(4, Math.round(fill * SLOT_H)) : 0
 
   return (
-    <div style={{ position: 'relative', width: SHOE_W, height: SHOE_H }}>
+    <div style={{ position: 'relative', width: SHOE_W * scale, height: SHOE_H * scale }}>
+    <div style={{ position: 'relative', width: SHOE_W, height: SHOE_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
       {/* Outer housing — dark matte with slight bevel highlights */}
       <div
         style={{
@@ -113,6 +116,7 @@ export function DealingShoe({ decksRemaining, totalDecks = 6 }: DealingShoeProps
           }}
         />
       </div>
+    </div>
     </div>
   )
 }

@@ -1,8 +1,30 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { DifficultyLevel } from '../../../lib/trueCountDrill'
 import { DealingShoe } from './DealingShoe'
 import { DiscardRack } from './DiscardRack'
 import { TableSeat } from './TableSeat'
+
+const REFERENCE_TABLE_WIDTH = 800 // matches max-w-[800px] below — the width the shoe/rack pixel geometry is authored at
+
+/**
+ * Tracks this table's own rendered width so the shoe/rack (built from
+ * absolute pixel offsets, not CSS) can scale in proportion to the felt
+ * itself — same instinct as PlayingCard's cqw clamp, just done in JS
+ * because these two components compute pixel geometry, not just apply a size class.
+ */
+function useTableScale(ref: React.RefObject<HTMLDivElement | null>): number {
+  const [width, setWidth] = useState(REFERENCE_TABLE_WIDTH)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => setWidth(entries[0].contentRect.width))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ref])
+
+  return Math.min(1, width / REFERENCE_TABLE_WIDTH)
+}
 
 // ─── Felt color presets ────────────────────────────────────────────────────────
 // Swap these stop values to change the table color scheme.
@@ -107,6 +129,8 @@ export function CasinoTable({
   const decksFill = decksRemaining ?? totalDecks
   const positions = arcPositions(seatContents.length)
   const { center, mid, edge, glow } = FELT_COLORS[feltColor]
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const scale = useTableScale(wrapperRef)
 
   const feltBg = [
     'repeating-linear-gradient(78deg, transparent 0px, transparent 2px, rgba(0,0,0,0.055) 2px, rgba(0,0,0,0.055) 3px)',
@@ -117,7 +141,13 @@ export function CasinoTable({
     // Outermost: positions the ambient glow and the table together.
     // The glow div uses transform:scale so its gradient visually extends beyond the
     // table bounds without disturbing layout or the drop-shadow filter on the table.
-    <div className="mx-auto w-full max-w-[800px]" style={{ position: 'relative' }}>
+    // containerType: 'inline-size' makes this the cqw reference for PlayingCard sizing,
+    // so cards shrink in proportion to the table's own rendered width, not the viewport.
+    <div
+      ref={wrapperRef}
+      className="mx-auto w-full max-w-[800px]"
+      style={{ position: 'relative', containerType: 'inline-size' }}
+    >
       {/* Ambient glow — dim radial halo behind the table, like a light over the felt */}
       <div
         aria-hidden="true"
@@ -249,21 +279,26 @@ export function CasinoTable({
               <div
                 style={{
                   position: 'absolute',
-                  top: 14,
+                  top: 14 * scale,
                   left: '50%',
                   transform: 'translateX(-50%)',
                   display: 'flex',
                   alignItems: 'flex-start',
-                  gap: 16,
+                  gap: 16 * scale,
                 }}
               >
-                <DiscardRack fillFraction={discardFraction} totalDecks={totalDecks} difficulty={discardDifficulty} />
+                <DiscardRack
+                  fillFraction={discardFraction}
+                  totalDecks={totalDecks}
+                  difficulty={discardDifficulty}
+                  scale={scale}
+                />
                 <div
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 * scale }}
                 >
                   {dealerSlot}
                 </div>
-                <DealingShoe decksRemaining={decksFill} totalDecks={totalDecks} />
+                <DealingShoe decksRemaining={decksFill} totalDecks={totalDecks} scale={scale} />
               </div>
 
               {/* Seats fanned along the inset arc */}
