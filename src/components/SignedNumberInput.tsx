@@ -9,32 +9,59 @@ interface SignedNumberInputProps {
 }
 
 /**
- * Digits-only number input plus a tappable sign toggle. Mobile numeric
+ * Digits-only number input plus a tappable +/− sign control. Mobile numeric
  * keypads (type="number"/inputMode="numeric") have no minus key, so typing
- * a negative count is impossible on a phone without this — the toggle sets
+ * a negative count is impossible on a phone without this — the control sets
  * the sign directly on the string value, independent of the keyboard.
+ *
+ * The active sign is a two-segment control (not a single ambiguous "±"
+ * button) so the current state reads at a glance without relying on color:
+ * the pressed segment gets a filled, bold, higher-contrast treatment and
+ * aria-pressed, while color (red for negative) is only a secondary cue.
+ * The signed value itself ("-5") is also always visible in the field.
  */
 export const SignedNumberInput = forwardRef<HTMLInputElement, SignedNumberInputProps>(
   function SignedNumberInput({ value, onChange, onKeyDown, autoFocus, className }, ref) {
     const isNegative = value.trim().startsWith('-')
 
-    const toggleSign = () => {
+    const setSign = (negative: boolean) => {
       const trimmed = value.trim()
-      onChange(isNegative ? trimmed.slice(1) : `-${trimmed}`)
+      const digits = trimmed.startsWith('-') ? trimmed.slice(1) : trimmed
+      onChange(negative ? `-${digits}` : digits)
     }
 
     return (
       <span className="inline-flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={toggleSign}
-          aria-label={isNegative ? 'Make positive' : 'Make negative'}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-700 text-lg font-semibold transition hover:bg-slate-600 ${
-            isNegative ? 'text-red-400' : 'text-white'
-          }`}
+        <span
+          role="group"
+          aria-label="Sign"
+          className="inline-flex overflow-hidden rounded border border-slate-600"
         >
-          ±
-        </button>
+          <button
+            type="button"
+            onClick={() => setSign(false)}
+            aria-pressed={!isNegative}
+            className={`px-2.5 py-1.5 text-base font-bold leading-none transition ${
+              !isNegative
+                ? 'bg-slate-100 text-slate-900'
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setSign(true)}
+            aria-pressed={isNegative}
+            className={`px-2.5 py-1.5 text-base font-bold leading-none transition ${
+              isNegative
+                ? 'bg-red-500 text-white'
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            &minus;
+          </button>
+        </span>
         <input
           ref={ref}
           type="number"
@@ -43,7 +70,7 @@ export const SignedNumberInput = forwardRef<HTMLInputElement, SignedNumberInputP
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           autoFocus={autoFocus}
-          className={className ?? 'w-20 rounded bg-slate-800 px-2 py-1 text-center text-white'}
+          className={className ?? 'w-20 rounded bg-slate-800 px-2 py-1 text-center text-lg font-semibold text-white'}
         />
       </span>
     )
