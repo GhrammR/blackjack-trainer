@@ -12,6 +12,7 @@ import { LivePlayMode } from './components/v2/modes/LivePlayMode'
 import { Lobby, type ModeId } from './components/Lobby'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import { TrainingSessionRecord } from './components/TrainingSessionRecord'
+import { GuidesView } from './components/GuidesView'
 import {
   type CountingModeKey,
   type CountingProgress,
@@ -26,6 +27,7 @@ import { lifetimeAccuracy } from './lib/mastery'
 
 function App() {
   const [currentMode, setCurrentMode] = useState<ModeId | null>(null)
+  const [guidesOpen, setGuidesOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [strategyResetKey, setStrategyResetKey] = useState(0)
   const [counting, setCounting] = useState(() => loadCountingState())
@@ -156,10 +158,10 @@ function App() {
     <div className="min-h-screen bg-slate-900 text-white">
       <header className="flex items-center gap-2 border-b border-slate-800 px-2 py-3 sm:px-4 sm:py-4">
         <div className="flex w-16 shrink-0 justify-start sm:w-28">
-          {currentMode !== null && (
+          {(currentMode !== null || guidesOpen) && (
             <button
               type="button"
-              onClick={() => setCurrentMode(null)}
+              onClick={() => { setCurrentMode(null); setGuidesOpen(false) }}
               className="rounded-md bg-slate-800 px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-3 sm:text-sm"
             >
               ← Back
@@ -169,7 +171,14 @@ function App() {
         <h1 className="flex-1 truncate text-center text-lg font-semibold tracking-tight sm:text-3xl">
           Double Down
         </h1>
-        <div className="flex w-16 shrink-0 justify-end sm:w-28">
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setGuidesOpen(true); setCurrentMode(null) }}
+            className="rounded-md bg-slate-800 px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-3 sm:text-sm"
+          >
+            📖 Guides
+          </button>
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
@@ -180,7 +189,9 @@ function App() {
         </div>
       </header>
 
-      {currentMode === null ? (
+      {guidesOpen ? (
+        <GuidesView />
+      ) : currentMode === null ? (
         <Lobby
           strategySnapshot={strategySnapshot}
           countingProgress={progress}
