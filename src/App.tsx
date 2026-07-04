@@ -11,6 +11,7 @@ import { EvasionMode } from './components/v2/modes/EvasionMode'
 import { LivePlayMode } from './components/v2/modes/LivePlayMode'
 import { Lobby, type ModeId } from './components/Lobby'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
+import { TrainingSessionRecord } from './components/TrainingSessionRecord'
 import {
   type CountingModeKey,
   type CountingProgress,
@@ -55,14 +56,12 @@ function App() {
     handleResetCounting()
   }
 
-  const strategySnapshot = (() => {
-    const persisted = loadState()
-    return {
-      handsPlayed: persisted.handsPlayed,
-      currentStreak: persisted.currentStreak,
-      lifetimeAccuracy: lifetimeAccuracy(persisted.stats).accuracy,
-    }
-  })()
+  const v1State = loadState()
+  const strategySnapshot = {
+    handsPlayed: v1State.handsPlayed,
+    currentStreak: v1State.currentStreak,
+    lifetimeAccuracy: lifetimeAccuracy(v1State.stats).accuracy,
+  }
 
   const { settings, progress } = counting
 
@@ -191,6 +190,8 @@ function App() {
       ) : (
         renderMode()
       )}
+
+      <TrainingSessionRecord />
 
       {settingsOpen && (
         <GlobalSettingsModal
