@@ -1,5 +1,6 @@
 import type { CountingProgress } from '../lib/persistence'
 import { computeAchievements, type AchievementTiers } from '../lib/achievements'
+import { formatPace } from '../lib/format'
 import { SECTION_LABEL } from './theme'
 
 export type ModeId =
@@ -25,12 +26,6 @@ interface LobbyProps {
 
 function pct(n: number, d: number): string {
   return d === 0 ? '—' : `${Math.round((n / d) * 100)}%`
-}
-
-function formatMs(ms: number): string {
-  const s = Math.floor(ms / 1000)
-  const m = Math.floor(s / 60)
-  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
 }
 
 // ── Achievement pip display ────────────────────────────────────────────────────
@@ -176,8 +171,15 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
       ? 'Not started'
       : `${tc.roundsPlayed} rounds · estimates: ${pct(tc.goodEstimates, tc.roundsPlayed)} · math: ${pct(tc.correctMath, tc.roundsPlayed)}`
 
-  const scBest = p.shoeCountdown.personalBests[numDecks]
-  const scStat = scBest != null ? `Best: ${formatMs(scBest)} · ${numDecks}-deck` : 'No best yet'
+  const scFullBest = p.shoeCountdown.fullCountdown.personalBests[numDecks]
+  const scMissing = p.shoeCountdown.missingCards
+  const scStat =
+    scFullBest != null
+      ? `Best pace: ${formatPace(scFullBest)} · ${numDecks}-deck` +
+        (scMissing.attempts > 0 ? ` · Missing cards: ${pct(scMissing.correct, scMissing.attempts)} correct` : '')
+      : scMissing.attempts > 0
+        ? `Missing cards: ${scMissing.attempts} attempts · ${pct(scMissing.correct, scMissing.attempts)} correct`
+        : 'Not started'
 
   const ip = p.indexPlays
   const ipStat =

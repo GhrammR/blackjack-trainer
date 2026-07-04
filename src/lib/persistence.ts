@@ -65,10 +65,25 @@ export interface CountingSettings {
   cardsPerSecond: number
 }
 
+/**
+ * Two independent formats (Feature B, v2): "Full countdown" personal bests
+ * store PACE (ms per card actually dealt), not raw completion time — its
+ * random stop point makes a single run's card count vary too much for raw
+ * time to be comparable, even within one shoe size. "Missing cards" deals a
+ * ~fixed card count per shoe size (the whole shoe minus 1-2 cards), so raw
+ * completion time is already valid there; it also tracks lifetime
+ * attempts/correct like the detection-family drills, since a wrong guess
+ * doesn't have a "time" to record at all.
+ */
+export interface ShoeCountdownProgress {
+  fullCountdown: { personalBests: PersonalBests }
+  missingCards: { personalBests: PersonalBests; attempts: number; correct: number }
+}
+
 export interface CountingProgress {
   runningCount: { roundsPlayed: number; roundsCorrect: number }
   trueCount: { roundsPlayed: number; goodEstimates: number; correctMath: number }
-  shoeCountdown: { personalBests: PersonalBests }
+  shoeCountdown: ShoeCountdownProgress
   detection: { sessionsPlayed: number; sessionsCorrect: number }
   tableScan: { sessionsPlayed: number; sessionsCorrect: number }
   evidence: { sessionsPlayed: number; sessionsCorrect: number }
@@ -108,7 +123,10 @@ const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
 const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
   trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
-  shoeCountdown: { personalBests: {} },
+  shoeCountdown: {
+    fullCountdown: { personalBests: {} },
+    missingCards: { personalBests: {}, attempts: 0, correct: 0 },
+  },
   detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
   tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
   evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -152,13 +170,14 @@ function parseProgress(raw: unknown): CountingProgress {
   const rc = (r.runningCount ?? {}) as Record<string, unknown>
   const tc = (r.trueCount ?? {}) as Record<string, unknown>
   const sc = (r.shoeCountdown ?? {}) as Record<string, unknown>
+  const scFull = (sc.fullCountdown ?? {}) as Record<string, unknown>
+  const scMissing = (sc.missingCards ?? {}) as Record<string, unknown>
   const dt = (r.detection ?? {}) as Record<string, unknown>
   const ts = (r.tableScan ?? {}) as Record<string, unknown>
   const ev = (r.evidence ?? {}) as Record<string, unknown>
   const ea = (r.evasion ?? {}) as Record<string, unknown>
   const ip = (r.indexPlays ?? {}) as Record<string, unknown>
   const lp = (r.livePlay ?? {}) as Record<string, unknown>
-  const personalBests = sc.personalBests
 
   return {
     runningCount: {
@@ -171,7 +190,14 @@ function parseProgress(raw: unknown): CountingProgress {
       correctMath: typeof tc.correctMath === 'number' ? tc.correctMath : 0,
     },
     shoeCountdown: {
-      personalBests: isRecordOfNumbers(personalBests) ? (personalBests as PersonalBests) : {},
+      fullCountdown: {
+        personalBests: isRecordOfNumbers(scFull.personalBests) ? (scFull.personalBests as PersonalBests) : {},
+      },
+      missingCards: {
+        personalBests: isRecordOfNumbers(scMissing.personalBests) ? (scMissing.personalBests as PersonalBests) : {},
+        attempts: typeof scMissing.attempts === 'number' ? scMissing.attempts : 0,
+        correct: typeof scMissing.correct === 'number' ? scMissing.correct : 0,
+      },
     },
     detection: {
       sessionsPlayed: typeof dt.sessionsPlayed === 'number' ? dt.sessionsPlayed : 0,
@@ -235,4 +261,15 @@ export function saveCountingState(state: CountingState): void {
 /** Resets progress (personal bests + round history) to defaults while leaving `settings` untouched. */
 export function resetCountingProgress(state: CountingState): CountingState {
   return { settings: state.settings, progress: DEFAULT_COUNTING_PROGRESS }
+}
+
+/** One of the nine independent Card Counting modes tracked in `CountingProgress`. */
+export type CountingModeKey = keyof CountingProgress
+
+/** Resets a single counting mode's stats to defaults, leaving every other mode's progress and all settings untouched. */
+export function resetCountingMode(state: CountingState, mode: CountingModeKey): CountingState {
+  return {
+    settings: state.settings,
+    progress: { ...state.progress, [mode]: DEFAULT_COUNTING_PROGRESS[mode] },
+  }
 }

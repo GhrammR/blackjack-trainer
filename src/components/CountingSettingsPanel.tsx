@@ -1,6 +1,6 @@
 import { SHOE_SIZE_OPTIONS } from '../lib/shoe'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
-import { formatSeconds } from '../lib/format'
+import { formatPace, formatSeconds } from '../lib/format'
 
 const SEAT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6] as const
 const SPEED_OPTIONS = [1, 2, 3, 4] as const
@@ -17,9 +17,13 @@ function accuracyLabel(correct: number, attempts: number): string {
 }
 
 export function CountingSettingsPanel({ settings, onSettingsChange, progress }: CountingSettingsPanelProps) {
-  const personalBestEntries = Object.entries(progress.shoeCountdown.personalBests)
+  const fullCountdownBests = Object.entries(progress.shoeCountdown.fullCountdown.personalBests)
+    .map(([decks, pace]) => [Number(decks), pace] as const)
+    .sort((a, b) => a[0] - b[0])
+  const missingCardsBests = Object.entries(progress.shoeCountdown.missingCards.personalBests)
     .map(([decks, ms]) => [Number(decks), ms] as const)
     .sort((a, b) => a[0] - b[0])
+  const missingCards = progress.shoeCountdown.missingCards
 
   return (
     <div className="flex w-full flex-col items-center gap-8">
@@ -85,12 +89,29 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress }: 
           {accuracyLabel(progress.trueCount.correctMath, progress.trueCount.roundsPlayed)} correct math
         </p>
         <div className="text-sm text-slate-300">
-          <p>Shoe Countdown personal bests:</p>
-          {personalBestEntries.length === 0 ? (
+          <p>Shoe Countdown — Full Countdown best pace:</p>
+          {fullCountdownBests.length === 0 ? (
             <p className="text-slate-500">No runs yet.</p>
           ) : (
             <ul className="ml-4 list-disc">
-              {personalBestEntries.map(([decks, ms]) => (
+              {fullCountdownBests.map(([decks, pace]) => (
+                <li key={decks}>
+                  {decks} deck{decks > 1 ? 's' : ''}: {formatPace(pace)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="text-sm text-slate-300">
+          <p>
+            Shoe Countdown — Missing Cards: {missingCards.attempts} attempts ·{' '}
+            {accuracyLabel(missingCards.correct, missingCards.attempts)} correct
+          </p>
+          {missingCardsBests.length === 0 ? (
+            <p className="text-slate-500">No runs yet.</p>
+          ) : (
+            <ul className="ml-4 list-disc">
+              {missingCardsBests.map(([decks, ms]) => (
                 <li key={decks}>
                   {decks} deck{decks > 1 ? 's' : ''}: {formatSeconds(ms)}
                 </li>

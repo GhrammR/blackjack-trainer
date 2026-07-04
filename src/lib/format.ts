@@ -12,3 +12,8 @@ export function isValidSignedInt(value: string): boolean {
 export function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(2)}s`
 }
+
+/** Formats a ms-per-card pace as cards/sec, e.g. "2.38 cards/sec" — always labeled so it reads as a rate, not a raw time. */
+export function formatPace(msPerCard: number): string {
+  return `${(1000 / msPerCard).toFixed(2)} cards/sec`
+}

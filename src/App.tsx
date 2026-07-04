@@ -12,10 +12,12 @@ import { LivePlayMode } from './components/v2/modes/LivePlayMode'
 import { Lobby, type ModeId } from './components/Lobby'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import {
+  type CountingModeKey,
   type CountingProgress,
   clearState,
   loadCountingState,
   loadState,
+  resetCountingMode,
   resetCountingProgress,
   saveCountingState,
 } from './lib/persistence'
@@ -42,6 +44,10 @@ function App() {
 
   function handleResetCounting() {
     setCounting((prev) => resetCountingProgress(prev))
+  }
+
+  function handleResetCountingMode(mode: CountingModeKey) {
+    setCounting((prev) => resetCountingMode(prev, mode))
   }
 
   function handleResetAll() {
@@ -89,10 +95,8 @@ function App() {
         return (
           <ShoeCountdownMode
             numDecks={settings.numDecks}
-            personalBests={progress.shoeCountdown.personalBests}
-            onPersonalBestsChange={(personalBests) =>
-              handleProgressChange({ ...progress, shoeCountdown: { personalBests } })
-            }
+            initialProgress={progress.shoeCountdown}
+            onProgressChange={(shoeCountdown) => handleProgressChange({ ...progress, shoeCountdown })}
             isPaused={settingsOpen}
           />
         )
@@ -197,6 +201,7 @@ function App() {
           strategySnapshot={strategySnapshot}
           onResetStrategy={handleResetStrategy}
           onResetCounting={handleResetCounting}
+          onResetCountingMode={handleResetCountingMode}
           onResetAll={handleResetAll}
         />
       )}

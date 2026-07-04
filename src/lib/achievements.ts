@@ -23,23 +23,14 @@ export interface Achievements {
   doubleDown: boolean
 }
 
-// Shoe Countdown speed thresholds (milliseconds), anchored to published
-// counter-training benchmarks: ~30s single-deck = proficient, <90s 6-deck = ideal.
-const SHOE_FAST_MS: Record<number, number> = {
-  1: 30_000,
-  2: 60_000,
-  4: 100_000,
-  6: 150_000,
-  8: 200_000,
-}
-
-const SHOE_BLAZING_MS: Record<number, number> = {
-  1: 20_000,
-  2: 40_000,
-  4: 75_000,
-  6: 90_000,
-  8: 130_000,
-}
+// Shoe Countdown's "Full countdown" format scores by PACE (ms per card
+// actually dealt), not raw completion time — see shoeCountdown.ts for why.
+// Pace is deck-size-independent by construction, so unlike the old
+// per-deck-count ms tables this replaced, a single flat cutoff applies at
+// every shoe size: ~2 cards/sec is proficient, ~2.86 cards/sec (350ms/card)
+// is the "blazing" ceiling.
+const SHOE_FAST_PACE_MS = 500
+const SHOE_BLAZING_PACE_MS = 350
 
 function rate(correct: number, total: number): number {
   return total === 0 ? 0 : correct / total
@@ -77,13 +68,14 @@ export function computeAchievements(
   }
 
   // ── Shoe Countdown ────────────────────────────────────────────────────────────
-  const fastMs = SHOE_FAST_MS[numDecks] ?? SHOE_FAST_MS[6]
-  const blazingMs = SHOE_BLAZING_MS[numDecks] ?? SHOE_BLAZING_MS[6]
-  const best = p.shoeCountdown.personalBests[numDecks] ?? null
+  // Tiers are based on the "Full countdown" format's best pace only —
+  // "Missing cards" tracks its own attempts/correct/personal-best but
+  // doesn't feed these tiers yet (deliberately deferred to a later pass).
+  const bestPace = p.shoeCountdown.fullCountdown.personalBests[numDecks] ?? null
   const shoeCountdown: AchievementTiers = {
-    tier1: best !== null,
-    tier2: best !== null && best < fastMs,
-    tier3: best !== null && best < blazingMs,
+    tier1: bestPace !== null,
+    tier2: bestPace !== null && bestPace < SHOE_FAST_PACE_MS,
+    tier3: bestPace !== null && bestPace < SHOE_BLAZING_PACE_MS,
   }
 
   // ── Index Plays ───────────────────────────────────────────────────────────────

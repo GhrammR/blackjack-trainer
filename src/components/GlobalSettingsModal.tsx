@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { CountingProgress, CountingSettings } from '../lib/persistence'
+import type { CountingModeKey, CountingProgress, CountingSettings } from '../lib/persistence'
 import { CountingSettingsPanel } from './CountingSettingsPanel'
 import { SECONDARY_BUTTON } from './theme'
 
@@ -17,6 +17,7 @@ interface GlobalSettingsModalProps {
   strategySnapshot: StrategySnapshot
   onResetStrategy: () => void
   onResetCounting: () => void
+  onResetCountingMode: (mode: CountingModeKey) => void
   onResetAll: () => void
 }
 
@@ -37,6 +38,28 @@ const RESET_COPY: Record<Exclude<ConfirmTarget, null>, { label: string; warning:
   },
 }
 
+// ── Per-mode reset (Feature A) ──────────────────────────────────────────────────
+// A single mode's stats, independent of the broad Strategy/Counting/All resets
+// above. 'strategy' here routes to the same onResetStrategy as the broad reset
+// (it's already a single-mode store); every other entry clears just that one
+// key of CountingProgress via onResetCountingMode, leaving the other eight
+// counting modes and all settings untouched.
+
+type ModeResetTarget = 'strategy' | CountingModeKey
+
+const MODE_RESET_OPTIONS: { key: ModeResetTarget; label: string }[] = [
+  { key: 'strategy', label: 'Basic Strategy' },
+  { key: 'runningCount', label: 'Running Count' },
+  { key: 'trueCount', label: 'True Count' },
+  { key: 'shoeCountdown', label: 'Shoe Countdown' },
+  { key: 'indexPlays', label: 'Index Plays' },
+  { key: 'detection', label: 'Counter Detection' },
+  { key: 'tableScan', label: 'Table Scan' },
+  { key: 'evidence', label: 'Evidence Flagging' },
+  { key: 'evasion', label: 'Evasion' },
+  { key: 'livePlay', label: 'Live Play' },
+]
+
 export function GlobalSettingsModal({
   onClose,
   countingSettings,
@@ -45,9 +68,12 @@ export function GlobalSettingsModal({
   strategySnapshot,
   onResetStrategy,
   onResetCounting,
+  onResetCountingMode,
   onResetAll,
 }: GlobalSettingsModalProps) {
   const [confirming, setConfirming] = useState<ConfirmTarget>(null)
+  const [selectedMode, setSelectedMode] = useState<ModeResetTarget>('strategy')
+  const [confirmingMode, setConfirmingMode] = useState(false)
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -63,6 +89,14 @@ export function GlobalSettingsModal({
     else onResetAll()
     setConfirming(null)
   }
+
+  function handleConfirmMode() {
+    if (selectedMode === 'strategy') onResetStrategy()
+    else onResetCountingMode(selectedMode)
+    setConfirmingMode(false)
+  }
+
+  const selectedModeLabel = MODE_RESET_OPTIONS.find((m) => m.key === selectedMode)?.label ?? ''
 
   return (
     <div
@@ -94,6 +128,51 @@ export function GlobalSettingsModal({
         </section>
 
         <CountingSettingsPanel settings={countingSettings} onSettingsChange={onCountingSettingsChange} progress={countingProgress} />
+
+        <section className="flex flex-col gap-3 rounded-lg bg-slate-800/50 p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Reset a single mode</h3>
+
+          {!confirmingMode ? (
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedMode}
+                onChange={(e) => setSelectedMode(e.target.value as ModeResetTarget)}
+                className="flex-1 rounded bg-slate-800 px-2 py-1.5 text-sm text-white"
+              >
+                {MODE_RESET_OPTIONS.map(({ key, label }) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setConfirmingMode(true)}
+                className="shrink-0 rounded-md bg-red-900/60 px-4 py-1.5 text-sm font-medium text-red-200 transition hover:bg-red-900"
+              >
+                Reset
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <p className="text-sm text-red-300">
+                This clears only {selectedModeLabel}'s stats — every other mode is untouched. This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleConfirmMode}
+                  className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600"
+                >
+                  Confirm
+                </button>
+                <button type="button" onClick={() => setConfirmingMode(false)} className={SECONDARY_BUTTON}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
 
         <section className="flex flex-col gap-3 rounded-lg bg-slate-800/50 p-4">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Reset</h3>

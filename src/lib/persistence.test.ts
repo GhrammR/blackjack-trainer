@@ -4,6 +4,7 @@ import {
   clearState,
   loadCountingState,
   loadState,
+  resetCountingMode,
   resetCountingProgress,
   saveCountingState,
   saveState,
@@ -77,7 +78,10 @@ const DEFAULT_COUNTING_STATE: CountingState = {
   progress: {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
     trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
-    shoeCountdown: { personalBests: {} },
+    shoeCountdown: {
+      fullCountdown: { personalBests: {} },
+      missingCards: { personalBests: {}, attempts: 0, correct: 0 },
+    },
     detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -105,12 +109,29 @@ describe('loadCountingState', () => {
     })
   })
 
-  it('rejects a non-object personalBests value instead of throwing', () => {
+  it('rejects a non-object personalBests value instead of throwing, for either format', () => {
     localStorage.setItem(
       'double-down:counting:v1',
-      JSON.stringify({ progress: { shoeCountdown: { personalBests: 'not an object' } } }),
+      JSON.stringify({
+        progress: {
+          shoeCountdown: {
+            fullCountdown: { personalBests: 'not an object' },
+            missingCards: { personalBests: 42 },
+          },
+        },
+      }),
     )
-    expect(loadCountingState().progress.shoeCountdown.personalBests).toEqual({})
+    const sc = loadCountingState().progress.shoeCountdown
+    expect(sc.fullCountdown.personalBests).toEqual({})
+    expect(sc.missingCards.personalBests).toEqual({})
+  })
+
+  it('treats the old flat shoeCountdown shape (pre-Feature-B) as absent and starts fresh', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({ progress: { shoeCountdown: { personalBests: { 6: 45000 } } } }),
+    )
+    expect(loadCountingState().progress.shoeCountdown).toEqual(DEFAULT_COUNTING_STATE.progress.shoeCountdown)
   })
 
   it('rejects non-number evasion personal bests, defaulting to null instead of throwing', () => {
@@ -130,7 +151,10 @@ describe('saveCountingState / loadCountingState round trip', () => {
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
-        shoeCountdown: { personalBests: { 1: 12000, 6: 45000 } },
+        shoeCountdown: {
+          fullCountdown: { personalBests: { 1: 420, 6: 610 } },
+          missingCards: { personalBests: { 1: 12000, 6: 45000 }, attempts: 9, correct: 7 },
+        },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
@@ -151,7 +175,10 @@ describe('resetCountingProgress', () => {
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
-        shoeCountdown: { personalBests: { 8: 99000 } },
+        shoeCountdown: {
+          fullCountdown: { personalBests: { 8: 900 } },
+          missingCards: { personalBests: { 8: 99000 }, attempts: 4, correct: 3 },
+        },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
@@ -164,5 +191,53 @@ describe('resetCountingProgress', () => {
       settings: { numDecks: 8, seatCount: 6, cardsPerSecond: 3 },
       progress: DEFAULT_COUNTING_STATE.progress,
     })
+  })
+})
+
+describe('resetCountingMode', () => {
+  const state: CountingState = {
+    settings: { numDecks: 2, seatCount: 3, cardsPerSecond: 2 },
+    progress: {
+      runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
+      trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
+      shoeCountdown: {
+        fullCountdown: { personalBests: { 6: 610 } },
+        missingCards: { personalBests: { 6: 45000 }, attempts: 5, correct: 4 },
+      },
+      detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
+      tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
+      evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
+      evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
+      indexPlays: { attempts: 20, correct: 15 },
+      livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27, betAttempts: 20, betCorrect: 16 },
+    },
+  }
+
+  it('resets only the targeted mode, leaving every other mode, and settings, untouched', () => {
+    const result = resetCountingMode(state, 'runningCount')
+    expect(result.settings).toEqual(state.settings)
+    expect(result.progress.runningCount).toEqual(DEFAULT_COUNTING_STATE.progress.runningCount)
+    // Every other mode's progress is byte-for-byte unchanged.
+    expect(result.progress.trueCount).toEqual(state.progress.trueCount)
+    expect(result.progress.shoeCountdown).toEqual(state.progress.shoeCountdown)
+    expect(result.progress.detection).toEqual(state.progress.detection)
+    expect(result.progress.tableScan).toEqual(state.progress.tableScan)
+    expect(result.progress.evidence).toEqual(state.progress.evidence)
+    expect(result.progress.evasion).toEqual(state.progress.evasion)
+    expect(result.progress.indexPlays).toEqual(state.progress.indexPlays)
+    expect(result.progress.livePlay).toEqual(state.progress.livePlay)
+  })
+
+  it('resets a different mode (evasion) independently, confirming it is not hardcoded to one key', () => {
+    const result = resetCountingMode(state, 'evasion')
+    expect(result.progress.evasion).toEqual(DEFAULT_COUNTING_STATE.progress.evasion)
+    expect(result.progress.runningCount).toEqual(state.progress.runningCount)
+    expect(result.progress.livePlay).toEqual(state.progress.livePlay)
+  })
+
+  it('resetting shoeCountdown clears BOTH formats together, since they share one mode key', () => {
+    const result = resetCountingMode(state, 'shoeCountdown')
+    expect(result.progress.shoeCountdown).toEqual(DEFAULT_COUNTING_STATE.progress.shoeCountdown)
+    expect(result.progress.runningCount).toEqual(state.progress.runningCount)
   })
 })
