@@ -10,7 +10,7 @@ import {
   gradeTrueCountMath,
 } from '../../../lib/trueCountDrill'
 import { trueCount } from '../../../lib/counting'
-import { signed } from '../../../lib/format'
+import { isValidSignedInt, signed } from '../../../lib/format'
 import { SignedNumberInput } from '../../SignedNumberInput'
 import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT } from '../../theme'
 import { DiscardRack } from '../table/DiscardRack'
@@ -124,7 +124,7 @@ export function TrueCountMode({ numDecks, initialProgress, onProgressChange }: T
     setPhase('feedback')
   }
 
-  const canSubmit = playedInput.trim() !== '' && Number(playedInput) >= 0 && trueCountInput.trim() !== ''
+  const canSubmit = playedInput.trim() !== '' && Number(playedInput) >= 0 && isValidSignedInt(trueCountInput)
 
   // Dealer zone — static label only, no cards dealt in this drill
   const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>

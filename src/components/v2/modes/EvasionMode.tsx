@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { Action } from '../../../types'
+import { handValue } from '../../../lib/cards'
 import {
   type DealtRound,
+  type EvasionPlayState,
   type EvasionRoundRecord,
   type EvasionSessionState,
+  beginPlay,
   currentTrueCount,
   dealRound,
+  finalizeRound,
   hasRoundsRemaining,
-  resolveRound,
+  hitOneCard,
+  standPlay,
   startEvasionSession,
 } from '../../../lib/evasionSession'
 import { finalizeRounds, scoreSession } from '../../../lib/evasionScoring'
@@ -91,7 +96,7 @@ function formatPercent(value: number | null): string {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Phase = 'idle' | 'betting' | 'playing' | 'roundDone' | 'summary'
+type Phase = 'idle' | 'betting' | 'playing' | 'hitting' | 'roundDone' | 'summary'
 
 interface EvasionProgress {
   sessionsPlayed: number
@@ -114,6 +119,8 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
   const [trueCountAtBet, setTrueCountAtBet] = useState(0)
   const [bet, setBet] = useState<(typeof BET_OPTIONS)[number]>(1)
   const [dealt, setDealt] = useState<DealtRound | null>(null)
+  const [chosenAction, setChosenAction] = useState<Action | null>(null)
+  const [play, setPlay] = useState<EvasionPlayState | null>(null)
   const [rounds, setRounds] = useState<Omit<EvasionRoundRecord, 'isElevatedBet'>[]>([])
   const [lastRecord, setLastRecord] = useState<Omit<EvasionRoundRecord, 'isElevatedBet'> | null>(null)
   const [progress, setProgress] = useState(initialProgress)
@@ -148,15 +155,43 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
     setPhase('playing')
   }
 
-  function choosePlay(action: Action) {
-    if (!session || !dealt) return
-    const { state: afterResolve, record } = resolveRound(
-      session, dealt, bet, trueCountAtBet, action, roundNumber,
+  function finishRound(sessionState: EvasionSessionState, action: Action, finalPlay: EvasionPlayState) {
+    if (!dealt) return
+    const { state: afterResolve, record } = finalizeRound(
+      sessionState, dealt, bet, trueCountAtBet, action, finalPlay, roundNumber,
     )
     setSession(afterResolve)
     setRounds((prev) => [...prev, record])
     setLastRecord(record)
+    setChosenAction(null)
+    setPlay(null)
     setPhase('roundDone')
+  }
+
+  function choosePlay(action: Action) {
+    if (!session || !dealt) return
+    const { state: afterBegin, play: newPlay } = beginPlay(session, dealt, action)
+    setSession(afterBegin)
+    if (newPlay.done) {
+      finishRound(afterBegin, action, newPlay)
+    } else {
+      setChosenAction(action)
+      setPlay(newPlay)
+      setPhase('hitting')
+    }
+  }
+
+  function hitAgain() {
+    if (!session || !play || !chosenAction) return
+    const { state: afterHit, play: newPlay } = hitOneCard(session, play)
+    setSession(afterHit)
+    setPlay(newPlay)
+    if (newPlay.done) finishRound(afterHit, chosenAction, newPlay)
+  }
+
+  function standNow() {
+    if (!session || !play || !chosenAction) return
+    finishRound(session, chosenAction, standPlay(play))
   }
 
   function nextRound() {
@@ -197,7 +232,7 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
 
   // Live heat tally — finalizeRounds computes isElevatedBet from the running
   // min-bet baseline, same logic the summary uses at session end.
-  // Without this, isElevatedBet is always false (resolveRound initializes it
+  // Without this, isElevatedBet is always false (finalizeRound initializes it
   // to false; it's only set correctly after finalization), so bet-spread heat
   // would never register during the session.
   const liveHeat = finalizeRounds(rounds).filter(isEvidenceRound).length
@@ -215,7 +250,7 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
   const dealerSlot = (
     <>
       <p className={SECTION_LABEL}>Dealer</p>
-      {(phase === 'playing' || phase === 'roundDone') && dealt && (
+      {(phase === 'playing' || phase === 'hitting' || phase === 'roundDone') && dealt && (
         <div className="flex gap-1">
           <PlayingCard card={dealt.dealerUpcard} suitIndex={0} size="sm" />
           <HiddenCard size="sm" />
@@ -224,8 +259,9 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
     </>
   )
 
-  // Seat content: empty pre-deal; cards + chip stack during play / roundDone.
+  // Seat content: empty pre-deal; cards + chip stack during play / hitting / roundDone.
   const activeHand = phase === 'playing' ? dealt?.initialPlayerHand
+    : phase === 'hitting' ? play?.cards
     : phase === 'roundDone' ? lastRecord?.finalPlayerHand
     : null
 
@@ -401,6 +437,26 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
                   Cover deviation: {flip}
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── HITTING (interactive, Fix 4) ── */}
+        {phase === 'hitting' && play && (
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-sm text-slate-400">
+              {(() => {
+                const { total, soft } = handValue(play.cards)
+                return `${soft ? 'Soft' : 'Hard'} ${total}`
+              })()} · bet {bet}u
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button type="button" onClick={hitAgain} className={PRIMARY_BUTTON}>
+                Hit
+              </button>
+              <button type="button" onClick={standNow} className={SECONDARY_BUTTON}>
+                Stand
+              </button>
             </div>
           </div>
         )}

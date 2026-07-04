@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Action, Card } from '../../../types'
 import { handValue, isBust } from '../../../lib/cards'
 import { trueCount } from '../../../lib/counting'
+import { isValidSignedInt } from '../../../lib/format'
 import {
   type DealerResolution,
   type LivePlaySessionState,
@@ -503,7 +504,7 @@ export function LivePlayMode({ numDecks, initialProgress, onProgressChange }: Li
             <button
               type="button"
               onClick={submitCount}
-              disabled={countGuess.trim() === '' || trueCountGuess.trim() === ''}
+              disabled={!isValidSignedInt(countGuess) || !isValidSignedInt(trueCountGuess)}
               className={PRIMARY_BUTTON}
             >
               Submit

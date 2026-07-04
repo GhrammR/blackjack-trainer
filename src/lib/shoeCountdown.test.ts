@@ -47,7 +47,7 @@ describe('pickStopIndex', () => {
     expect(stop).toBeLessThan(52)
   })
 
-  it('stays within [min, max] bounds across supported shoe sizes (1-8 decks)', () => {
+  it('stays within [min, max] bounds across a range of shoe sizes', () => {
     for (let decks = 1; decks <= 8; decks++) {
       const shoeLength = decks * 52
       const min = Math.ceil(shoeLength * MIN_STOP_FRACTION)

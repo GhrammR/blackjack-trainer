@@ -1,9 +1,10 @@
 import type { Action, Card } from '../types'
 import { createShoe, shuffle } from './shoe'
+import { isBust } from './cards'
 import { hiLoValue, trueCount } from './counting'
 import { getHardSoftAction, getHardSoftSituationKey } from './strategy'
 import { indicatedDeviation } from './indexPlays'
-import { resolveDealerHand, resolvePlayerHandWithAction } from './handResolution'
+import { resolveDealerHand } from './handResolution'
 import { MIN_DECKS_FOR_SESSION, SESSION_ROUNDS } from './detectionSession'
 
 /**
@@ -122,36 +123,100 @@ export interface EvasionRoundRecord {
   isElevatedBet: boolean
 }
 
-/** Resolves the round given the user's bet (already committed before `dealRound`) and chosen action. */
-export function resolveRound(
+/**
+ * Interactive in-progress play of the round's decision (the Fix 4 rework):
+ * unlike the rest of the detection-family engine, which auto-resolves every
+ * card after the initial decision via plain basic strategy in one call, here
+ * the user draws one card per "Hit" click and chooses "Stand" themselves —
+ * matching how a real player actually plays out a hand. The deviation/cover
+ * grading still applies only to the *initial* action (`chosenAction`), same
+ * as before; cards drawn afterward don't get re-graded, they're just dealt.
+ */
+export interface EvasionPlayState {
+  cards: Card[]
+  actions: Action[]
+  done: boolean
+  busted: boolean
+}
+
+/**
+ * Locks in the round's initial action. Stand resolves immediately with no
+ * extra card (done: true). Double and Hit both deal one card right away —
+ * choosing "Hit" here *is* the player's first hit, not a no-op step before
+ * one; if that card doesn't bust, `done: false` opens the interactive
+ * draw-one-at-a-time sequence for any further cards.
+ */
+export function beginPlay(
+  state: EvasionSessionState,
+  dealt: DealtRound,
+  chosenAction: Action,
+): { state: EvasionSessionState; play: EvasionPlayState } {
+  const d = makeDrawers(state.shoe, state.position, state.count)
+  const cards = chosenAction === 'Double' || chosenAction === 'Hit'
+    ? [...dealt.initialPlayerHand, d.drawAndCount()]
+    : [...dealt.initialPlayerHand]
+  const busted = isBust(cards)
+  const done = chosenAction !== 'Hit' || busted
+
+  return {
+    state: { shoe: state.shoe, position: d.position(), count: d.count() },
+    play: { cards, actions: [chosenAction], done, busted },
+  }
+}
+
+/** Draws exactly one more card during an interactive Hit sequence. */
+export function hitOneCard(
+  state: EvasionSessionState,
+  play: EvasionPlayState,
+): { state: EvasionSessionState; play: EvasionPlayState } {
+  const d = makeDrawers(state.shoe, state.position, state.count)
+  const cards = [...play.cards, d.drawAndCount()]
+  const busted = isBust(cards)
+
+  return {
+    state: { shoe: state.shoe, position: d.position(), count: d.count() },
+    play: { cards, actions: [...play.actions, 'Hit'], done: busted, busted },
+  }
+}
+
+/** Ends an interactive Hit sequence by standing. */
+export function standPlay(play: EvasionPlayState): EvasionPlayState {
+  return { ...play, actions: [...play.actions, 'Stand'], done: true }
+}
+
+/** Resolves the dealer and builds the round record once `play` is done (given the user's bet, already committed before `dealRound`). */
+export function finalizeRound(
   state: EvasionSessionState,
   dealt: DealtRound,
   bet: number,
   trueCountAtBet: number,
   chosenAction: Action,
+  play: EvasionPlayState,
   roundNumber: number,
 ): { state: EvasionSessionState; record: EvasionRoundRecord } {
   const d = makeDrawers(state.shoe, state.position, state.count)
-  const result = resolvePlayerHandWithAction(dealt.initialPlayerHand, dealt.dealerUpcard, dealt.trueCountAtDecision, chosenAction, d.drawAndCount)
 
   d.addToCount(hiLoValue(dealt.holeCard.rank)) // hole card revealed
   resolveDealerHand(dealt.dealerUpcard, dealt.holeCard, d.drawAndCount)
+
+  const deviationType: EvasionRoundRecord['deviationType'] =
+    chosenAction === dealt.basicAction ? null : dealt.indicatedAction && chosenAction === dealt.indicatedAction ? 'index' : 'cover'
 
   const record: EvasionRoundRecord = {
     roundNumber,
     trueCountAtBet,
     bet,
     initialPlayerHand: dealt.initialPlayerHand,
-    finalPlayerHand: result.cards,
+    finalPlayerHand: play.cards,
     dealerUpcard: dealt.dealerUpcard,
-    situationKey: result.situationKey,
-    basicAction: result.basicAction,
+    situationKey: dealt.situationKey,
+    basicAction: dealt.basicAction,
     indicatedAction: dealt.indicatedAction,
     chosenAction,
-    actions: result.actions,
-    deviated: result.deviated,
-    deviationType: result.deviationType,
-    playerBusted: result.busted,
+    actions: play.actions,
+    deviated: chosenAction !== dealt.basicAction,
+    deviationType,
+    playerBusted: play.busted,
     isElevatedBet: false,
   }
 

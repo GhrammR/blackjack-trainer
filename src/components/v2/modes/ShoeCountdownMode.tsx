@@ -3,8 +3,7 @@ import type { Card } from '../../../types'
 import { createShoe, shuffle } from '../../../lib/shoe'
 import { runningCount } from '../../../lib/counting'
 import { type PersonalBests, pickStopIndex, updatePersonalBest } from '../../../lib/shoeCountdown'
-import { formatSeconds } from '../../../lib/format'
-import { signed } from '../../../lib/format'
+import { formatSeconds, isValidSignedInt, signed } from '../../../lib/format'
 import { PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
 import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, ERROR_TEXT } from '../../theme'
@@ -232,13 +231,13 @@ export function ShoeCountdownMode({
                 ref={countInputRef}
                 value={countAnswer}
                 onChange={setCountAnswer}
-                onKeyDown={(e) => { if (e.key === 'Enter' && countAnswer.trim() !== '') submit() }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && isValidSignedInt(countAnswer)) submit() }}
               />
             </label>
             <button
               type="button"
               onClick={submit}
-              disabled={countAnswer.trim() === ''}
+              disabled={!isValidSignedInt(countAnswer)}
               className={PRIMARY_BUTTON}
             >
               Submit

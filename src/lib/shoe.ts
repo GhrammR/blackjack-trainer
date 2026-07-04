@@ -4,7 +4,7 @@ const RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', '
 const SUITS: Suit[] = ['clubs', 'diamonds', 'hearts', 'spades']
 
 /** Shared across counting drills that let the user pick a shoe size. */
-export const SHOE_SIZE_OPTIONS = [1, 2, 4, 6, 8] as const
+export const SHOE_SIZE_OPTIONS = [1, 2, 6] as const
 
 export function createShoe(numDecks: number): Card[] {
   const shoe: Card[] = []

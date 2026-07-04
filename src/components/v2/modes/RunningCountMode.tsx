@@ -3,7 +3,7 @@ import type { Card } from '../../../types'
 import { createShoe, shuffle } from '../../../lib/shoe'
 import { type DealtRound, cardSlotAt, cardsPerRound, dealRound } from '../../../lib/countingDrill'
 import { runningCount } from '../../../lib/counting'
-import { signed } from '../../../lib/format'
+import { isValidSignedInt, signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
 import { ERROR_TEXT, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT } from '../../theme'
@@ -43,6 +43,7 @@ export function RunningCountMode({
 }: RunningCountModeProps) {
   const [shoe, setShoe] = useState<Card[]>(() => shuffle(createShoe(numDecks)))
   const [position, setPosition] = useState(0)
+  const [roundNextPosition, setRoundNextPosition] = useState(0)
   const [sessionCount, setSessionCount] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
   const [round, setRound] = useState<DealtRound | null>(null)
@@ -52,6 +53,7 @@ export function RunningCountMode({
   const [roundsPlayed, setRoundsPlayed] = useState(initialProgress.roundsPlayed)
   const [roundsCorrect, setRoundsCorrect] = useState(initialProgress.roundsCorrect)
   const inputRef = useRef<HTMLInputElement>(null)
+  const isFirstNumDecks = useRef(true)
 
   const needed = cardsPerRound(seatCount)
 
@@ -65,6 +67,21 @@ export function RunningCountMode({
     setRoundsCorrect(initialProgress.roundsCorrect)
   }, [initialProgress])
 
+  // Re-shuffle a fresh shoe of the right size whenever the shoe-size setting changes
+  // (the shoe otherwise only gets created once, at mount, from whatever numDecks was then).
+  useEffect(() => {
+    if (isFirstNumDecks.current) {
+      isFirstNumDecks.current = false
+      return
+    }
+    setShoe(shuffle(createShoe(numDecks)))
+    setPosition(0)
+    setSessionCount(0)
+    setPhase('idle')
+    setRound(null)
+    setFeedback(null)
+  }, [numDecks])
+
   // Auto-focus the count input when entering the input phase
   useEffect(() => {
     if (phase === 'input') inputRef.current?.focus()
@@ -77,27 +94,31 @@ export function RunningCountMode({
       activeShoe = shuffle(createShoe(numDecks))
       pos = 0
       setShoe(activeShoe)
+      setPosition(0)
       setSessionCount(0)
     }
     const { round: newRound, nextPosition } = dealRound(activeShoe, pos, seatCount)
     setRound(newRound)
-    setPosition(nextPosition)
+    setRoundNextPosition(nextPosition)
     setRevealedCount(0)
     setFeedback(null)
     setGuess('')
     setPhase('dealing')
   }
 
-  // Card reveal timer
+  // Card reveal timer — advances the shoe position card-by-card as each one is
+  // revealed, so "cards left" ticks down in step with the visible deal instead
+  // of jumping by a whole round's worth the instant "Deal Round" is pressed.
   useEffect(() => {
     if (phase !== 'dealing' || !round || isPaused) return
     if (revealedCount >= round.dealOrder.length) {
+      setPosition(roundNextPosition)
       setPhase('input')
       return
     }
     const timer = setTimeout(() => setRevealedCount((n) => n + 1), 1000 / cardsPerSecond)
     return () => clearTimeout(timer)
-  }, [phase, round, revealedCount, cardsPerSecond, isPaused])
+  }, [phase, round, revealedCount, cardsPerSecond, isPaused, roundNextPosition])
 
   function submitGuess() {
     if (!round) return
@@ -162,8 +183,11 @@ export function RunningCountMode({
     seatCount === 1 ? undefined : `Seat ${i + 1}`,
   )
 
-  const cardsLeft = shoe.length - position
-  const discardFraction = position / shoe.length
+  // While dealing, count only the cards actually revealed so far — `position`
+  // itself doesn't advance until the round finishes (see the reveal-timer effect above).
+  const dealtSoFar = phase === 'dealing' ? position + revealedCount : position
+  const cardsLeft = shoe.length - dealtSoFar
+  const discardFraction = shoe.length > 0 ? dealtSoFar / shoe.length : 0
   const decksRemaining = cardsLeft / 52
 
   return (
@@ -204,13 +228,13 @@ export function RunningCountMode({
                 ref={inputRef}
                 value={guess}
                 onChange={setGuess}
-                onKeyDown={(e) => { if (e.key === 'Enter' && guess.trim() !== '') submitGuess() }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && isValidSignedInt(guess)) submitGuess() }}
               />
             </label>
             <button
               type="button"
               onClick={submitGuess}
-              disabled={guess.trim() === ''}
+              disabled={!isValidSignedInt(guess)}
               className={PRIMARY_BUTTON}
             >
               Submit
