@@ -4,12 +4,9 @@ import { DealingShoe } from './DealingShoe'
 import { DiscardRack } from './DiscardRack'
 import { TableSeat } from './TableSeat'
 
-const REFERENCE_TABLE_WIDTH = 1500 // width ceiling used by the wrapper's width formula below — raised from 1100
-                                    // after diagnosing it as the actual binding constraint on ordinary/large desktop
-                                    // screens (confirmed: at 1920x1080 the height budget computed 1155px but was
-                                    // being truncated to the old 1100px cap). Kept comfortably above what the height
-                                    // formula computes on typical screens so height governs in the common case; still
-                                    // acts as a sanity ceiling on very tall/4K viewports.
+const REFERENCE_TABLE_WIDTH = 1500 // width ceiling — a sanity cap on very wide/4K viewports. The common case is
+                                    // governed by height instead: see the wrapper's aspect-ratio/max-height sizing
+                                    // below, which fills whatever height its flex-1 parent slot gives it.
 
 /**
  * Tracks this table's own rendered width so the shoe/rack (built from
@@ -29,54 +26,6 @@ function useTableScale(ref: React.RefObject<HTMLDivElement | null>): number {
   }, [ref])
 
   return Math.min(1, width / REFERENCE_TABLE_WIDTH)
-}
-
-// A fixed pixel "chrome overhead" guess (previously 420px) was wrong on short
-// windows because it bundled two very different things into one number: the
-// header + mode-switch row above the table (independently measurable — it's
-// literally where the table's own wrapper starts) and the HUD/action-button
-// area below the table (not directly measurable here, since it's rendered by
-// whichever mode is active, in a different file). Splitting them out: the
-// first part no longer needs to be guessed at all.
-const HUD_RESERVE_PX = 230 // space reserved below the table for the HUD/action buttons — measured
-                            // directly against Basic Strategy (the worst case: progress panel + 5
-                            // buttons including Surrender, re-measured at 214px after tightening
-                            // ProgressPanel/HUD spacing) plus a ~16px margin, not a blind guess
-                            // bundling in the header/mode-row too.
-
-/**
- * Measures the real, stable height of the chrome above the table (header +
- * mode-switch row), so the table's size budget doesn't depend on scroll
- * position. `getBoundingClientRect().top` alone is VIEWPORT-relative — it
- * shrinks as the page scrolls down (the table visually approaches the top
- * of the screen), which would make the table balloon in size while
- * scrolling, then shrink back once scrolled to the top. Adding
- * `window.scrollY` converts it to a DOCUMENT-relative position instead —
- * i.e. the chrome's actual rendered height — which stays constant
- * regardless of scroll, since the chrome itself doesn't move or resize
- * when the page scrolls.
- */
-function useAvailableTableHeight(ref: React.RefObject<HTMLDivElement | null>): number {
-  const [availableHeight, setAvailableHeight] = useState(600)
-
-  useEffect(() => {
-    function measure() {
-      const el = ref.current
-      if (!el) return
-      const chromeHeight = el.getBoundingClientRect().top + window.scrollY
-      const available = window.innerHeight - chromeHeight - HUD_RESERVE_PX
-      setAvailableHeight(Math.max(200, available))
-    }
-    measure()
-    window.addEventListener('resize', measure)
-    const id = setInterval(measure, 500) // catches layout shifts from mode switches, not just window resizes
-    return () => {
-      window.removeEventListener('resize', measure)
-      clearInterval(id)
-    }
-  }, [ref])
-
-  return availableHeight
 }
 
 // ─── Felt color presets ────────────────────────────────────────────────────────
@@ -227,7 +176,6 @@ export function CasinoTable({
   const { center, mid, edge, glow } = FELT_COLORS[feltColor]
   const wrapperRef = useRef<HTMLDivElement>(null)
   const scale = useTableScale(wrapperRef)
-  const availableHeight = useAvailableTableHeight(wrapperRef)
   const clipId = useId()
   const railClipId = `${clipId}-rail`
   const feltClipId = `${clipId}-felt`
@@ -243,19 +191,37 @@ export function CasinoTable({
         The glow div uses transform:scale so its gradient visually extends beyond the
         table bounds without disturbing layout or the drop-shadow filter on the table.
         containerType: 'inline-size' makes this the cqw reference for PlayingCard sizing,
-        so cards shrink in proportion to the table's own rendered width, not the viewport. */
+        so cards shrink in proportion to the table's own rendered width, not the viewport.
+
+        Sizing is pure CSS: width/height are both 'auto', constrained only by
+        maxWidth/maxHeight + aspectRatio. With a definite maxHeight (from the
+        flex-1/min-h-0 slot the caller wraps this in), this behaves like
+        object-fit: contain — the browser picks the largest box that fits
+        the ratio without exceeding either max. No JS height measurement. */
     <div
       ref={wrapperRef}
       className="mx-auto"
       style={{
         position: 'relative',
         containerType: 'inline-size',
-        // Bounded by whichever is smallest: 100% of the parent, the width ceiling, or
-        // a width derived from the REAL measured available height (availableHeight —
-        // see useAvailableTableHeight, which reads the table's actual on-screen
-        // position rather than guessing the chrome above it) so the table's rendered
-        // HEIGHT never pushes the HUD/buttons below the viewport.
-        width: `min(100%, ${REFERENCE_TABLE_WIDTH}px, ${(availableHeight * TABLE_ASPECT_RATIO).toFixed(1)}px)`,
+        // The ambient glow below is deliberately scaled larger than this box to
+        // bleed outward — but a CSS `transform` on a descendant still counts
+        // toward this box's OWN scrollable-overflow contribution to its
+        // ancestors, even though the bleed is barely visible. Without clipping
+        // it here, the viewport-fit shell above gets a phantom scrollbar over
+        // content nothing actually shows. The bleed is subtle enough that
+        // clipping it at this box's edge isn't a visible loss.
+        overflow: 'hidden',
+        // Ratio-preserving fit within the parent's size-containment box (see the
+        // `containerType: 'size'` slot each mode wraps this in). Each axis is the
+        // min of: the container's own size in that axis (cqw/cqh), the absolute
+        // cap, and the OTHER axis's size converted through the ratio — so
+        // whichever axis is actually the binding constraint, the other axis's
+        // formula picks the matching ratio-derived term too. This is what makes
+        // it behave like `object-fit: contain` without relying on flex-stretch
+        // (which can't shrink back once max-width alone has clamped a width).
+        width: `min(100cqw, ${REFERENCE_TABLE_WIDTH}px, calc(100cqh * ${TABLE_ASPECT_RATIO}))`,
+        height: `min(100cqh, ${(REFERENCE_TABLE_WIDTH / TABLE_ASPECT_RATIO).toFixed(2)}px, calc(100cqw / ${TABLE_ASPECT_RATIO}))`,
       }}
     >
       {/* Hidden defs — one D-shape path, referenced (via objectBoundingBox units, so
@@ -284,11 +250,13 @@ export function CasinoTable({
         }}
       />
 
-      {/* Table shell — drop-shadow traces D-shape alpha channel */}
+      {/* Table shell — fills the already-ratio-correct outer wrapper exactly;
+          drop-shadow traces D-shape alpha channel */}
       <div
         style={{
           position: 'relative',
-          aspectRatio: `${TABLE_ASPECT_RATIO} / 1`,
+          width: '100%',
+          height: '100%',
           filter: 'drop-shadow(0 22px 55px rgba(0,0,0,0.85))',
         }}
       >
@@ -302,7 +270,11 @@ export function CasinoTable({
             background: RAIL_BG,
           }}
         >
-          {/* Felt surface — inset RAIL_PX inside the rail */}
+          {/* Felt surface — inset RAIL_PX inside the rail. overflow:hidden here
+              (seats/labels near the curved edge are already visually clipped by
+              clipPath, but clip-path alone doesn't stop them contributing to an
+              ancestor's scrollable overflow) so the viewport-fit shell above
+              never gets a phantom scrollbar over content nothing ever shows. */}
           <div
             style={{
               position: 'absolute',
@@ -311,6 +283,7 @@ export function CasinoTable({
               bottom: RAIL_PX,
               left: RAIL_PX,
               clipPath: `url(#${feltClipId})`,
+              overflow: 'hidden',
               background: feltBg,
               boxShadow: 'inset 0 14px 36px rgba(0,0,0,0.80), inset 0 0 90px rgba(0,0,0,0.30)',
             }}

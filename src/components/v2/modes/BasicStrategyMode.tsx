@@ -12,7 +12,6 @@ import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
 import { Feedback } from '../../Feedback'
 import { ProgressPanel } from '../../ProgressPanel'
-import { WeaknessHeatmap } from '../../WeaknessHeatmap'
 import { PRIMARY_BUTTON, SECONDARY_BUTTON, SECTION_LABEL } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
@@ -129,13 +128,16 @@ export function BasicStrategyMode() {
   )
 
   return (
-    <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
-      <CasinoTable
-        dealerSlot={dealerSlot}
-        seatContents={[playerSeat]}
-        seatLabels={['You']}
-        userSeatIndex={0}
-      />
+    <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">
+      <div className="flex w-full flex-1 min-h-0 items-center justify-center"
+        style={{ containerType: 'size' }}>
+        <CasinoTable
+          dealerSlot={dealerSlot}
+          seatContents={[playerSeat]}
+          seatLabels={['You']}
+          userSeatIndex={0}
+        />
+      </div>
 
       {/* HUD */}
       <div className="flex w-full max-w-md flex-col gap-3">
@@ -175,10 +177,6 @@ export function BasicStrategyMode() {
             onNext={handleNext}
           />
         )}
-      </div>
-
-      <div className="w-full max-w-3xl">
-        <WeaknessHeatmap stats={stats} />
       </div>
     </div>
   )

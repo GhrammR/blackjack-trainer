@@ -134,14 +134,17 @@ export function TrueCountMode({ numDecks, initialProgress, onProgressChange }: T
   const discardDifficulty = phase !== 'idle' ? difficulty : undefined
 
   return (
-    <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
-      <CasinoTable
-        dealerSlot={dealerSlot}
-        seatContents={[]}
-        discardFraction={discardFraction}
-        discardDifficulty={discardDifficulty}
-        totalDecks={numDecks}
-      />
+    <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">
+      <div className="flex w-full flex-1 min-h-0 items-center justify-center"
+        style={{ containerType: 'size' }}>
+        <CasinoTable
+          dealerSlot={dealerSlot}
+          seatContents={[]}
+          discardFraction={discardFraction}
+          discardDifficulty={discardDifficulty}
+          totalDecks={numDecks}
+        />
+      </div>
 
       {/* HUD */}
       <div className="flex w-full max-w-md flex-col items-center gap-4">

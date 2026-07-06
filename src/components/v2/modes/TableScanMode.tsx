@@ -184,13 +184,16 @@ export function TableScanMode({
   const seatLabels = Array.from({ length: effectiveSeatCount }, (_, i) => `Seat ${i + 1}`)
 
   return (
-    <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
-      <CasinoTable
-        dealerSlot={dealerSlot}
-        seatContents={seatContents}
-        seatLabels={seatLabels}
-        userSeatIndex={-1}
-      />
+    <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">
+      <div className="flex w-full flex-1 min-h-0 items-center justify-center"
+        style={{ containerType: 'size' }}>
+        <CasinoTable
+          dealerSlot={dealerSlot}
+          seatContents={seatContents}
+          seatLabels={seatLabels}
+          userSeatIndex={-1}
+        />
+      </div>
 
       {/* ── Comparison panel ─────────────────────────────────────────────────── */}
       {/* One column per seat, side by side. Each column: 25 rounds of chip stacks.

@@ -15,6 +15,7 @@ import { ModeSwitcher } from './components/ModeSwitcher'
 import { Modal } from './components/Modal'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import { TrainingSessionRecord } from './components/TrainingSessionRecord'
+import { StrategyHeatmapSection } from './components/StrategyHeatmapSection'
 import { GuidesView } from './components/GuidesView'
 import { SECTION_LABEL } from './components/theme'
 import {
@@ -174,54 +175,72 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
-      <header className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-2 py-1 sm:px-4 sm:py-1.5">
-        <h1 className="shrink-0 truncate text-sm font-semibold tracking-tight sm:text-lg">
-          Double Down
-        </h1>
-        {/* Mode switcher lives inline in the header — folding it in here
-            (rather than its own row below) removes an entire chrome row,
-            since that row's height comes directly out of the table's
-            available height budget (see useAvailableTableHeight). */}
-        <div className="min-w-[140px] flex-1">
-          <ModeSwitcher currentMode={currentMode} onChange={handleEnterMode} />
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveOverlay('overview')}
-            className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
-          >
-            📊 Progress
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveOverlay('guides')}
-            className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
-          >
-            📖 Guides
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveOverlay('settings')}
-            className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
-          >
-            ⚙ Settings
-          </button>
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col bg-slate-900 text-white">
+      {/* The "must fit one screen" shell: header + whichever mode is active.
+          Fixed to 100dvh (not min-height) so this region's own height never
+          depends on what's below it — the flex-1/min-h-0 mode-content area
+          gets exactly (100dvh - header's real height), purely from flex
+          layout, no JS measurement. overflow-y-auto is a safety net for a
+          HUD that genuinely can't shrink enough (degrades to an internal
+          scrollbar) rather than clipping content; it doesn't engage in the
+          ordinary case. Anything below this shell (heatmap, training log)
+          lives in normal page flow and is reached by scrolling past it. */}
+      <div className="flex h-[100dvh] flex-col overflow-y-auto">
+        <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-800 px-2 py-1 sm:px-4 sm:py-1.5">
+          <h1 className="shrink-0 truncate text-sm font-semibold tracking-tight sm:text-lg">
+            Double Down
+          </h1>
+          {/* Mode switcher lives inline in the header — folding it in here
+              (rather than its own row below) removes an entire chrome row
+              from the mode-content area's height budget. */}
+          <div className="min-w-[140px] flex-1">
+            <ModeSwitcher currentMode={currentMode} onChange={handleEnterMode} />
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveOverlay('overview')}
+              className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
+            >
+              📊 Progress
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveOverlay('guides')}
+              className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
+            >
+              📖 Guides
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveOverlay('settings')}
+              className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
+            >
+              ⚙ Settings
+            </button>
+          </div>
+        </header>
 
-      {/* Persistent table/play area. currentMode === null shows a neutral,
-          empty table (CasinoTable's own defaults handle every prop except
-          dealerSlot/seatContents) rather than a full-page Lobby. */}
-      {currentMode === null ? (
-        <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
-          <CasinoTable dealerSlot={<p className={SECTION_LABEL}>Dealer</p>} seatContents={[]} />
+        {/* Persistent table/play area. currentMode === null shows a neutral,
+            empty table (CasinoTable's own defaults handle every prop except
+            dealerSlot/seatContents) rather than a full-page Lobby. */}
+        <div className="flex flex-1 min-h-0">
+          {currentMode === null ? (
+            <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">
+              <div
+                className="flex w-full flex-1 min-h-0 items-center justify-center"
+                style={{ containerType: 'size' }}
+              >
+                <CasinoTable dealerSlot={<p className={SECTION_LABEL}>Dealer</p>} seatContents={[]} />
+              </div>
+            </div>
+          ) : (
+            renderMode()
+          )}
         </div>
-      ) : (
-        renderMode()
-      )}
+      </div>
 
+      {currentMode === 'strategy' && <StrategyHeatmapSection />}
       <TrainingSessionRecord />
 
       {activeOverlay === 'overview' && (
