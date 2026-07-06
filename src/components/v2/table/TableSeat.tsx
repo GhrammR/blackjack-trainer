@@ -8,15 +8,18 @@ interface TableSeatProps {
 }
 
 /**
- * A single seat position at the CasinoTable. Highlights the user seat with a
- * subtle border and dims inactive seats in multi-player drills.
+ * A single seat position at the CasinoTable. Dims inactive seats in
+ * multi-player drills. (Previously also ring-highlighted the user's own
+ * seat, but that border could extend past the felt near the edge of the
+ * curve and get visibly clipped — removed rather than repositioned, since
+ * the label and card contents already make the user's seat identifiable.)
  */
-export function TableSeat({ children, label, isActive = true, isUser = false }: TableSeatProps) {
+export function TableSeat({ children, label, isActive = true }: TableSeatProps) {
   return (
     <div
-      className={`flex flex-col items-center gap-1 rounded-xl p-1.5 transition-opacity @[500px]:gap-2 @[500px]:p-3 ${
+      className={`flex flex-col items-center gap-1.5 rounded-xl p-2 transition-opacity @[500px]:gap-3 @[500px]:p-4 ${
         isActive ? 'opacity-100' : 'opacity-40'
-      } ${isUser ? 'ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-transparent' : ''}`}
+      }`}
     >
       {label && (
         <p

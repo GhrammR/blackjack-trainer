@@ -8,12 +8,13 @@ function suitSymbolForIndex(index: number): string {
 
 // Card size scales with CasinoTable's own rendered width via container-query units
 // (cqw), not the viewport — the table sets containerType:'inline-size' so 1cqw = 1%
-// of the felt's actual width. The clamp() MAX is pinned to the pre-mobile-fix pixel
-// values (h-20 w-14 text-xl / h-14 w-10 text-sm) at the table's 800px max width, so
-// desktop is pixel-identical; below that the card shrinks in proportion to the felt.
+// of the felt's actual width. The clamp() MAX is pinned to the table's 1500px width
+// ceiling (CasinoTable.tsx's REFERENCE_TABLE_WIDTH) — 1.875x the original 800px-pinned
+// values — so a card reaches its largest size exactly when the table reaches its
+// widest; below that the card shrinks in proportion to the felt (MIN floors unchanged).
 const SIZE_DIMENSIONS = {
-  md: { width: 'clamp(27px, 7cqw, 56px)', height: 'clamp(38px, 10cqw, 80px)', fontSize: 'clamp(11px, 2.5cqw, 20px)' },
-  sm: { width: 'clamp(19px, 5cqw, 40px)', height: 'clamp(26px, 7cqw, 56px)', fontSize: 'clamp(8px, 1.75cqw, 14px)' },
+  md: { width: 'clamp(27px, 7cqw, 105px)', height: 'clamp(38px, 10cqw, 150px)', fontSize: 'clamp(11px, 2.5cqw, 38px)' },
+  sm: { width: 'clamp(19px, 5cqw, 75px)', height: 'clamp(26px, 7cqw, 105px)', fontSize: 'clamp(8px, 1.75cqw, 26px)' },
 }
 
 interface PlayingCardProps {

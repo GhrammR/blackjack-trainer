@@ -9,10 +9,14 @@ import { TableScanMode } from './components/v2/modes/TableScanMode'
 import { EvidenceFlaggingMode } from './components/v2/modes/EvidenceFlaggingMode'
 import { EvasionMode } from './components/v2/modes/EvasionMode'
 import { LivePlayMode } from './components/v2/modes/LivePlayMode'
+import { CasinoTable } from './components/v2/table/CasinoTable'
 import { Lobby, type ModeId } from './components/Lobby'
+import { ModeSwitcher } from './components/ModeSwitcher'
+import { Modal } from './components/Modal'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import { TrainingSessionRecord } from './components/TrainingSessionRecord'
 import { GuidesView } from './components/GuidesView'
+import { SECTION_LABEL } from './components/theme'
 import {
   type CountingModeKey,
   type CountingProgress,
@@ -25,10 +29,14 @@ import {
 } from './lib/persistence'
 import { lifetimeAccuracy } from './lib/mastery'
 
+type ActiveOverlay = 'settings' | 'guides' | 'overview' | null
+
 function App() {
   const [currentMode, setCurrentMode] = useState<ModeId | null>(null)
-  const [guidesOpen, setGuidesOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  // Single overlay state (not independent booleans) so at most one modal is
+  // ever mounted — avoids an Escape-key ambiguity a three-booleans model
+  // would have. Starts on 'overview' so first load shows the mode picker.
+  const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>('overview')
   const [strategyResetKey, setStrategyResetKey] = useState(0)
   const [counting, setCounting] = useState(() => loadCountingState())
 
@@ -58,6 +66,11 @@ function App() {
     handleResetCounting()
   }
 
+  function handleEnterMode(mode: ModeId) {
+    setCurrentMode(mode)
+    setActiveOverlay(null)
+  }
+
   const v1State = loadState()
   const strategySnapshot = {
     handsPlayed: v1State.handsPlayed,
@@ -66,6 +79,12 @@ function App() {
   }
 
   const { settings, progress } = counting
+
+  // Only the two timer/keydown-driven modes need this — an overlay sitting
+  // on top of a running Shoe Countdown must pause its stopwatch AND its
+  // window-level Space/Enter shortcut, or the shoe could silently advance
+  // underneath the overlay.
+  const isPaused = activeOverlay !== null
 
   function renderMode() {
     switch (currentMode) {
@@ -81,7 +100,7 @@ function App() {
             onProgressChange={(runningCount) =>
               handleProgressChange({ ...progress, runningCount })
             }
-            isPaused={settingsOpen}
+            isPaused={isPaused}
           />
         )
       case 'trueCount':
@@ -98,7 +117,7 @@ function App() {
             numDecks={settings.numDecks}
             initialProgress={progress.shoeCountdown}
             onProgressChange={(shoeCountdown) => handleProgressChange({ ...progress, shoeCountdown })}
-            isPaused={settingsOpen}
+            isPaused={isPaused}
           />
         )
       case 'indexPlays':
@@ -156,57 +175,75 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
-      <header className="flex items-center gap-2 border-b border-slate-800 px-2 py-3 sm:px-4 sm:py-4">
-        <div className="flex w-16 shrink-0 justify-start sm:w-28">
-          {(currentMode !== null || guidesOpen) && (
-            <button
-              type="button"
-              onClick={() => { setCurrentMode(null); setGuidesOpen(false) }}
-              className="rounded-md bg-slate-800 px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-3 sm:text-sm"
-            >
-              ← Back
-            </button>
-          )}
-        </div>
-        <h1 className="flex-1 truncate text-center text-lg font-semibold tracking-tight sm:text-3xl">
+      <header className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-2 py-1 sm:px-4 sm:py-1.5">
+        <h1 className="shrink-0 truncate text-sm font-semibold tracking-tight sm:text-lg">
           Double Down
         </h1>
-        <div className="flex shrink-0 items-center gap-2">
+        {/* Mode switcher lives inline in the header — folding it in here
+            (rather than its own row below) removes an entire chrome row,
+            since that row's height comes directly out of the table's
+            available height budget (see useAvailableTableHeight). */}
+        <div className="min-w-[140px] flex-1">
+          <ModeSwitcher currentMode={currentMode} onChange={handleEnterMode} />
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
           <button
             type="button"
-            onClick={() => { setGuidesOpen(true); setCurrentMode(null) }}
-            className="rounded-md bg-slate-800 px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-3 sm:text-sm"
+            onClick={() => setActiveOverlay('overview')}
+            className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
+          >
+            📊 Progress
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveOverlay('guides')}
+            className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
           >
             📖 Guides
           </button>
           <button
             type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="rounded-md bg-slate-800 px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-3 sm:text-sm"
+            onClick={() => setActiveOverlay('settings')}
+            className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
           >
             ⚙ Settings
           </button>
         </div>
       </header>
 
-      {guidesOpen ? (
-        <GuidesView />
-      ) : currentMode === null ? (
-        <Lobby
-          strategySnapshot={strategySnapshot}
-          countingProgress={progress}
-          numDecks={settings.numDecks}
-          onEnter={setCurrentMode}
-        />
+      {/* Persistent table/play area. currentMode === null shows a neutral,
+          empty table (CasinoTable's own defaults handle every prop except
+          dealerSlot/seatContents) rather than a full-page Lobby. */}
+      {currentMode === null ? (
+        <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
+          <CasinoTable dealerSlot={<p className={SECTION_LABEL}>Dealer</p>} seatContents={[]} />
+        </div>
       ) : (
         renderMode()
       )}
 
       <TrainingSessionRecord />
 
-      {settingsOpen && (
+      {activeOverlay === 'overview' && (
+        <Modal title="Progress" onClose={() => setActiveOverlay(null)}>
+          <Lobby
+            strategySnapshot={strategySnapshot}
+            countingProgress={progress}
+            numDecks={settings.numDecks}
+            onEnter={handleEnterMode}
+          />
+        </Modal>
+      )}
+
+      {activeOverlay === 'guides' && (
+        <Modal title="Guides" onClose={() => setActiveOverlay(null)}>
+          <GuidesView />
+        </Modal>
+      )}
+
+      {activeOverlay === 'settings' && (
         <GlobalSettingsModal
-          onClose={() => setSettingsOpen(false)}
+          onClose={() => setActiveOverlay(null)}
           countingSettings={counting.settings}
           onCountingSettingsChange={(settings) => setCounting((prev) => ({ ...prev, settings }))}
           countingProgress={counting.progress}

@@ -278,7 +278,7 @@ export function EvidenceFlaggingMode({
   const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
 
   return (
-    <div className="flex w-full flex-col items-center gap-3 px-2 py-4">
+    <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
       <CasinoTable
         dealerSlot={dealerSlot}
         seatContents={[]}

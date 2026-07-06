@@ -11,7 +11,7 @@ export function ProgressPanel({ currentStreak, lifetime }: ProgressPanelProps) {
   const accuracyPct = Math.round(lifetime.accuracy * 100)
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-3 rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+    <div className="flex w-full max-w-md flex-col gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3">
       <div>
         <div className="mb-1 flex items-baseline justify-between">
           <span className="text-sm uppercase tracking-wide text-slate-400">Perfect streak</span>

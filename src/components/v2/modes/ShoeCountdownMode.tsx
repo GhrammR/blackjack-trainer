@@ -215,7 +215,7 @@ export function ShoeCountdownMode({
   const missingCardsStats = progress.missingCards
 
   return (
-    <div className="flex w-full flex-col items-center gap-3 px-2 py-4">
+    <div className="flex w-full flex-col items-center gap-3 px-2 py-2">
       <CasinoTable
         dealerSlot={dealerSlot}
         seatContents={seatContents}
