@@ -1,113 +1,147 @@
 import { useEffect, useState } from 'react'
-import type { Action, Card } from '../../../types'
+import type { Action } from '../../../types'
 import { ALL_SITUATION_KEYS, generateHand } from '../../../lib/handGenerator'
-import { getAction } from '../../../lib/strategy'
-import { handValue, isBust } from '../../../lib/cards'
+import { getSituationKey } from '../../../lib/strategy'
+import { handValue, isBlackjack, isBust } from '../../../lib/cards'
 import { createShoe, shuffle } from '../../../lib/shoe'
+import {
+  type LivePlaySessionState,
+  type LiveRound,
+  type PlayHand,
+  dealRoundFromHand,
+  decide,
+  isRoundOver,
+  legalActions,
+} from '../../../lib/livePlaySession'
 import { type Stats, recordResult, selectNextSituation } from '../../../lib/adaptiveEngine'
 import { categoryOfSituationKey, lifetimeAccuracy, updateStreak } from '../../../lib/mastery'
 import { loadState, saveState } from '../../../lib/persistence'
 import { reasonFor } from '../../../lib/reasons'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
-import { Feedback } from '../../Feedback'
 import { ProgressPanel } from '../../ProgressPanel'
-import { PRIMARY_BUTTON, SECONDARY_BUTTON, SECTION_LABEL } from '../../theme'
+import { ERROR_TEXT, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
-interface Round {
-  playerHand: Card[]
-  dealerUpcard: Card
+/**
+ * Full play-out drill: the whole hand is played (including every split
+ * hand) and EVERY decision is graded against the chart, not just the
+ * initial one. Reuses Live Play's hand/split engine wholesale
+ * (`legalActions`/`decide`/`isRoundOver`/`LiveRound`/`PlayHand` from
+ * livePlaySession.ts, unmodified) via the one new addition there,
+ * `dealRoundFromHand` — which seeds the round from a hand chosen by the
+ * adaptive weakness engine instead of dealing from shoe position. This is
+ * also why Split now only appears for a real pair (Ace+King no longer
+ * offers it): `legalActions` already gates it on `isPair`, matching-rank
+ * only — this mode simply never wired that gating in before.
+ */
+
+type Phase = 'deciding' | 'roundComplete'
+
+interface DecisionRecord {
   situationKey: string
-  /** Extra cards available for interactive hitting — a single shuffled deck is always more than enough for one hand; this mode has no persistent shoe otherwise, so this is drawn fresh per round rather than reusing a "current shoe" concept that doesn't exist here. */
-  drawPile: Card[]
+  chosenAction: Action
+  correctAction: Action
+  isCorrect: boolean
 }
 
-interface Result {
-  chosen: Action
-  correct: Action
-}
-
-function buildRound(stats: Stats): Round {
+function buildRound(stats: Stats): { state: LivePlaySessionState; round: LiveRound } {
   const situationKey = selectNextSituation(stats, ALL_SITUATION_KEYS)
   const { playerHand, dealerUpcard } = generateHand(situationKey)
-  return { playerHand, dealerUpcard, situationKey, drawPile: shuffle(createShoe(1)) }
+  return dealRoundFromHand(playerHand, dealerUpcard, shuffle(createShoe(1)))
 }
 
-/**
- * Strategy Trainer wired into the 2.0 CasinoTable shell.
- * Logic is identical to StrategyTrainer.tsx — only the presentation changes.
- * Outer wrapper does NOT use PAGE_WRAPPER so CasinoTable can reach max-w-4xl
- * without being constrained by the page's max-w-3xl content column.
- *
- * The graded decision is always the INITIAL two-card hand — matching the
- * app-wide convention (Evasion, the detection-family engine) that a
- * strategy/deviation check only applies at that first decision point. If
- * that decision is Hit, the hand plays out interactively afterward (one
- * card per Hit click, Stand ends it) rather than being auto-resolved or
- * ending the round on a single click; those later decisions aren't
- * separately graded, same as Evasion's fix.
- */
+// Local, one-off — same convention as LivePlayMode.tsx's own HandGroup.
+// No `outcome` prop here: this drill grades decisions, not a dealer play-out,
+// so status is just how the hand ended, never win/lose/push.
+function inProgressStatus(hand: PlayHand): string | null {
+  if (!hand.done) return null
+  if (hand.surrendered) return 'Surrendered'
+  if (isBust(hand.cards)) return 'Bust'
+  if (isBlackjack(hand.cards)) return 'Blackjack!'
+  return 'Stood'
+}
+
+function HandGroup({ hand, isActive }: { hand: PlayHand; isActive: boolean }) {
+  const { total, soft } = handValue(hand.cards)
+  const statusText = inProgressStatus(hand)
+  return (
+    <div
+      className={`flex flex-col items-center gap-1 rounded-md p-1 ${isActive ? 'ring-2 ring-blue-500' : ''}`}
+      style={{ opacity: hand.done ? 0.85 : 1 }}
+    >
+      <div className="flex gap-1">
+        {hand.cards.map((card, i) => (
+          <PlayingCard key={i} card={card} suitIndex={i} size="sm" />
+        ))}
+      </div>
+      <p className="text-xs text-slate-400">
+        {total}
+        {soft ? ' soft' : ''}
+      </p>
+      {statusText && <p className="text-xs font-medium text-slate-500">{statusText}</p>}
+    </div>
+  )
+}
+
 export function BasicStrategyMode() {
   const [persisted] = useState(() => loadState())
   const [stats, setStats] = useState<Stats>(persisted.stats)
   const [handsPlayed, setHandsPlayed] = useState(persisted.handsPlayed)
   const [currentStreak, setCurrentStreak] = useState(persisted.currentStreak)
-  const [round, setRound] = useState<Round>(() => buildRound(persisted.stats))
-  const [handCards, setHandCards] = useState<Card[]>(round.playerHand)
-  const [drawIndex, setDrawIndex] = useState(0)
-  const [isHitting, setIsHitting] = useState(false)
-  const [result, setResult] = useState<Result | null>(null)
+
+  const [initial] = useState(() => buildRound(persisted.stats))
+  const [session, setSession] = useState<LivePlaySessionState>(initial.state)
+  const [round, setRound] = useState<LiveRound>(initial.round)
+  const [decisionLog, setDecisionLog] = useState<DecisionRecord[]>([])
+  const [lastDecision, setLastDecision] = useState<DecisionRecord | null>(null)
+  const [phase, setPhase] = useState<Phase>(isRoundOver(initial.round) ? 'roundComplete' : 'deciding')
 
   useEffect(() => {
     saveState({ stats, handsPlayed, currentStreak })
   }, [stats, handsPlayed, currentStreak])
 
-  function handleSelect(action: Action) {
-    if (result || isHitting) return
-    const correct = getAction(round.playerHand, round.dealerUpcard)
-    const isCorrect = action === correct
-    setResult({ chosen: action, correct })
-    setStats((prev) => recordResult(prev, round.situationKey, isCorrect, handsPlayed))
+  function handleChoose(action: Action) {
+    if (phase !== 'deciding') return
+    const hand = round.hands[round.activeHandIndex]
+    // Derived fresh from the CURRENT hand state, not the original generation
+    // key — this is what makes every decision (post-hit, post-split) its
+    // own gradable, trackable situation, feeding the weakness heatmap at
+    // every real decision point encountered, not just the first.
+    const situationKey = getSituationKey(hand.cards, round.dealerUpcard)
+    const result = decide(session, round, action)
+
+    const record: DecisionRecord = {
+      situationKey,
+      chosenAction: result.chosenAction,
+      correctAction: result.correctAction,
+      isCorrect: result.isCorrect,
+    }
+
+    setSession(result.state)
+    setRound(result.round)
+    setLastDecision(record)
+    setDecisionLog((log) => [...log, record])
+    setStats((prev) => recordResult(prev, situationKey, result.isCorrect, handsPlayed))
     setHandsPlayed((prev) => prev + 1)
-    setCurrentStreak((prev) => updateStreak(prev, isCorrect))
+    setCurrentStreak((prev) => updateStreak(prev, result.isCorrect))
 
-    if (action === 'Hit') {
-      // Choosing Hit deals a real card immediately — not a no-op step before the first actual hit.
-      const card = round.drawPile[drawIndex]
-      const newHand = [...handCards, card]
-      setHandCards(newHand)
-      setDrawIndex((n) => n + 1)
-      if (!isBust(newHand)) {
-        setResult(null) // keep playing — hide feedback until the hand is actually done
-        setIsHitting(true)
-      }
+    if (isRoundOver(result.round)) {
+      setPhase('roundComplete')
     }
-  }
-
-  function hitAgain() {
-    const card = round.drawPile[drawIndex]
-    const newHand = [...handCards, card]
-    setHandCards(newHand)
-    setDrawIndex((n) => n + 1)
-    if (isBust(newHand)) {
-      finishHitting()
-    }
-  }
-
-  function finishHitting() {
-    setIsHitting(false)
-    setResult({ chosen: 'Hit', correct: getAction(round.playerHand, round.dealerUpcard) })
   }
 
   function handleNext() {
-    const newRound = buildRound(stats)
-    setRound(newRound)
-    setHandCards(newRound.playerHand)
-    setDrawIndex(0)
-    setIsHitting(false)
-    setResult(null)
+    const next = buildRound(stats)
+    setSession(next.state)
+    setRound(next.round)
+    setDecisionLog([])
+    setLastDecision(null)
+    setPhase(isRoundOver(next.round) ? 'roundComplete' : 'deciding')
   }
+
+  const correctCount = decisionLog.filter((d) => d.isCorrect).length
+  const misses = decisionLog.filter((d) => !d.isCorrect)
 
   const dealerSlot = (
     <>
@@ -119,10 +153,10 @@ export function BasicStrategyMode() {
     </>
   )
 
-  const playerSeat = (
-    <div className="flex gap-2">
-      {handCards.map((card, i) => (
-        <PlayingCard key={i} card={card} suitIndex={i + 1} size="sm" />
+  const seatContent = (
+    <div className="flex flex-wrap justify-center gap-2">
+      {round.hands.map((hand, i) => (
+        <HandGroup key={i} hand={hand} isActive={i === round.activeHandIndex} />
       ))}
     </div>
   )
@@ -133,7 +167,7 @@ export function BasicStrategyMode() {
         style={{ containerType: 'size' }}>
         <CasinoTable
           dealerSlot={dealerSlot}
-          seatContents={[playerSeat]}
+          seatContents={[seatContent]}
           seatLabels={['You']}
           userSeatIndex={0}
         />
@@ -143,39 +177,39 @@ export function BasicStrategyMode() {
       <div className="flex w-full max-w-md flex-col gap-3">
         <ProgressPanel currentStreak={currentStreak} lifetime={lifetimeAccuracy(stats)} />
 
-        {isHitting ? (
+        {phase === 'deciding' && (
           <div className="flex flex-col items-center gap-3">
-            <p className="text-sm text-slate-400">
-              {(() => {
-                const { total, soft } = handValue(handCards)
-                return `${soft ? 'Soft' : 'Hard'} ${total}`
-              })()}
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
-              <button type="button" onClick={hitAgain} className={PRIMARY_BUTTON}>
-                Hit
-              </button>
-              <button type="button" onClick={finishHitting} className={SECONDARY_BUTTON}>
-                Stand
-              </button>
-            </div>
+            {lastDecision && (
+              <p className={`text-sm font-medium ${lastDecision.isCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
+                {lastDecision.isCorrect
+                  ? 'Correct!'
+                  : `Incorrect — correct play was ${lastDecision.correctAction}`}
+              </p>
+            )}
+            <ActionButtons onSelect={handleChoose} actions={legalActions(round)} />
           </div>
-        ) : (
-          <ActionButtons onSelect={handleSelect} disabled={result !== null} />
         )}
 
-        {result && (
-          <Feedback
-            isCorrect={result.chosen === result.correct}
-            chosenAction={result.chosen}
-            correctAction={result.correct}
-            reason={
-              result.chosen === result.correct
-                ? null
-                : reasonFor(categoryOfSituationKey(round.situationKey), result.correct)
-            }
-            onNext={handleNext}
-          />
+        {phase === 'roundComplete' && (
+          <div className="flex flex-col items-center gap-3 text-center">
+            <p className={`text-lg font-semibold ${misses.length === 0 ? SUCCESS_TEXT : ERROR_TEXT}`}>
+              {decisionLog.length === 0
+                ? 'No decision needed'
+                : `${correctCount}/${decisionLog.length} correct this hand`}
+            </p>
+            {misses.map((m, i) => {
+              const reason = reasonFor(categoryOfSituationKey(m.situationKey), m.correctAction)
+              return (
+                <p key={i} className="text-sm text-slate-400">
+                  {m.situationKey}: correct play was {m.correctAction}
+                  {reason ? ` — ${reason}` : ''}
+                </p>
+              )
+            })}
+            <button type="button" onClick={handleNext} className={PRIMARY_BUTTON_LG}>
+              Next hand
+            </button>
+          </div>
         )}
       </div>
     </div>

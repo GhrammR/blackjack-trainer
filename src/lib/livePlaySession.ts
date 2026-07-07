@@ -142,6 +142,32 @@ export function dealRound(state: LivePlaySessionState): { state: LivePlaySession
   }
 }
 
+/**
+ * Like `dealRound`, but builds the round from a caller-supplied 2-card hand
+ * + dealer upcard instead of dealing them from shoe position — for callers
+ * (Basic Strategy Trainer) whose hand is chosen by an adaptive weakness
+ * engine rather than dealt randomly. `drawShoe` still backs subsequent
+ * Hit/Split draws via the normal `applyAction`/`decide` path, starting at
+ * position 0 since it's a fresh pile unrelated to the hand already in hand.
+ * `holeCard` is a placeholder (never a real dealt card) since callers of
+ * this function never call `resolveDealer` — there's no dealer play-out or
+ * win/lose outcome here, only decision grading. Reuses the exact same
+ * natural-blackjack auto-resolve behavior as `dealRound`.
+ */
+export function dealRoundFromHand(
+  playerHand: Card[],
+  dealerUpcard: Card,
+  drawShoe: Card[],
+): { state: LivePlaySessionState; round: LiveRound } {
+  const hand = freshHand(playerHand)
+  const hands = isBlackjack(playerHand) ? [{ ...hand, done: true }] : [hand]
+
+  return {
+    state: { shoe: drawShoe, position: 0, count: 0 },
+    round: { hands, activeHandIndex: nextActiveHandIndex(hands, 0), dealerUpcard, holeCard: dealerUpcard },
+  }
+}
+
 function nextActiveHandIndex(hands: PlayHand[], from: number): number {
   for (let i = from; i < hands.length; i++) {
     if (!hands[i].done) return i

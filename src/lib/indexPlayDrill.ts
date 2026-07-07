@@ -30,21 +30,6 @@ const TARGETED_RATE = 0.7
 const THRESHOLD_OFFSET_RANGE = 3
 const RANDOM_TRUE_COUNT_RANGE = 8
 
-/**
- * A 2-card hard total of 20 isn't a real dealable starting hand: the only
- * way to reach 20 with two cards is two ten-value cards, and this app's
- * rank-bucketed pair detection (see strategy.ts's pairRankKey) always reads
- * two ten-value cards as a pair — regardless of concrete rank match — so
- * `getSituationKey` would report "pair-10", never "hard-20". handGenerator's
- * `hard-20` entry only exists as a synthetic 3-card combo (e.g. 4+6+10) to
- * reproduce that label, which is exactly the "dealt a 3-card starting hand"
- * bug. Route it to the real, already-distinct "pair-10" situation instead,
- * which generateHand already produces as an honest 2-card deal.
- */
-function normalizeSituationKey(key: string): string {
-  return key.startsWith('hard-20-vs-') ? key.replace('hard-20-vs-', 'pair-10-vs-') : key
-}
-
 export interface IndexPlayScenario {
   playerHand: Card[]
   dealerUpcard: Card
@@ -83,7 +68,6 @@ export function generateScenario(random: () => number = Math.random): IndexPlayS
     trueCount = randomInt(random, -RANDOM_TRUE_COUNT_RANGE, RANDOM_TRUE_COUNT_RANGE)
   }
 
-  situationKey = normalizeSituationKey(situationKey)
   const { playerHand, dealerUpcard } = generateHand(situationKey)
   const basicAction = getAction(playerHand, dealerUpcard)
   const indicatedPlay = indicatedDeviation(situationKey, trueCount)

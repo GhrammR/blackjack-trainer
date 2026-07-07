@@ -7,6 +7,7 @@ import {
   correctActionFor,
   correctBetUnits,
   dealRound,
+  dealRoundFromHand,
   decide,
   handOutcome,
   isRoundOver,
@@ -68,6 +69,60 @@ describe('dealRound — natural blackjack auto-resolves', () => {
     const { round } = dealRound(stateFrom(shoe))
     expect(round.hands[0].done).toBe(false)
     expect(round.activeHandIndex).toBe(0)
+  })
+})
+
+describe('dealRoundFromHand — builds a round from a caller-supplied hand (Basic Strategy Trainer)', () => {
+  it('uses the given hand and dealer upcard exactly, with the active hand ready for a first decision', () => {
+    const drawShoe = [c('7'), c('3'), c('9')]
+    const { state, round } = dealRoundFromHand([c('10'), c('6')], c('10'), drawShoe)
+
+    expect(round.hands[0].cards).toEqual([c('10'), c('6')])
+    expect(round.hands[0].isFirstDecision).toBe(true)
+    expect(round.hands[0].done).toBe(false)
+    expect(round.activeHandIndex).toBe(0)
+    expect(round.dealerUpcard).toEqual(c('10'))
+    expect(state.shoe).toBe(drawShoe)
+    expect(state.position).toBe(0)
+  })
+
+  it('feeds legalActions/decide/applyAction exactly like a dealt round, including a real pair offering Split', () => {
+    const { state, round } = dealRoundFromHand([c('8'), c('8')], c('9'), [c('2'), c('5')])
+    expect(legalActions(round)).toContain('Split')
+    expect(correctActionFor(round)).toBe('Split')
+
+    const result = decide(state, round, 'Split')
+    expect(result.isCorrect).toBe(true)
+    expect(result.round.hands).toHaveLength(2)
+  })
+
+  it('does not offer Split for a non-pair 2-card hand (e.g. Ace+King)', () => {
+    const { round } = dealRoundFromHand([c('A'), c('K')], c('6'), [c('2')])
+    // A natural blackjack (A+K) auto-resolves with no decision offered at all.
+    expect(isRoundOver(round)).toBe(true)
+    expect(legalActions(round)).toEqual([])
+  })
+
+  it('does not offer Split for a non-pair, non-blackjack 2-card hand', () => {
+    const { round } = dealRoundFromHand([c('9'), c('7')], c('6'), [c('2')])
+    expect(legalActions(round)).not.toContain('Split')
+  })
+
+  it('auto-resolves a natural blackjack hand with no decision offered, same as dealRound', () => {
+    const { round } = dealRoundFromHand([c('A'), c('Q')], c('9'), [c('2')])
+    expect(round.hands[0].done).toBe(true)
+    expect(round.activeHandIndex).toBe(-1)
+    expect(isRoundOver(round)).toBe(true)
+  })
+
+  it('grades a full hand out via decide/applyAction the same as a dealt round would', () => {
+    const drawShoe = [c('3')] // hits hard 12 vs 6 up to 15 — basic strategy still says Hit at 12
+    const { state, round } = dealRoundFromHand([c('6'), c('6')], c('6'), drawShoe)
+    // 6,6 vs 6 is a real pair -> basic strategy says Split, not Hit.
+    expect(correctActionFor(round)).toBe('Split')
+    const result = decide(state, round, 'Hit')
+    expect(result.isCorrect).toBe(false)
+    expect(result.round.hands[0].cards).toEqual([c('6'), c('6'), c('3')])
   })
 })
 

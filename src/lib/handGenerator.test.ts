@@ -24,6 +24,18 @@ describe('generateHand', () => {
     }
   })
 
+  it('produces exactly 2-card hard-total hands — a blackjack hand always starts with two cards', () => {
+    for (const total of HARD_TOTALS) {
+      const { playerHand } = generateHand(`hard-${total}-vs-10`)
+      expect(playerHand).toHaveLength(2)
+    }
+  })
+
+  it('does not generate hard-20 — a 2-card 20 is always two ten-value cards, i.e. pair-10', () => {
+    expect(HARD_TOTALS).not.toContain(20)
+    expect(() => generateHand('hard-20-vs-10')).toThrow()
+  })
+
   it('produces soft hands that are actually soft', () => {
     for (const total of SOFT_TOTALS) {
       const { playerHand } = generateHand(`soft-${total}-vs-9`)

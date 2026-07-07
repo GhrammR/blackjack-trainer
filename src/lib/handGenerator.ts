@@ -7,7 +7,11 @@ import type { Card, DealerUpcardKey, PairRankKey, Rank } from '../types'
 
 export const DEALER_KEYS: DealerUpcardKey[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'A']
 export const PAIR_RANKS: PairRankKey[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'A']
-export const HARD_TOTALS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+// 20 is deliberately excluded: the only way to reach a hard 20 with two
+// cards is two ten-value cards, which this app's rank-bucketed pair check
+// (pairRankKey buckets 10/J/Q/K together) always reads as pair-10 — a
+// 2-card "hard-20" hand can't physically be dealt/generated.
+export const HARD_TOTALS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 export const SOFT_TOTALS = [13, 14, 15, 16, 17, 18, 19, 20]
 
 /** Every situation key that generateHand can reproduce. */
@@ -32,8 +36,8 @@ function dealerCardForKey(key: DealerUpcardKey): Card {
   return { rank: concreteRank(key as Rank) }
 }
 
-// Two (or, where a same-bucket two-card combo would be misread as a pair, three)
-// non-ace cards summing to each hard total, expressed as value-rank placeholders.
+// Two non-ace cards summing to each hard total, expressed as value-rank
+// placeholders. 20 has no entry — see the HARD_TOTALS comment above.
 const HARD_TOTAL_CARDS: Record<number, Rank[]> = {
   5: ['2', '3'],
   6: ['2', '4'],
@@ -50,7 +54,6 @@ const HARD_TOTAL_CARDS: Record<number, Rank[]> = {
   17: ['7', '10'],
   18: ['8', '10'],
   19: ['9', '10'],
-  20: ['4', '6', '10'],
 }
 
 function parseSituationKey(key: string): { category: 'hard' | 'soft' | 'pair'; value: string; dealerKey: DealerUpcardKey } {
