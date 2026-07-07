@@ -71,7 +71,10 @@ export function computeAchievements(
   // Tiers are based on the "Full countdown" format's best pace only —
   // "Missing cards" tracks its own attempts/correct/personal-best but
   // doesn't feed these tiers yet (deliberately deferred to a later pass).
-  const bestPace = p.shoeCountdown.fullCountdown.personalBests[numDecks] ?? null
+  // Full Countdown's deal length (and therefore its personal best) is keyed by deck size — see
+  // shoeCountdown.ts — so achievements are evaluated against the current deck-size setting's record.
+  const bestEntry = p.shoeCountdown.fullCountdown.personalBests[numDecks]
+  const bestPace = bestEntry !== undefined ? bestEntry.ms / bestEntry.cards : null
   const shoeCountdown: AchievementTiers = {
     tier1: bestPace !== null,
     tier2: bestPace !== null && bestPace < SHOE_FAST_PACE_MS,

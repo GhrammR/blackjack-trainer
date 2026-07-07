@@ -175,7 +175,7 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
   const scMissing = p.shoeCountdown.missingCards
   const scStat =
     scFullBest != null
-      ? `Best pace: ${formatPace(scFullBest)} · ${numDecks}-deck` +
+      ? `Best pace: ${formatPace(scFullBest.ms / scFullBest.cards)} · ${numDecks}-deck` +
         (scMissing.attempts > 0 ? ` · Missing cards: ${pct(scMissing.correct, scMissing.attempts)} correct` : '')
       : scMissing.attempts > 0
         ? `Missing cards: ${scMissing.attempts} attempts · ${pct(scMissing.correct, scMissing.attempts)} correct`

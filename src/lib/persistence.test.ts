@@ -79,7 +79,7 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
     trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
     shoeCountdown: {
-      fullCountdown: { personalBests: {} },
+      fullCountdown: { personalBests: {}, attempts: 0, correct: 0 },
       missingCards: { personalBests: {}, attempts: 0, correct: 0 },
     },
     detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -115,7 +115,7 @@ describe('loadCountingState', () => {
       JSON.stringify({
         progress: {
           shoeCountdown: {
-            fullCountdown: { personalBests: 'not an object' },
+            fullCountdown: { personalBests: 'not an object', attempts: 5, correct: 3 },
             missingCards: { personalBests: 42 },
           },
         },
@@ -123,6 +123,8 @@ describe('loadCountingState', () => {
     )
     const sc = loadCountingState().progress.shoeCountdown
     expect(sc.fullCountdown.personalBests).toEqual({})
+    expect(sc.fullCountdown.attempts).toBe(5)
+    expect(sc.fullCountdown.correct).toBe(3)
     expect(sc.missingCards.personalBests).toEqual({})
   })
 
@@ -132,6 +134,42 @@ describe('loadCountingState', () => {
       JSON.stringify({ progress: { shoeCountdown: { personalBests: { 6: 45000 } } } }),
     )
     expect(loadCountingState().progress.shoeCountdown).toEqual(DEFAULT_COUNTING_STATE.progress.shoeCountdown)
+  })
+
+  it('drops pre-migration personal-best entries (a bare number, from before the `{ ms, cards }` shape) instead of misreading them', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({
+        progress: {
+          shoeCountdown: {
+            fullCountdown: { personalBests: { 6: 385 }, attempts: 3, correct: 2 },
+            missingCards: { personalBests: { 6: 45000 } },
+          },
+        },
+      }),
+    )
+    const sc = loadCountingState().progress.shoeCountdown
+    expect(sc.fullCountdown.personalBests).toEqual({})
+    expect(sc.fullCountdown.attempts).toBe(3)
+    expect(sc.fullCountdown.correct).toBe(2)
+    expect(sc.missingCards.personalBests).toEqual({})
+  })
+
+  it('keeps well-shaped Full Countdown entries per deck size (personal bests are per-deck-size again)', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({
+        progress: {
+          shoeCountdown: {
+            fullCountdown: {
+              personalBests: { 1: { ms: 9500, cards: 40 }, 6: { ms: 61000, cards: 260 } },
+            },
+          },
+        },
+      }),
+    )
+    const fc = loadCountingState().progress.shoeCountdown.fullCountdown
+    expect(fc.personalBests).toEqual({ 1: { ms: 9500, cards: 40 }, 6: { ms: 61000, cards: 260 } })
   })
 
   it('rejects non-number evasion personal bests, defaulting to null instead of throwing', () => {
@@ -152,8 +190,8 @@ describe('saveCountingState / loadCountingState round trip', () => {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
         shoeCountdown: {
-          fullCountdown: { personalBests: { 1: 420, 6: 610 } },
-          missingCards: { personalBests: { 1: 12000, 6: 45000 }, attempts: 9, correct: 7 },
+          fullCountdown: { personalBests: { 1: { ms: 12600, cards: 40 }, 6: { ms: 61000, cards: 260 } }, attempts: 12, correct: 10 },
+          missingCards: { personalBests: { 1: { ms: 12000, cards: 51 }, 6: { ms: 45000, cards: 311 } }, attempts: 9, correct: 7 },
         },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
@@ -176,8 +214,8 @@ describe('resetCountingProgress', () => {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
         shoeCountdown: {
-          fullCountdown: { personalBests: { 8: 900 } },
-          missingCards: { personalBests: { 8: 99000 }, attempts: 4, correct: 3 },
+          fullCountdown: { personalBests: { 6: { ms: 61000, cards: 260 } }, attempts: 4, correct: 3 },
+          missingCards: { personalBests: { 8: { ms: 99000, cards: 415 } }, attempts: 4, correct: 3 },
         },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
@@ -201,8 +239,8 @@ describe('resetCountingMode', () => {
       runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
       trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
       shoeCountdown: {
-        fullCountdown: { personalBests: { 6: 610 } },
-        missingCards: { personalBests: { 6: 45000 }, attempts: 5, correct: 4 },
+        fullCountdown: { personalBests: { 2: { ms: 33000, cards: 85 } }, attempts: 5, correct: 4 },
+        missingCards: { personalBests: { 6: { ms: 45000, cards: 311 } }, attempts: 5, correct: 4 },
       },
       detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
       tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },

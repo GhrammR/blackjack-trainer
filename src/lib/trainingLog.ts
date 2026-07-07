@@ -19,8 +19,9 @@ import { formatPace, formatSeconds } from './format'
  *
  * Personal bests (Shoe Countdown pace/time, Evasion's edge/heat) are always
  * shown as the current lifetime record, since "best" is inherently a
- * lifetime concept — but flagged "(new this session)" when the session
- * beat the baseline's record.
+ * lifetime concept — the export doesn't flag whether a record was newly set
+ * this session (deliberately dropped; the pasted-in log is stripped of that
+ * kind of session framing anyway).
  */
 
 const SESSION_BASELINE_KEY = 'double-down:sessionBaseline:v1'
@@ -73,31 +74,21 @@ function delta(current: number, base: number): number {
   return current - base
 }
 
-/** Per-deck-size personal-best list, e.g. "1-deck: 2.10 cards/sec, 6-deck: 1.80 cards/sec", each flagged if it beats the baseline. */
-function formatBestsList(
-  current: PersonalBests,
-  baseline: PersonalBests,
-  formatValue: (n: number) => string,
-): string {
+/**
+ * Per-deck-size personal-best list showing BOTH pace and total time, e.g.
+ * "1-deck: 2.10 cards/sec (24.76s), 6-deck: 1.80 cards/sec (28.89s)". Each
+ * entry stores the exact `{ ms, cards }` dealt that run (card counts vary
+ * run to run in both Shoe Countdown formats), so pace is derived precisely
+ * rather than assumed.
+ */
+function formatBestsList(current: PersonalBests): string {
   const entries = Object.entries(current)
-    .map(([decks, value]) => [Number(decks), value] as const)
+    .map(([decks, best]) => [Number(decks), best] as const)
     .sort((a, b) => a[0] - b[0])
   if (entries.length === 0) return '—'
   return entries
-    .map(([decks, value]) => {
-      const baseValue = baseline[decks]
-      const isNewBest = baseValue === undefined || value < baseValue
-      return `${decks}-deck: ${formatValue(value)}${isNewBest ? ' (new this session)' : ''}`
-    })
+    .map(([decks, best]) => `${decks}-deck: ${formatPace(best.ms / best.cards)} (${formatSeconds(best.ms)})`)
     .join(', ')
-}
-
-/** True if any deck-size entry in `current` is new or improved relative to `baseline` (lower = better, both formats). */
-function hasNewBest(current: PersonalBests, baseline: PersonalBests): boolean {
-  return Object.entries(current).some(([decks, value]) => {
-    const baseValue = baseline[Number(decks)]
-    return baseValue === undefined || value < baseValue
-  })
 }
 
 // ── Per-mode block builders ─────────────────────────────────────────────────
@@ -110,7 +101,7 @@ function strategyBlock(v1: PersistedState, baselineStrategy: { attempts: number;
   const sessionAttempts = delta(attempts, baselineStrategy.attempts)
   const sessionCorrect = delta(correct, baselineStrategy.correct)
   if (sessionAttempts <= 0) return null
-  return `Basic Strategy — hands: ${sessionAttempts}, correct: ${sessionCorrect}, accuracy: ${pctStr(sessionCorrect, sessionAttempts)}, current streak: ${v1.currentStreak}`
+  return `Basic Strategy — practicing correct hit/stand/double/split/surrender decisions for every hand — hands: ${sessionAttempts}, correct: ${sessionCorrect}, accuracy: ${pctStr(sessionCorrect, sessionAttempts)}, current streak: ${v1.currentStreak}`
 }
 
 function roundsBlock(
@@ -129,7 +120,7 @@ function trueCountBlock(current: CountingProgress['trueCount'], base: CountingPr
   if (played <= 0) return null
   const goodEstimates = delta(current.goodEstimates, base.goodEstimates)
   const correctMath = delta(current.correctMath, base.correctMath)
-  return `True Count — scenarios: ${played}, good estimates: ${pctStr(goodEstimates, played)}, correct math: ${pctStr(correctMath, played)}`
+  return `True Count — converting the running count to a true count by estimating decks remaining — scenarios: ${played}, good estimates: ${pctStr(goodEstimates, played)}, correct math: ${pctStr(correctMath, played)}`
 }
 
 function shoeCountdownBlocks(
@@ -138,14 +129,11 @@ function shoeCountdownBlocks(
 ): string[] {
   const lines: string[] = []
 
-  // Full Countdown tracks no attempts/rounds counter at all — only a
-  // best-pace-ever record per deck size. So "touched this session" can only
-  // be detected as "a new best was set," which is a real gap in what the
-  // app tracks, not a bug here — a session that practiced without beating
-  // its record is invisible to this block.
-  if (hasNewBest(current.fullCountdown.personalBests, base.fullCountdown.personalBests)) {
+  const fcAttempts = delta(current.fullCountdown.attempts, base.fullCountdown.attempts)
+  if (fcAttempts > 0) {
+    const fcCorrect = delta(current.fullCountdown.correct, base.fullCountdown.correct)
     lines.push(
-      `Shoe Countdown (Full Countdown) — best pace: ${formatBestsList(current.fullCountdown.personalBests, base.fullCountdown.personalBests, formatPace)}`,
+      `Shoe Countdown (Full Countdown) — speed-counting down a fixed-length deal (longer at bigger shoe sizes, never a zero answer) as fast as possible — attempts: ${fcAttempts}, correct: ${fcCorrect}, accuracy: ${pctStr(fcCorrect, fcAttempts)}, best pace/time: ${formatBestsList(current.fullCountdown.personalBests)}`,
     )
   }
 
@@ -153,7 +141,7 @@ function shoeCountdownBlocks(
   if (mcAttempts > 0) {
     const mcCorrect = delta(current.missingCards.correct, base.missingCards.correct)
     lines.push(
-      `Shoe Countdown (Missing Cards) — attempts: ${mcAttempts}, correct: ${mcCorrect}, accuracy: ${pctStr(mcCorrect, mcAttempts)}, best time: ${formatBestsList(current.missingCards.personalBests, base.missingCards.personalBests, formatSeconds)}`,
+      `Shoe Countdown (Missing Cards) — counting down a shoe with cards secretly removed, to find what's missing — attempts: ${mcAttempts}, correct: ${mcCorrect}, accuracy: ${pctStr(mcCorrect, mcAttempts)}, best pace/time: ${formatBestsList(current.missingCards.personalBests)}`,
     )
   }
 
@@ -164,7 +152,7 @@ function indexPlaysBlock(current: CountingProgress['indexPlays'], base: Counting
   const attempts = delta(current.attempts, base.attempts)
   if (attempts <= 0) return null
   const correct = delta(current.correct, base.correct)
-  return `Index Plays — attempts: ${attempts}, correct: ${correct}, accuracy: ${pctStr(correct, attempts)}`
+  return `Index Plays — practicing count-based deviations from basic strategy (the Illustrious 18) — attempts: ${attempts}, correct: ${correct}, accuracy: ${pctStr(correct, attempts)}`
 }
 
 function sessionsBlock(
@@ -182,19 +170,10 @@ function evasionBlock(current: CountingProgress['evasion'], base: CountingProgre
   const played = delta(current.sessionsPlayed, base.sessionsPlayed)
   if (played <= 0) return null
 
-  const edgeIsNew =
-    current.bestEdgeCapturedPct !== null &&
-    (base.bestEdgeCapturedPct === null || current.bestEdgeCapturedPct > base.bestEdgeCapturedPct)
-  const heatIsNew =
-    current.lowestHeat !== null && (base.lowestHeat === null || current.lowestHeat < base.lowestHeat)
+  const edgeStr = current.bestEdgeCapturedPct === null ? '—' : `${Math.round(current.bestEdgeCapturedPct)}%`
+  const heatStr = current.lowestHeat === null ? '—' : `${current.lowestHeat}`
 
-  const edgeStr =
-    current.bestEdgeCapturedPct === null
-      ? '—'
-      : `${Math.round(current.bestEdgeCapturedPct)}%${edgeIsNew ? ' (new this session)' : ''}`
-  const heatStr = current.lowestHeat === null ? '—' : `${current.lowestHeat}${heatIsNew ? ' (new this session)' : ''}`
-
-  return `Evasion — sessions: ${played}, best edge captured: ${edgeStr}, lowest heat: ${heatStr}`
+  return `Evasion — playing the counter's seat directly to see how bet sizing and deviations read to a detector — sessions: ${played}, best edge captured: ${edgeStr}, lowest heat: ${heatStr}`
 }
 
 function livePlayBlock(current: CountingProgress['livePlay'], base: CountingProgress['livePlay']): string | null {
@@ -209,7 +188,7 @@ function livePlayBlock(current: CountingProgress['livePlay'], base: CountingProg
   const betCorrect = delta(current.betCorrect, base.betCorrect)
 
   return (
-    `Live Play — plays: ${playAttempts}/${playCorrect} (${pctStr(playCorrect, playAttempts)}), ` +
+    `Live Play — playing full hands while keeping the running count, true count, and bet sizing live — plays: ${playAttempts}/${playCorrect} (${pctStr(playCorrect, playAttempts)}), ` +
     `count: ${pctStr(countCorrect, countAttempts)}, true count: ${pctStr(trueCountCorrect, trueCountAttempts)}, ` +
     `bet sizing: ${pctStr(betCorrect, betAttempts)}`
   )
@@ -221,13 +200,15 @@ export function buildTrainingLogText(
   v1: PersistedState,
   counting: CountingState,
   baseline: SessionBaseline | null,
+  options: { includeHeader?: boolean } = {},
 ): string {
+  const includeHeader = options.includeHeader ?? true
   const baseStrategy = baseline?.strategy ?? { attempts: 0, correct: 0 }
   const baseCounting = baseline?.counting ?? {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
     trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
     shoeCountdown: {
-      fullCountdown: { personalBests: {} },
+      fullCountdown: { personalBests: {}, attempts: 0, correct: 0 },
       missingCards: { personalBests: {}, attempts: 0, correct: 0 },
     },
     detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -245,13 +226,29 @@ export function buildTrainingLogText(
 
   const lines: string[] = [
     strategyBlock(v1, baseStrategy),
-    roundsBlock('Running Count', p.runningCount, baseCounting.runningCount),
+    roundsBlock(
+      'Running Count — tracking the Hi-Lo running count live across a multi-seat table',
+      p.runningCount,
+      baseCounting.runningCount,
+    ),
     trueCountBlock(p.trueCount, baseCounting.trueCount),
     ...shoeCountdownBlocks(p.shoeCountdown, baseCounting.shoeCountdown),
     indexPlaysBlock(p.indexPlays, baseCounting.indexPlays),
-    sessionsBlock('Counter Detection', p.detection, baseCounting.detection),
-    sessionsBlock('Table Scan', p.tableScan, baseCounting.tableScan),
-    sessionsBlock('Evidence Flagging', p.evidence, baseCounting.evidence),
+    sessionsBlock(
+      'Counter Detection — judging whether a single observed player is counting cards',
+      p.detection,
+      baseCounting.detection,
+    ),
+    sessionsBlock(
+      'Table Scan — scanning every seat at a table at once to find the one counter',
+      p.tableScan,
+      baseCounting.tableScan,
+    ),
+    sessionsBlock(
+      'Evidence Flagging — flagging specific rounds as counting evidence from bet spread and strategy deviations',
+      p.evidence,
+      baseCounting.evidence,
+    ),
     evasionBlock(p.evasion, baseCounting.evasion),
     livePlayBlock(p.livePlay, baseCounting.livePlay),
   ].filter((line): line is string => line !== null)
@@ -260,7 +257,7 @@ export function buildTrainingLogText(
     ? 'Training Log — since session start'
     : 'Training Log — lifetime totals (no session started)'
 
-  if (lines.length === 0) return `${header}\n\nNo activity recorded yet.`
+  const body = lines.length === 0 ? 'No activity recorded yet.' : lines.join('\n')
 
-  return `${header}\n\n${lines.join('\n')}`
+  return includeHeader ? `${header}\n\n${body}` : body
 }

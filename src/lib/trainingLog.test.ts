@@ -17,7 +17,7 @@ function emptyCountingState(): CountingState {
       runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
       trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
       shoeCountdown: {
-        fullCountdown: { personalBests: {} },
+        fullCountdown: { personalBests: {}, attempts: 0, correct: 0 },
         missingCards: { personalBests: {}, attempts: 0, correct: 0 },
       },
       detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -40,7 +40,9 @@ describe('buildTrainingLogText — no baseline (lifetime fallback)', () => {
 
     const text = buildTrainingLogText(v1, counting, null)
     expect(text).toContain('Training Log — lifetime totals (no session started)')
-    expect(text).toContain('Basic Strategy — hands: 20, correct: 18, accuracy: 90.0%, current streak: 5')
+    expect(text).toContain(
+      'Basic Strategy — practicing correct hit/stand/double/split/surrender decisions for every hand — hands: 20, correct: 18, accuracy: 90.0%, current streak: 5',
+    )
     // Untouched modes are absent.
     expect(text).not.toContain('Running Count')
     expect(text).not.toContain('Live Play')
@@ -67,8 +69,12 @@ describe('buildTrainingLogText — with a session baseline', () => {
     const text = buildTrainingLogText(nowV1, nowCounting, baseline)
     expect(text).toContain('Training Log — since session start')
     // Session deltas: 10 hands, 8 correct (30-20, 26-18) -> 80.0%
-    expect(text).toContain('Basic Strategy — hands: 10, correct: 8, accuracy: 80.0%, current streak: 7')
-    expect(text).toContain('Running Count — rounds: 5, correct: 4, accuracy: 80.0%')
+    expect(text).toContain(
+      'Basic Strategy — practicing correct hit/stand/double/split/surrender decisions for every hand — hands: 10, correct: 8, accuracy: 80.0%, current streak: 7',
+    )
+    expect(text).toContain(
+      'Running Count — tracking the Hi-Lo running count live across a multi-seat table — rounds: 5, correct: 4, accuracy: 80.0%',
+    )
   })
 
   it('excludes a mode from the export if it has lifetime history but nothing happened this session', () => {
@@ -82,39 +88,96 @@ describe('buildTrainingLogText — with a session baseline', () => {
   })
 })
 
-describe('buildTrainingLogText — Shoe Countdown personal-best flagging', () => {
-  it('Full Countdown only appears when a new best pace was set this session (no attempts counter exists to detect otherwise)', () => {
+describe('buildTrainingLogText — Shoe Countdown (unified format, both formats report attempts + pace + time)', () => {
+  it('Full Countdown is included whenever attempts increased, showing accuracy plus per-deck-size best pace/time', () => {
     const baselineCounting = emptyCountingState()
-    baselineCounting.progress.shoeCountdown.fullCountdown.personalBests = { 6: 500 }
-    const baseline = captureSessionBaseline(emptyV1(), baselineCounting)
-
-    const unchanged = emptyCountingState()
-    unchanged.progress.shoeCountdown.fullCountdown.personalBests = { 6: 500 }
-    expect(buildTrainingLogText(emptyV1(), unchanged, baseline)).not.toContain('Full Countdown')
-
-    const improved = emptyCountingState()
-    improved.progress.shoeCountdown.fullCountdown.personalBests = { 6: 420 }
-    const improvedText = buildTrainingLogText(emptyV1(), improved, baseline)
-    expect(improvedText).toContain('Shoe Countdown (Full Countdown)')
-    expect(improvedText).toContain('6-deck: 2.38 cards/sec (new this session)')
-  })
-
-  it('Missing Cards is included whenever attempts increased, and shows accuracy plus best-time flags', () => {
-    const baselineCounting = emptyCountingState()
-    baselineCounting.progress.shoeCountdown.missingCards = { personalBests: { 1: 40000 }, attempts: 3, correct: 2 }
+    baselineCounting.progress.shoeCountdown.fullCountdown = {
+      personalBests: { 6: { ms: 130000, cards: 260 } },
+      attempts: 3,
+      correct: 2,
+    }
     const baseline = captureSessionBaseline(emptyV1(), baselineCounting)
 
     const now = emptyCountingState()
-    now.progress.shoeCountdown.missingCards = { personalBests: { 1: 32000 }, attempts: 5, correct: 4 }
+    now.progress.shoeCountdown.fullCountdown = {
+      personalBests: { 6: { ms: 123500, cards: 260 } },
+      attempts: 5,
+      correct: 4,
+    }
 
     const text = buildTrainingLogText(emptyV1(), now, baseline)
-    expect(text).toContain('Shoe Countdown (Missing Cards) — attempts: 2, correct: 2, accuracy: 100.0%')
-    expect(text).toContain('1-deck: 32.00s (new this session)')
+    expect(text).toContain(
+      'Shoe Countdown (Full Countdown) — speed-counting down a fixed-length deal (longer at bigger shoe sizes, never a zero answer) as fast as possible — attempts: 2, correct: 2, accuracy: 100.0%',
+    )
+    // 123500ms over 260 cards -> 475.0 ms/card -> 2.11 cards/sec
+    expect(text).toContain('best pace/time: 6-deck: 2.11 cards/sec (123.50s)')
+  })
+
+  it('Full Countdown does not appear when its attempts did not increase this session', () => {
+    const baselineCounting = emptyCountingState()
+    baselineCounting.progress.shoeCountdown.fullCountdown = {
+      personalBests: { 6: { ms: 123500, cards: 260 } },
+      attempts: 5,
+      correct: 4,
+    }
+    const baseline = captureSessionBaseline(emptyV1(), baselineCounting)
+
+    const unchanged = emptyCountingState()
+    unchanged.progress.shoeCountdown.fullCountdown = {
+      personalBests: { 6: { ms: 123500, cards: 260 } },
+      attempts: 5,
+      correct: 4,
+    }
+    expect(buildTrainingLogText(emptyV1(), unchanged, baseline)).not.toContain('Full Countdown')
+  })
+
+  it('Missing Cards is included whenever attempts increased, showing accuracy plus best pace and time', () => {
+    const baselineCounting = emptyCountingState()
+    baselineCounting.progress.shoeCountdown.missingCards = {
+      personalBests: { 1: { ms: 40000, cards: 51 } },
+      attempts: 3,
+      correct: 2,
+    }
+    const baseline = captureSessionBaseline(emptyV1(), baselineCounting)
+
+    const now = emptyCountingState()
+    now.progress.shoeCountdown.missingCards = {
+      personalBests: { 1: { ms: 32000, cards: 52 } },
+      attempts: 5,
+      correct: 4,
+    }
+
+    const text = buildTrainingLogText(emptyV1(), now, baseline)
+    expect(text).toContain(
+      "Shoe Countdown (Missing Cards) — counting down a shoe with cards secretly removed, to find what's missing — attempts: 2, correct: 2, accuracy: 100.0%",
+    )
+    // 32000ms over 52 cards -> 615.38 ms/card -> 1.63 cards/sec
+    expect(text).toContain('1-deck: 1.63 cards/sec (32.00s)')
+  })
+
+  it('never includes "(new this session)" flagging for any personal best', () => {
+    const baselineCounting = emptyCountingState()
+    baselineCounting.progress.shoeCountdown.fullCountdown = {
+      personalBests: { 6: { ms: 130000, cards: 260 } },
+      attempts: 3,
+      correct: 2,
+    }
+    const baseline = captureSessionBaseline(emptyV1(), baselineCounting)
+
+    const now = emptyCountingState()
+    now.progress.shoeCountdown.fullCountdown = {
+      personalBests: { 6: { ms: 123500, cards: 260 } },
+      attempts: 5,
+      correct: 4,
+    }
+
+    const text = buildTrainingLogText(emptyV1(), now, baseline)
+    expect(text).not.toContain('new this session')
   })
 })
 
 describe('buildTrainingLogText — Evasion (edge/heat, not accuracy)', () => {
-  it('flags a new best edge and a new lowest heat independently, in the correct direction', () => {
+  it('reports the best edge captured and lowest heat, with no "new this session" flagging', () => {
     const baselineCounting = emptyCountingState()
     baselineCounting.progress.evasion = { sessionsPlayed: 2, bestEdgeCapturedPct: 50, lowestHeat: 3 }
     const baseline = captureSessionBaseline(emptyV1(), baselineCounting)
@@ -123,19 +186,9 @@ describe('buildTrainingLogText — Evasion (edge/heat, not accuracy)', () => {
     now.progress.evasion = { sessionsPlayed: 3, bestEdgeCapturedPct: 65, lowestHeat: 1 }
 
     const text = buildTrainingLogText(emptyV1(), now, baseline)
-    expect(text).toContain('Evasion — sessions: 1, best edge captured: 65% (new this session), lowest heat: 1 (new this session)')
-  })
-
-  it('does not flag "new" when the value did not actually improve', () => {
-    const baselineCounting = emptyCountingState()
-    baselineCounting.progress.evasion = { sessionsPlayed: 2, bestEdgeCapturedPct: 70, lowestHeat: 1 }
-    const baseline = captureSessionBaseline(emptyV1(), baselineCounting)
-
-    const now = emptyCountingState()
-    now.progress.evasion = { sessionsPlayed: 3, bestEdgeCapturedPct: 60, lowestHeat: 2 } // worse on both axes
-
-    const text = buildTrainingLogText(emptyV1(), now, baseline)
-    expect(text).toContain('Evasion — sessions: 1, best edge captured: 60%, lowest heat: 2')
+    expect(text).toContain(
+      "Evasion — playing the counter's seat directly to see how bet sizing and deviations read to a detector — sessions: 1, best edge captured: 65%, lowest heat: 1",
+    )
     expect(text).not.toContain('new this session')
   })
 })
@@ -149,7 +202,7 @@ describe('buildTrainingLogText — Live Play (four independent skills)', () => {
     }
     const text = buildTrainingLogText(emptyV1(), now, null)
     expect(text).toContain(
-      'Live Play — plays: 20/18 (90.0%), count: 75.0%, true count: 50.0%, bet sizing: 80.0%',
+      'Live Play — playing full hands while keeping the running count, true count, and bet sizing live — plays: 20/18 (90.0%), count: 75.0%, true count: 50.0%, bet sizing: 80.0%',
     )
   })
 })

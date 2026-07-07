@@ -18,11 +18,12 @@ function accuracyLabel(correct: number, attempts: number): string {
 
 export function CountingSettingsPanel({ settings, onSettingsChange, progress }: CountingSettingsPanelProps) {
   const fullCountdownBests = Object.entries(progress.shoeCountdown.fullCountdown.personalBests)
-    .map(([decks, pace]) => [Number(decks), pace] as const)
+    .map(([decks, best]) => [Number(decks), best] as const)
     .sort((a, b) => a[0] - b[0])
   const missingCardsBests = Object.entries(progress.shoeCountdown.missingCards.personalBests)
-    .map(([decks, ms]) => [Number(decks), ms] as const)
+    .map(([decks, best]) => [Number(decks), best] as const)
     .sort((a, b) => a[0] - b[0])
+  const fullCountdown = progress.shoeCountdown.fullCountdown
   const missingCards = progress.shoeCountdown.missingCards
 
   return (
@@ -89,14 +90,17 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress }: 
           {accuracyLabel(progress.trueCount.correctMath, progress.trueCount.roundsPlayed)} correct math
         </p>
         <div className="text-sm text-slate-300">
-          <p>Shoe Countdown — Full Countdown best pace:</p>
+          <p>
+            Shoe Countdown — Full Countdown: {fullCountdown.attempts} attempts ·{' '}
+            {accuracyLabel(fullCountdown.correct, fullCountdown.attempts)} correct
+          </p>
           {fullCountdownBests.length === 0 ? (
             <p className="text-slate-500">No runs yet.</p>
           ) : (
             <ul className="ml-4 list-disc">
-              {fullCountdownBests.map(([decks, pace]) => (
+              {fullCountdownBests.map(([decks, best]) => (
                 <li key={decks}>
-                  {decks} deck{decks > 1 ? 's' : ''}: {formatPace(pace)}
+                  {decks} deck{decks > 1 ? 's' : ''}: {formatPace(best.ms / best.cards)} ({formatSeconds(best.ms)})
                 </li>
               ))}
             </ul>
@@ -111,9 +115,9 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress }: 
             <p className="text-slate-500">No runs yet.</p>
           ) : (
             <ul className="ml-4 list-disc">
-              {missingCardsBests.map(([decks, ms]) => (
+              {missingCardsBests.map(([decks, best]) => (
                 <li key={decks}>
-                  {decks} deck{decks > 1 ? 's' : ''}: {formatSeconds(ms)}
+                  {decks} deck{decks > 1 ? 's' : ''}: {formatPace(best.ms / best.cards)} ({formatSeconds(best.ms)})
                 </li>
               ))}
             </ul>

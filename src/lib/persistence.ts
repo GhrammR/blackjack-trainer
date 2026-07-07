@@ -66,17 +66,17 @@ export interface CountingSettings {
 }
 
 /**
- * Two independent formats (Feature B, v2): "Full countdown" personal bests
- * store PACE (ms per card actually dealt), not raw completion time — its
- * random stop point makes a single run's card count vary too much for raw
- * time to be comparable, even within one shoe size. "Missing cards" deals a
- * ~fixed card count per shoe size (the whole shoe minus 1-2 cards), so raw
- * completion time is already valid there; it also tracks lifetime
- * attempts/correct like the detection-family drills, since a wrong guess
- * doesn't have a "time" to record at all.
+ * Two independent formats (Feature B, v2), both storing `{ ms, cards }`
+ * personal-best entries (see `PersonalBestEntry` in shoeCountdown.ts) keyed
+ * by deck size, plus lifetime attempts/correct. Both formats' card counts
+ * depend on the deck-size setting — "Full countdown" deals a fixed-per-size
+ * slice that scales with deck size (short at 1-deck, long at 6-deck — see
+ * shoeCountdown.ts); "Missing cards" deals the whole shoe minus 1-2 removed
+ * cards. Personal bests are only comparable within the same deck size for
+ * either format, hence the per-deck-size keying.
  */
 export interface ShoeCountdownProgress {
-  fullCountdown: { personalBests: PersonalBests }
+  fullCountdown: { personalBests: PersonalBests; attempts: number; correct: number }
   missingCards: { personalBests: PersonalBests; attempts: number; correct: number }
 }
 
@@ -124,7 +124,7 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
   trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
   shoeCountdown: {
-    fullCountdown: { personalBests: {} },
+    fullCountdown: { personalBests: {}, attempts: 0, correct: 0 },
     missingCards: { personalBests: {}, attempts: 0, correct: 0 },
   },
   detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -149,8 +149,30 @@ const DEFAULT_COUNTING_STATE: CountingState = {
   progress: DEFAULT_COUNTING_PROGRESS,
 }
 
-function isRecordOfNumbers(value: unknown): value is Record<number, number> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+/**
+ * Validates each entry individually (rather than all-or-nothing), keeping only well-shaped
+ * `{ ms, cards }` entries. This is also what silently migrates away pre-Feature-B-fix data, where
+ * personalBests stored a bare number (a different metric — ms-per-card pace or raw ms depending on
+ * the format's history) — those entries fail the object-shape check and are dropped rather than
+ * misread as the new `{ ms, cards }` shape.
+ */
+function parsePersonalBests(value: unknown): PersonalBests {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const result: PersonalBests = {}
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const decks = Number(key)
+    if (!Number.isFinite(decks)) continue
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as Record<string, unknown>).ms === 'number' &&
+      typeof (entry as Record<string, unknown>).cards === 'number'
+    ) {
+      const e = entry as Record<string, unknown>
+      result[decks] = { ms: e.ms as number, cards: e.cards as number }
+    }
+  }
+  return result
 }
 
 function parseSettings(raw: unknown): CountingSettings {
@@ -191,10 +213,12 @@ function parseProgress(raw: unknown): CountingProgress {
     },
     shoeCountdown: {
       fullCountdown: {
-        personalBests: isRecordOfNumbers(scFull.personalBests) ? (scFull.personalBests as PersonalBests) : {},
+        personalBests: parsePersonalBests(scFull.personalBests),
+        attempts: typeof scFull.attempts === 'number' ? scFull.attempts : 0,
+        correct: typeof scFull.correct === 'number' ? scFull.correct : 0,
       },
       missingCards: {
-        personalBests: isRecordOfNumbers(scMissing.personalBests) ? (scMissing.personalBests as PersonalBests) : {},
+        personalBests: parsePersonalBests(scMissing.personalBests),
         attempts: typeof scMissing.attempts === 'number' ? scMissing.attempts : 0,
         correct: typeof scMissing.correct === 'number' ? scMissing.correct : 0,
       },

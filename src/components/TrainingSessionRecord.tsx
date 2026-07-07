@@ -55,7 +55,11 @@ export function TrainingSessionRecord() {
   }
 
   async function handleCopy() {
-    const text = buildTrainingLogText(v1State, countingState, view === 'session' ? baseline : null)
+    // Excludes the "Training Log — ..." header — the on-screen <pre> below keeps it for context,
+    // but the copied text (for pasting into an external log) should start at the actual stats.
+    const text = buildTrainingLogText(v1State, countingState, view === 'session' ? baseline : null, {
+      includeHeader: false,
+    })
     try {
       await navigator.clipboard.writeText(text)
       setCopyState('copied')

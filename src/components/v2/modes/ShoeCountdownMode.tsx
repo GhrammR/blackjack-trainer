@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Card } from '../../../types'
 import type { ShoeCountdownProgress } from '../../../lib/persistence'
-import { createShoe, shuffle } from '../../../lib/shoe'
 import { runningCount } from '../../../lib/counting'
-import { generateMissingCardsRound, pickStopIndex, updatePersonalBest } from '../../../lib/shoeCountdown'
+import { generateFullCountdownRound, generateMissingCardsRound, updatePersonalBest } from '../../../lib/shoeCountdown'
 import { formatPace, formatSeconds, isValidSignedInt, signed } from '../../../lib/format'
 import { PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
@@ -12,6 +11,16 @@ import { CasinoTable } from '../table/CasinoTable'
 
 type Phase = 'idle' | 'running' | 'finished'
 type Format = 'fullCountdown' | 'missingCards'
+
+/**
+ * Minimum time between card advances, in ms — blocks a held Space/click from
+ * auto-repeating through the deal at inhuman speed (often 20-30+ advances/sec)
+ * while leaving real counting untouched. Even a fast expert counter tops out
+ * around 3-4 cards/sec; 100ms (a 10 cards/sec ceiling) sits comfortably above
+ * any genuine human pace but well below auto-repeat, so it can't be felt
+ * during real play but blocks the hold-to-skip exploit.
+ */
+const MIN_ADVANCE_INTERVAL_MS = 100
 
 interface RunFeedback {
   isCorrect: boolean
@@ -50,6 +59,7 @@ export function ShoeCountdownMode({
 
   const pausedMsRef = useRef(0)
   const pauseStartedAtRef = useRef<number | null>(null)
+  const lastAdvanceAtRef = useRef(0)
 
   useEffect(() => {
     onProgressChange(progress)
@@ -86,8 +96,11 @@ export function ShoeCountdownMode({
     let newMissingCount: number | null = null
 
     if (format === 'fullCountdown') {
-      newShoe = shuffle(createShoe(numDecks))
-      newStopIndex = pickStopIndex(newShoe.length)
+      // Fixed-per-deck-size slice off an internal shoe larger than the deal — the slice's real
+      // Hi-Lo sum is guaranteed non-zero and in-range. See shoeCountdown.ts.
+      const round = generateFullCountdownRound(numDecks)
+      newShoe = round.cards
+      newStopIndex = newShoe.length
     } else {
       const round = generateMissingCardsRound(numDecks)
       newShoe = round.shoe
@@ -107,6 +120,7 @@ export function ShoeCountdownMode({
     setPhase('running')
     pausedMsRef.current = 0
     pauseStartedAtRef.current = null
+    lastAdvanceAtRef.current = 0
   }
 
   function finishRun() {
@@ -122,6 +136,13 @@ export function ShoeCountdownMode({
   }
 
   function advance() {
+    // Cooldown gate: applies to both the click/tap path and the keydown path below, since both
+    // call this same function — a held key's extra auto-repeat advances are simply dropped, not
+    // queued, so holding Space can't blast through the deal faster than a human could plausibly count.
+    const now = performance.now()
+    if (now - lastAdvanceAtRef.current < MIN_ADVANCE_INTERVAL_MS) return
+    lastAdvanceAtRef.current = now
+
     if (revealedCount < stopIndex) {
       setRevealedCount((n) => n + 1)
     } else {
@@ -156,16 +177,26 @@ export function ShoeCountdownMode({
     let isNewBest = false
 
     if (format === 'fullCountdown') {
-      if (isCorrect) {
-        // Pace (ms/card), not raw completion time — see shoeCountdown.ts for why raw time isn't comparable.
-        const pace = elapsedMs / stopIndex
-        const updated = updatePersonalBest(progress.fullCountdown.personalBests, numDecks, pace)
-        isNewBest = updated !== progress.fullCountdown.personalBests
-        setProgress((prev) => ({ ...prev, fullCountdown: { personalBests: updated } }))
-      }
+      const fc = progress.fullCountdown
+      // Keyed by deck size (card count is fixed within a deck size, but differs across sizes —
+      // see shoeCountdown.ts), same pattern as Missing Cards below.
+      const updatedBests = isCorrect
+        ? updatePersonalBest(fc.personalBests, numDecks, elapsedMs, stopIndex)
+        : fc.personalBests
+      isNewBest = isCorrect && updatedBests !== fc.personalBests
+      setProgress((prev) => ({
+        ...prev,
+        fullCountdown: {
+          personalBests: updatedBests,
+          attempts: fc.attempts + 1,
+          correct: fc.correct + (isCorrect ? 1 : 0),
+        },
+      }))
     } else {
       const mc = progress.missingCards
-      const updatedBests = isCorrect ? updatePersonalBest(mc.personalBests, numDecks, elapsedMs) : mc.personalBests
+      const updatedBests = isCorrect
+        ? updatePersonalBest(mc.personalBests, numDecks, elapsedMs, shoe.length)
+        : mc.personalBests
       isNewBest = isCorrect && updatedBests !== mc.personalBests
       setProgress((prev) => ({
         ...prev,
@@ -206,12 +237,16 @@ export function ShoeCountdownMode({
 
   const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
 
-  // Shoe rack depletes, discard fills — live per card flip (anti-cheese: no ratio label)
+  // Shoe rack depletes, discard fills — live per card flip (anti-cheese: no ratio label).
+  // Full Countdown's internal shoe is bigger than its dealt slice (see shoeCountdown.ts), so the
+  // rack's "deck count" reflects the actual dealt shoe length rather than the settings numDecks.
+  const totalDecksForDisplay = shoe.length > 0 ? Math.ceil(shoe.length / 52) : numDecks
   const decksRemaining = shoe.length > 0 ? (shoe.length - revealedCount) / 52 : numDecks
   const discardFraction = shoe.length > 0 ? revealedCount / shoe.length : 0
 
   const fullCountdownBest = progress.fullCountdown.personalBests[numDecks]
   const missingCardsBest = progress.missingCards.personalBests[numDecks]
+  const fullCountdownStats = progress.fullCountdown
   const missingCardsStats = progress.missingCards
 
   return (
@@ -222,7 +257,7 @@ export function ShoeCountdownMode({
           dealerSlot={dealerSlot}
           seatContents={seatContents}
           userSeatIndex={0}
-          totalDecks={numDecks}
+          totalDecks={totalDecksForDisplay}
           decksRemaining={decksRemaining}
           discardFraction={discardFraction}
         />
@@ -232,8 +267,12 @@ export function ShoeCountdownMode({
       <div className="flex w-full max-w-md flex-col items-center gap-4">
         <p className="text-sm text-slate-500">
           {numDecks} deck{numDecks !== 1 ? 's' : ''} (change in Settings)
-          {format === 'fullCountdown' && fullCountdownBest !== undefined && ` · Best pace: ${formatPace(fullCountdownBest)}`}
-          {format === 'missingCards' && missingCardsBest !== undefined && ` · Best: ${formatSeconds(missingCardsBest)}`}
+          {format === 'fullCountdown' && fullCountdownBest !== undefined &&
+            ` · Best: ${formatPace(fullCountdownBest.ms / fullCountdownBest.cards)} (${formatSeconds(fullCountdownBest.ms)})`}
+          {format === 'fullCountdown' && fullCountdownStats.attempts > 0 &&
+            ` · ${fullCountdownStats.correct}/${fullCountdownStats.attempts} correct`}
+          {format === 'missingCards' && missingCardsBest !== undefined &&
+            ` · Best: ${formatSeconds(missingCardsBest.ms)}`}
           {format === 'missingCards' && missingCardsStats.attempts > 0 &&
             ` · ${missingCardsStats.correct}/${missingCardsStats.attempts} correct`}
         </p>
@@ -264,7 +303,7 @@ export function ShoeCountdownMode({
             </span>
             <p className="max-w-xs text-center text-xs text-slate-500">
               {format === 'fullCountdown'
-                ? 'Flip cards as fast as you can, keeping a running count in your head. The deal stops at an unpredictable point — the count has to be right the whole way, not just guessed at the end.'
+                ? 'Flip through a fixed-length deal as fast as you can, keeping a running count in your head. Bigger shoe sizes deal more cards — a real test of counting speed at scale. The count will never be zero, so it has to be tracked for real, not guessed.'
                 : "A real shoe with 1-2 cards secretly removed. Flip and count down every remaining card, then guess the removed card(s)' combined Hi-Lo value."}
             </p>
             <button type="button" onClick={start} className={PRIMARY_BUTTON_LG}>
@@ -300,14 +339,22 @@ export function ShoeCountdownMode({
             <p className="text-lg text-slate-200">
               Time: <span className="font-semibold text-white">{formatSeconds(elapsedMs)}</span>
             </p>
-            <label className="flex items-center gap-2 text-slate-300">
-              {format === 'fullCountdown' ? "What's your final count?" : "What's the missing count?"}
-              <SignedNumberInput
-                ref={countInputRef}
-                value={countAnswer}
-                onChange={setCountAnswer}
-                onKeyDown={(e) => { if (e.key === 'Enter' && isValidSignedInt(countAnswer)) submit() }}
-              />
+            <label className="flex flex-col items-center gap-1 text-slate-300">
+              <span className="flex items-center gap-2">
+                {format === 'fullCountdown' ? "What's your final count?" : 'Count adjustment to balance the shoe to zero?'}
+                <SignedNumberInput
+                  ref={countInputRef}
+                  value={countAnswer}
+                  onChange={setCountAnswer}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && isValidSignedInt(countAnswer)) submit() }}
+                />
+              </span>
+              {format === 'missingCards' && (
+                <span className="text-xs text-slate-500">
+                  The missing card(s)' combined Hi-Lo value — the opposite sign of your own running count, since a
+                  full shoe always nets to zero.
+                </span>
+              )}
             </label>
             <button
               type="button"
@@ -333,8 +380,8 @@ export function ShoeCountdownMode({
             )}
             {!feedback.isCorrect && format === 'fullCountdown' && (
               <p className="max-w-xs text-xs text-slate-500">
-                The deal stopped at a random point — the count had to be tracked the whole way, not guessed
-                at the end.
+                The count is a real, non-zero value every run — it has to be tracked the whole way, not
+                guessed at the end.
               </p>
             )}
             <button type="button" onClick={backToIdle} className={`mt-2 ${PRIMARY_BUTTON}`}>
