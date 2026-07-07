@@ -24,7 +24,7 @@ function emptyCountingState(): CountingState {
       tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
       evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
       evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
-      indexPlays: { attempts: 0, correct: 0 },
+      indexPlays: { attempts: 0, correct: 0, perDeviation: {} },
       livePlay: {
         playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0,
         trueCountAttempts: 0, trueCountCorrect: 0, betAttempts: 0, betCorrect: 0,
@@ -211,10 +211,10 @@ describe('captureSessionBaseline', () => {
   it('snapshots the current lifetime strategy accuracy and full counting progress', () => {
     const v1: PersistedState = { stats: statsWith(10, 9), handsPlayed: 10, currentStreak: 2 }
     const counting = emptyCountingState()
-    counting.progress.indexPlays = { attempts: 4, correct: 3 }
+    counting.progress.indexPlays = { attempts: 4, correct: 3, perDeviation: {} }
 
     const baseline: SessionBaseline = captureSessionBaseline(v1, counting)
     expect(baseline.strategy).toEqual({ attempts: 10, correct: 9 })
-    expect(baseline.counting.indexPlays).toEqual({ attempts: 4, correct: 3 })
+    expect(baseline.counting.indexPlays).toEqual({ attempts: 4, correct: 3, perDeviation: {} })
   })
 })

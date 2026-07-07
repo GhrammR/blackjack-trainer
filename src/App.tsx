@@ -16,6 +16,7 @@ import { Modal } from './components/Modal'
 import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import { TrainingSessionRecord } from './components/TrainingSessionRecord'
 import { StrategyHeatmapSection } from './components/StrategyHeatmapSection'
+import { IndexPlayHeatmapSection } from './components/IndexPlayHeatmapSection'
 import { GuidesView } from './components/GuidesView'
 import { SECTION_LABEL } from './components/theme'
 import {
@@ -241,6 +242,7 @@ function App() {
       </div>
 
       {currentMode === 'strategy' && <StrategyHeatmapSection />}
+      {currentMode === 'indexPlays' && <IndexPlayHeatmapSection />}
       <TrainingSessionRecord />
 
       {activeOverlay === 'overview' && (

@@ -89,7 +89,16 @@ export interface CountingProgress {
   evidence: { sessionsPlayed: number; sessionsCorrect: number }
   /** No single "correct" outcome here (it's a continuous heat/edge trade-off, not a verdict) — tracked as lifetime sessions plus personal bests instead, same pattern as Shoe Countdown. */
   evasion: { sessionsPlayed: number; bestEdgeCapturedPct: number | null; lowestHeat: number | null }
-  indexPlays: { attempts: number; correct: number }
+  /**
+   * `perDeviation` mirrors Basic Strategy's per-situation `Stats` (see
+   * adaptiveEngine.ts) but keyed by the 14 `INDEX_PLAYS` situationKeys only
+   * — it's what powers the Index Play weakness chart. Every scenario whose
+   * situationKey matches one of those 14 (whether or not the count actually
+   * triggered a deviation that round) counts toward that key's attempts, so
+   * both taking a real deviation and correctly resisting a false one are
+   * graded the same situation.
+   */
+  indexPlays: { attempts: number; correct: number; perDeviation: Record<string, { attempts: number; correct: number }> }
   /**
    * Four independent stats: play accuracy, running-count accuracy,
    * true-count math accuracy (step 10 slice 2), and (step 10 slice 3)
@@ -131,7 +140,7 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
   evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
   evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
-  indexPlays: { attempts: 0, correct: 0 },
+  indexPlays: { attempts: 0, correct: 0, perDeviation: {} },
   livePlay: {
     playAttempts: 0,
     playCorrect: 0,
@@ -170,6 +179,24 @@ function parsePersonalBests(value: unknown): PersonalBests {
     ) {
       const e = entry as Record<string, unknown>
       result[decks] = { ms: e.ms as number, cards: e.cards as number }
+    }
+  }
+  return result
+}
+
+/** Validates each entry individually (rather than all-or-nothing), keeping only well-shaped `{ attempts, correct }` entries. Used for Index Play's per-deviation weakness stats, keyed by situationKey string. */
+function parseAttemptsCorrectMap(value: unknown): Record<string, { attempts: number; correct: number }> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const result: Record<string, { attempts: number; correct: number }> = {}
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as Record<string, unknown>).attempts === 'number' &&
+      typeof (entry as Record<string, unknown>).correct === 'number'
+    ) {
+      const e = entry as Record<string, unknown>
+      result[key] = { attempts: e.attempts as number, correct: e.correct as number }
     }
   }
   return result
@@ -243,6 +270,7 @@ function parseProgress(raw: unknown): CountingProgress {
     indexPlays: {
       attempts: typeof ip.attempts === 'number' ? ip.attempts : 0,
       correct: typeof ip.correct === 'number' ? ip.correct : 0,
+      perDeviation: parseAttemptsCorrectMap(ip.perDeviation),
     },
     livePlay: {
       playAttempts: typeof lp.playAttempts === 'number' ? lp.playAttempts : 0,

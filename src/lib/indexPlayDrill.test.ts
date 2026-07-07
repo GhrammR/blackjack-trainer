@@ -19,6 +19,17 @@ describe('generateScenario', () => {
     }
   })
 
+  it('always deals exactly a 2-card starting hand — never a 3+ card synthetic hand', () => {
+    // A blackjack hand always starts with exactly two cards. handGenerator's
+    // "hard-20" situation is the one case with a 3-card synthetic combo
+    // (4+6+10), so this specifically hammers that path across many seeds.
+    for (let i = 0; i < 200; i++) {
+      const scenario = generateScenario(() => (i % 197) / 197)
+      expect(scenario.playerHand).toHaveLength(2)
+      expect(scenario.situationKey.startsWith('hard-20-vs-')).toBe(false)
+    }
+  })
+
   it('correctAction falls back to basicAction when no index play is indicated', () => {
     // Force the "random" branch (random() >= 0.7) and a situation key with no defined index play.
     const random = (() => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Action, Card } from '../../../types'
-import { handValue, isBust } from '../../../lib/cards'
+import { handValue, isBlackjack, isBust } from '../../../lib/cards'
 import { trueCount } from '../../../lib/counting'
 import { isValidSignedInt } from '../../../lib/format'
 import {
@@ -69,6 +69,7 @@ function inProgressStatus(hand: PlayHand): string | null {
   if (!hand.done) return null
   if (hand.surrendered) return 'Surrendered'
   if (isBust(hand.cards)) return 'Bust'
+  if (isBlackjack(hand.cards)) return 'Blackjack!'
   return 'Stood'
 }
 
@@ -78,7 +79,8 @@ function HandGroup({ hand, isActive, outcome }: {
   outcome: string | null
 }) {
   const { total, soft } = handValue(hand.cards)
-  const statusText = outcome ? OUTCOME_LABELS[outcome] : inProgressStatus(hand)
+  const isNatural = isBlackjack(hand.cards)
+  const statusText = outcome ? (outcome === 'win' && isNatural ? 'Blackjack!' : OUTCOME_LABELS[outcome]) : inProgressStatus(hand)
   const statusColor = outcome ? OUTCOME_COLORS[outcome] : 'text-slate-500'
   return (
     <div
@@ -202,7 +204,21 @@ export function LivePlayMode({ numDecks, initialProgress, onProgressChange }: Li
     setTrueCountGuess('')
     setCountFeedback(null)
     setBetFeedback(null)
-    setPhase('deciding')
+
+    // A natural blackjack starting hand is already "done" with no decision
+    // offered — skip straight to resolving the dealer, same as when a
+    // decision finishes the round in `choose()`.
+    if (isRoundOver(newRound)) {
+      const dealer = resolveDealer(state, newRound)
+      setSession(dealer.state)
+      setDealerResolution(dealer)
+      setNetUnits((prev) =>
+        prev + netUnitsForRound(newRound.hands, dealer.dealerCards, dealer.dealerBusted, currentBetUnits)
+      )
+      setPhase('roundComplete')
+    } else {
+      setPhase('deciding')
+    }
   }
 
   function choose(action: Action) {

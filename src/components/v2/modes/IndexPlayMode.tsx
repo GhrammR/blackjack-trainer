@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Action } from '../../../types'
 import { type IndexPlayScenario, generateScenario } from '../../../lib/indexPlayDrill'
+import { INDEX_PLAYS } from '../../../lib/indexPlays'
 import { signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
@@ -8,9 +9,12 @@ import { Feedback } from '../../Feedback'
 import { SECTION_LABEL } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
+const INDEX_PLAY_SITUATION_KEYS = new Set(INDEX_PLAYS.map((p) => p.situationKey))
+
 interface IndexPlayProgress {
   attempts: number
   correct: number
+  perDeviation: Record<string, { attempts: number; correct: number }>
 }
 
 interface IndexPlayModeProps {
@@ -32,21 +36,37 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
   const [chosenAction, setChosenAction] = useState<Action | null>(null)
   const [attempts, setAttempts] = useState(initialProgress.attempts)
   const [correct, setCorrect] = useState(initialProgress.correct)
+  const [perDeviation, setPerDeviation] = useState(initialProgress.perDeviation)
 
   useEffect(() => {
-    onProgressChange({ attempts, correct })
+    onProgressChange({ attempts, correct, perDeviation })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempts, correct])
+  }, [attempts, correct, perDeviation])
 
   useEffect(() => {
     setAttempts(initialProgress.attempts)
     setCorrect(initialProgress.correct)
+    setPerDeviation(initialProgress.perDeviation)
   }, [initialProgress])
 
   function choose(action: Action) {
     setChosenAction(action)
     setAttempts((n) => n + 1)
-    if (action === scenario.correctAction) setCorrect((n) => n + 1)
+    const isCorrect = action === scenario.correctAction
+    if (isCorrect) setCorrect((n) => n + 1)
+
+    if (INDEX_PLAY_SITUATION_KEYS.has(scenario.situationKey)) {
+      setPerDeviation((prev) => {
+        const existing = prev[scenario.situationKey] ?? { attempts: 0, correct: 0 }
+        return {
+          ...prev,
+          [scenario.situationKey]: {
+            attempts: existing.attempts + 1,
+            correct: existing.correct + (isCorrect ? 1 : 0),
+          },
+        }
+      })
+    }
   }
 
   function nextScenario() {

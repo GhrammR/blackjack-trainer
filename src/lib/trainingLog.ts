@@ -215,7 +215,7 @@ export function buildTrainingLogText(
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
-    indexPlays: { attempts: 0, correct: 0 },
+    indexPlays: { attempts: 0, correct: 0, perDeviation: {} },
     livePlay: {
       playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0,
       trueCountAttempts: 0, trueCountCorrect: 0, betAttempts: 0, betCorrect: 0,

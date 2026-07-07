@@ -39,6 +39,38 @@ describe('dealRound — hole-card exposure timing (same critical point as every 
   })
 })
 
+describe('dealRound — natural blackjack auto-resolves', () => {
+  it('marks a 2-card Ace+10-value starting hand done immediately, with no decision offered', () => {
+    const shoe = [c('A'), c('K'), c('9'), c('2'), c('7')]
+    const { round } = dealRound(stateFrom(shoe))
+
+    expect(round.hands[0].cards).toEqual([c('A'), c('K')])
+    expect(round.hands[0].done).toBe(true)
+    expect(round.activeHandIndex).toBe(-1)
+    expect(isRoundOver(round)).toBe(true)
+    expect(legalActions(round)).toEqual([])
+  })
+
+  it('resolves as a win against a non-blackjack dealer hand, and a push against a dealer natural', () => {
+    const shoe = [c('A'), c('10'), c('9'), c('2'), c('7')]
+    const { state: afterDeal, round } = dealRound(stateFrom(shoe))
+    const winResolution = resolveDealer(afterDeal, round)
+    expect(handOutcome(round.hands[0], winResolution.dealerCards, winResolution.dealerBusted)).toBe('win')
+
+    const pushShoe = [c('A'), c('10'), c('A'), c('K')]
+    const { state: afterPushDeal, round: pushRound } = dealRound(stateFrom(pushShoe))
+    const pushResolution = resolveDealer(afterPushDeal, pushRound)
+    expect(handOutcome(pushRound.hands[0], pushResolution.dealerCards, pushResolution.dealerBusted)).toBe('push')
+  })
+
+  it('does not treat a 2-card 20, or a 3-card 21 reached via a hit, as a natural', () => {
+    const shoe = [c('10'), c('K'), c('9'), c('2'), c('7')]
+    const { round } = dealRound(stateFrom(shoe))
+    expect(round.hands[0].done).toBe(false)
+    expect(round.activeHandIndex).toBe(0)
+  })
+})
+
 describe('legalActions', () => {
   it('offers Hit/Stand/Double/Surrender on a non-pair first decision', () => {
     const round: LiveRound = {

@@ -86,7 +86,7 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evidence: { sessionsPlayed: 0, sessionsCorrect: 0 },
     evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
-    indexPlays: { attempts: 0, correct: 0 },
+    indexPlays: { attempts: 0, correct: 0, perDeviation: {} },
     livePlay: { playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0, trueCountAttempts: 0, trueCountCorrect: 0, betAttempts: 0, betCorrect: 0 },
   },
 }
@@ -172,6 +172,29 @@ describe('loadCountingState', () => {
     expect(fc.personalBests).toEqual({ 1: { ms: 9500, cards: 40 }, 6: { ms: 61000, cards: 260 } })
   })
 
+  it('keeps well-shaped Index Play perDeviation entries and drops malformed ones', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({
+        progress: {
+          indexPlays: {
+            attempts: 20,
+            correct: 15,
+            perDeviation: {
+              'hard-16-vs-10': { attempts: 5, correct: 4 },
+              'hard-15-vs-10': 'not an object',
+              'hard-12-vs-3': { attempts: 'nope', correct: 1 },
+            },
+          },
+        },
+      }),
+    )
+    const indexPlays = loadCountingState().progress.indexPlays
+    expect(indexPlays.attempts).toBe(20)
+    expect(indexPlays.correct).toBe(15)
+    expect(indexPlays.perDeviation).toEqual({ 'hard-16-vs-10': { attempts: 5, correct: 4 } })
+  })
+
   it('rejects non-number evasion personal bests, defaulting to null instead of throwing', () => {
     localStorage.setItem(
       'double-down:counting:v1',
@@ -197,7 +220,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
-        indexPlays: { attempts: 20, correct: 15 },
+        indexPlays: { attempts: 20, correct: 15, perDeviation: { 'hard-16-vs-10': { attempts: 5, correct: 4 } } },
         livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27, betAttempts: 20, betCorrect: 16 },
       },
     }
@@ -221,7 +244,7 @@ describe('resetCountingProgress', () => {
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
         evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
-        indexPlays: { attempts: 20, correct: 15 },
+        indexPlays: { attempts: 20, correct: 15, perDeviation: {} },
         livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27, betAttempts: 20, betCorrect: 16 },
       },
     }
@@ -246,7 +269,7 @@ describe('resetCountingMode', () => {
       tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
       evidence: { sessionsPlayed: 5, sessionsCorrect: 3 },
       evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
-      indexPlays: { attempts: 20, correct: 15 },
+      indexPlays: { attempts: 20, correct: 15, perDeviation: { 'hard-16-vs-10': { attempts: 5, correct: 4 } } },
       livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27, betAttempts: 20, betCorrect: 16 },
     },
   }

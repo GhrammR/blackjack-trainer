@@ -2,7 +2,7 @@ import type { Action, Card } from '../types'
 import { createShoe, shuffle } from './shoe'
 import { hiLoValue } from './counting'
 import { getAction, getHardSoftAction, isPair } from './strategy'
-import { handValue, isBust } from './cards'
+import { handValue, isBlackjack, isBust } from './cards'
 import { resolveDealerHand } from './handResolution'
 import { type BetSpreadStep, baseBetUnits } from './playerProfiles'
 
@@ -128,9 +128,17 @@ export function dealRound(state: LivePlaySessionState): { state: LivePlaySession
   const dealerUpcard = d.drawAndCount()
   const holeCard = d.draw()
 
+  // A natural blackjack auto-resolves — no Hit/Stand/Double/Split/Surrender
+  // decision is ever offered on it. Marking the hand done immediately (with
+  // no decision recorded) makes activeHandIndex resolve to -1 below, same
+  // as a normal Stand, and `handOutcome` already compares totals correctly
+  // (a natural still reads as a push against a dealer's own blackjack).
+  const hand = freshHand(playerCards)
+  const hands = isBlackjack(playerCards) ? [{ ...hand, done: true }] : [hand]
+
   return {
     state: { shoe: state.shoe, position: d.position(), count: d.count() },
-    round: { hands: [freshHand(playerCards)], activeHandIndex: 0, dealerUpcard, holeCard },
+    round: { hands, activeHandIndex: nextActiveHandIndex(hands, 0), dealerUpcard, holeCard },
   }
 }
 

@@ -30,3 +30,8 @@ export function handValue(cards: Card[]): HandValue {
 export function isBust(cards: Card[]): boolean {
   return handValue(cards).total > 21
 }
+
+/** A natural blackjack: a 2-card starting hand totaling 21 (Ace + a ten-value card). */
+export function isBlackjack(cards: Card[]): boolean {
+  return cards.length === 2 && handValue(cards).total === 21
+}
