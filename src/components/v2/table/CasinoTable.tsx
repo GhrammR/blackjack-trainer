@@ -34,9 +34,9 @@ function useTableScale(ref: React.RefObject<HTMLDivElement | null>): number {
 
 export type FeltColor = 'green' | 'blue'
 
-const FELT_COLORS: Record<FeltColor, { center: string; mid: string; edge: string; glow: string }> = {
-  green: { center: '#165230', mid: '#0d3320', edge: '#071910', glow: 'rgba(22,82,48,0.18)' },
-  blue:  { center: '#173870', mid: '#0e2348', edge: '#071220', glow: 'rgba(23,56,112,0.18)' },
+const FELT_COLORS: Record<FeltColor, { center: string; mid: string; edge: string }> = {
+  green: { center: '#165230', mid: '#0d3320', edge: '#071910' },
+  blue:  { center: '#173870', mid: '#0e2348', edge: '#071220' },
 }
 
 // ─── Geometry constants ────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ export function CasinoTable({
 }: CasinoTableProps) {
   const decksFill = decksRemaining ?? totalDecks
   const positions = arcPositions(seatContents.length)
-  const { center, mid, edge, glow } = FELT_COLORS[feltColor]
+  const { center, mid, edge } = FELT_COLORS[feltColor]
   const wrapperRef = useRef<HTMLDivElement>(null)
   const scale = useTableScale(wrapperRef)
   const clipId = useId()
@@ -204,13 +204,6 @@ export function CasinoTable({
       style={{
         position: 'relative',
         containerType: 'inline-size',
-        // The ambient glow below is deliberately scaled larger than this box to
-        // bleed outward — but a CSS `transform` on a descendant still counts
-        // toward this box's OWN scrollable-overflow contribution to its
-        // ancestors, even though the bleed is barely visible. Without clipping
-        // it here, the viewport-fit shell above gets a phantom scrollbar over
-        // content nothing actually shows. The bleed is subtle enough that
-        // clipping it at this box's edge isn't a visible loss.
         overflow: 'hidden',
         // Ratio-preserving fit within the parent's size-containment box (see the
         // `containerType: 'size'` slot each mode wraps this in). Each axis is the
@@ -238,26 +231,20 @@ export function CasinoTable({
         </defs>
       </svg>
 
-      {/* Ambient glow — dim radial halo behind the table, like a light over the felt */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          transform: 'scale(1.25, 1.9)',
-          background: `radial-gradient(ellipse at 50% 38%, ${glow} 0%, transparent 60%)`,
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Table shell — fills the already-ratio-correct outer wrapper exactly;
-          drop-shadow traces D-shape alpha channel */}
+      {/* Table shell — fills the already-ratio-correct outer wrapper exactly. No
+          drop-shadow filter here: it used to bleed its 55px blur past the D
+          shape and then get hard-clipped by the wrapper's own `overflow:
+          hidden` rectangle — the actual source of the "glow"/halo around the
+          table exterior (blended fine near the bottom corners, where the D's
+          curve already reaches close to the wrapper edge leaving little room
+          for the cutoff to show; visibly wrong above and on the sides, where
+          the gap was bigger). Removed rather than reshaped, since the rail's
+          own gradients already read as a raised bumper without it. */}
       <div
         style={{
           position: 'relative',
           width: '100%',
           height: '100%',
-          filter: 'drop-shadow(0 22px 55px rgba(0,0,0,0.85))',
         }}
       >
         {/* Dark padded bumper rail — the D path itself now handles the rounded top
@@ -288,17 +275,30 @@ export function CasinoTable({
               boxShadow: 'inset 0 14px 36px rgba(0,0,0,0.80), inset 0 0 90px rgba(0,0,0,0.30)',
             }}
           >
-              {/* Arc text — lower felt, concentric with the player arc.
-                  ViewBox 1000×345 matches felt ~2.9:1 ratio (preserveAspectRatio=none
-                  so viewBox coords map proportionally to screen pixels).
-                  All arcs: sweep=1 (clockwise left→right, bowing DOWN toward player).
-                  Radii from three-point circle formula; bow/chord ≈12% on each line
-                  so they read as truly parallel arcs following the same curvature.
-                  Line order top→bottom mirrors the reference table layout.
-                  Verified S17: STAND (not hit). */}
+              {/* Arc text — upper-middle felt, a small decorative banner (NOT
+                  spanning the seat arc — that's a separate, wider curve).
+                  ViewBox height is TABLE_ASPECT_RATIO-derived (1000 / 1.75 ≈
+                  571.43), matching the felt's REAL rendered aspect ratio —
+                  previously this was hardcoded to a 2.9:1 box (1000×345)
+                  with preserveAspectRatio="slice", which silently scaled
+                  everything up ~66% to cover the (wider) real felt and
+                  cropped the sides; that mismatch, not the font-size values,
+                  was why the text rendered far bigger than intended. Now
+                  that the viewBox's own aspect ratio matches the box it's
+                  rendered into, slice/meet/none are all equivalent (no crop,
+                  no stretch) and viewBox units map 1:1 to real proportions.
+                  All arcs: sweep=1 (clockwise left→right, bowing DOWN toward
+                  player), bow/chord ≈12-13% (a shallow "smile", not a deep
+                  dish), sized/placed to match the reference photo
+                  (references/20260627_170137.jpg): centered in the felt's
+                  upper-middle band, spanning roughly half its width.
+                  Text reads "DEALER MUST HIT SOFT 17" — matches the actual
+                  dealer engine (handResolution.ts) and the strategy chart
+                  (strategy.ts), both converted to this app's fixed H17 rule
+                  set. Felt, engine, and grading all agree. */}
               <svg
-                viewBox="0 0 1000 345"
-                preserveAspectRatio="xMidYMid slice"
+                viewBox={`0 0 1000 ${(1000 / TABLE_ASPECT_RATIO).toFixed(2)}`}
+                preserveAspectRatio="xMidYMid meet"
                 aria-hidden="true"
                 style={{
                   position: 'absolute',
@@ -310,27 +310,28 @@ export function CasinoTable({
               >
                 <defs>
                   {/*
-                    Three truly concentric arcs sharing the player-arc's circle center
-                    at (500, −153.5) in viewBox coords (same center as the table ellipse,
-                    above the felt). All sweep=1 → clockwise left→right → ∪ shape (smile):
-                    endpoints are HIGHER, center dips DOWN toward the player.
+                    Three parallel arcs (shared center x=500, increasing radius/depth
+                    top→bottom), each via the three-point-circle/sagitta formula:
+                    r = (halfChord² + bow²) / (2·bow). All sweep=1 → clockwise
+                    left→right → ∪ shape (smile): endpoints are HIGHER, center
+                    dips DOWN toward the player. Independent of, and narrower
+                    than, the player seat arc (arcPositions() below) — this
+                    banner is its own small decorative element, not the same
+                    curve the seats sit on.
 
-                    Player arc (seat positions): r≈422, endpoints (197,144)↔(803,144),
-                    center-bottom (500,269). Lines 1–3 use inset radii of 355/390/422.
-
-                    Line 1: r=355, endpoints y=36,  center y=201  (bow=165u)
-                    Line 2: r=390, endpoints y=96,  center y=236  (bow=140u)
-                    Line 3: r=422, endpoints y=144, center y=269  (bow=125u) ← player arc
+                    Line 1: halfChord=230, bow=57.5  → r≈489, endpoints y=120, center y=177.5
+                    Line 2: halfChord=250, bow=62.5  → r≈531, endpoints y=170, center y=232.5
+                    Line 3: halfChord=270, bow=67.5  → r≈574, endpoints y=220, center y=287.5
                   */}
-                  <path id="feltArc1" d="M 200,36 A 355,355 0 0 0 800,36" />
-                  <path id="feltArc2" d="M 200,96 A 390,390 0 0 0 800,96" />
-                  <path id="feltArc3" d="M 197,144 A 422,422 0 0 0 803,144" />
+                  <path id="feltArc1" d="M 270,120 A 489,489 0 0 0 730,120" />
+                  <path id="feltArc2" d="M 250,170 A 531,531 0 0 0 750,170" />
+                  <path id="feltArc3" d="M 230,220 A 574,574 0 0 0 770,220" />
                 </defs>
                 <text
                   fill="rgba(255,255,255,0.16)"
                   fontFamily="Georgia, 'Times New Roman', serif"
-                  fontSize="26"
-                  letterSpacing="5"
+                  fontSize="24"
+                  letterSpacing="4"
                   textAnchor="middle"
                 >
                   <textPath href="#feltArc1" startOffset="50%">
@@ -340,19 +341,19 @@ export function CasinoTable({
                 <text
                   fill="rgba(255,255,255,0.12)"
                   fontFamily="Georgia, 'Times New Roman', serif"
-                  fontSize="16"
-                  letterSpacing="3"
+                  fontSize="13"
+                  letterSpacing="2"
                   textAnchor="middle"
                 >
                   <textPath href="#feltArc2" startOffset="50%">
-                    DEALER MUST STAND ON SOFT 17
+                    DEALER MUST HIT SOFT 17
                   </textPath>
                 </text>
                 <text
                   fill="rgba(255,255,255,0.12)"
                   fontFamily="Georgia, 'Times New Roman', serif"
-                  fontSize="19"
-                  letterSpacing="4"
+                  fontSize="22"
+                  letterSpacing="3"
                   textAnchor="middle"
                 >
                   <textPath href="#feltArc3" startOffset="50%">

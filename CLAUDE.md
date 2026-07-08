@@ -78,7 +78,7 @@ See `DECISIONS.md` for the detailed "why we built it this way" archive behind ev
 - **Categories:** `hard` | `soft` | `pairs` — used for the progress panel and heatmap.
 
 ### Rule set for v1 (fixed)
-6 decks · dealer **stands** on soft 17 · double after split **allowed** · **no** surrender · blackjack pays 3:2. This is a standard, common rule set. Making the rule set selectable (which shifts a handful of chart cells) is a later stretch.
+6 decks · dealer **hits** on soft 17 (H17) · double after split **allowed** · **no** surrender · blackjack pays 3:2. Converted from S17 to H17 to match the felt's decorative text (see §11) — `strategy.ts`'s chart, `handResolution.ts`'s dealer logic, and the felt text all agree on H17. Making the rule set selectable (which shifts a handful of chart cells) is a later stretch.
 
 ---
 
@@ -235,11 +235,12 @@ Roadmap" above for what's shipped, and `DECISIONS.md` for the reasoning
 behind each one.)
 
 **Rule set & domain**
-- Fixed table rules (§3): 6 decks, dealer stands soft 17, double-after-split
-  allowed, no surrender, blackjack pays 3:2. Not configurable yet.
+- Fixed table rules (§3): 6 decks, dealer hits soft 17 (H17), double-after-
+  split allowed, no surrender, blackjack pays 3:2. Not configurable yet.
 - Hard 11 always Doubles, including vs. dealer Ace (`hardTotals[11]` in
-  `strategy.ts`) — the simpler, widely-taught rule. Not rule-set-aware (see
-  Open TODOs).
+  `strategy.ts`) — this is the H17-correct play (S17 charts say Hit vs
+  Ace instead), not a simplification. Not rule-set-aware if the rule set
+  is ever made configurable.
 - Hi-Lo is the only counting system (`counting.ts`): 2-6 = +1, 7-9 = 0,
   10/J/Q/K/A = -1.
 - True count = `Math.round(runningCount / max(decksRemaining,
@@ -323,12 +324,21 @@ behind each one.)
 
 ## 12. Open TODOs / Deferred
 
-- **Hard 11 vs Ace.** Currently always Doubles (`hardTotals[11]` in
-  `strategy.ts`), including vs. dealer Ace. Some S17/no-surrender charts say
-  Hit vs. Ace instead. TODO once rule sets are configurable: make this cell
-  configurable, and verify which play the user's workplace's official chart
-  uses. (Also blocks one Illustrious 18 entry — 11 vs A, Double@+1 — which
-  is currently a no-op since there's nothing to deviate from.)
+- **~~Hard 11 vs Ace~~ — RESOLVED by the S17→H17 conversion.** Always
+  Doubles (`hardTotals[11]` in `strategy.ts`), including vs. dealer Ace.
+  This used to be flagged as ambiguous ("some S17 charts say Hit vs. Ace
+  instead"), but the rule set is now fixed H17, under which Double vs Ace
+  is definitively correct — no longer a simplification to revisit. (The
+  one Illustrious 18 entry this used to gate — 11 vs A, Double@+1 —
+  remains a correct no-op: see `indexPlays.ts`'s header comment.)
+- **Illustrious 18 thresholds not yet re-verified for H17.** The 14
+  `INDEX_PLAYS` entries (`indexPlays.ts`) were sourced/cross-verified
+  against S17 material before the rule-set conversion; real I18 numbers
+  shift slightly between S17 and H17, but (unlike the two basic-strategy
+  chart cells that changed) exact H17 threshold deltas need a verified
+  H17-specific source, not a recalled figure — deliberately left
+  unchanged rather than guessed. Flagged prominently in `indexPlays.ts`.
+  Revisit if/when a verified H17-specific Illustrious 18 source is found.
 - **Category mastery badge** (`mastery.ts`) approximates "rolling accuracy
   over last N attempts" as lifetime accuracy gated by a minimum attempt
   count. TODO: replace with a true rolling window so early struggles don't

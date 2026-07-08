@@ -125,7 +125,7 @@ function BasicStrategySection() {
       <div>
         <h2 className="text-lg font-semibold text-white">Basic Strategy</h2>
         <p className="text-sm text-slate-400">
-          The exact chart this app grades against (6 decks, dealer stands on soft 17, double after
+          The exact chart this app grades against (6 decks, dealer hits on soft 17, double after
           split allowed, no surrender) — read directly from <code>strategy.ts</code>, not a separate
           copy. Rows are your hand, columns are the dealer's upcard — find your row, find the
           column, read the intersection.

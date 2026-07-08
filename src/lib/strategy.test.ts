@@ -36,6 +36,20 @@ describe('basic strategy spot checks', () => {
   it('hard 13 vs 6 -> Stand', () => {
     expect(getAction([c('10'), c('3')], c('6'))).toBe('Stand')
   })
+
+  // H17 (dealer hits soft 17) spot checks — these three cells are the
+  // well-known "H17 adds a double" set; all three are Stand/Hit under S17.
+  it('soft 18 (A,7) vs 2 -> Double (H17; would be Stand under S17)', () => {
+    expect(getAction([c('A'), c('7')], c('2'))).toBe('Double')
+  })
+
+  it('soft 19 (A,8) vs 6 -> Double (H17; would be Stand under S17)', () => {
+    expect(getAction([c('A'), c('8')], c('6'))).toBe('Double')
+  })
+
+  it('hard 11 vs A -> Double (H17-correct; S17 charts say Hit vs Ace)', () => {
+    expect(getAction([c('6'), c('5')], c('A'))).toBe('Double')
+  })
 })
 
 describe('getSituationKey', () => {

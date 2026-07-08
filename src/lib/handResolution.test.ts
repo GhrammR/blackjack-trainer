@@ -139,11 +139,29 @@ describe('resolveDealerHand', () => {
     expect(result.busted).toBe(false)
   })
 
-  it('stands on soft 17, never hitting', () => {
-    const result = resolveDealerHand(c('A'), c('6'), () => {
-      throw new Error('should not draw on soft 17')
+  it('hits a soft 17 (H17 rule set) and stops once it reaches soft 21', () => {
+    // A,6 = soft 17 (ace as 11). Drawing a 4: 11+6+4=21, still soft (ace still
+    // usable as 11) and >=18, so this is the single-card case that stops.
+    const result = resolveDealerHand(c('A'), c('6'), queueDrawer([c('4')]))
+    expect(result.cards).toEqual([c('A'), c('6'), c('4')])
+    expect(result.busted).toBe(false)
+  })
+
+  it('stops on a hard 17, never hitting', () => {
+    const result = resolveDealerHand(c('10'), c('7'), () => {
+      throw new Error('should not draw on a hard 17')
     })
-    expect(result.cards).toEqual([c('A'), c('6')])
+    expect(result.cards).toEqual([c('10'), c('7')])
+    expect(result.busted).toBe(false)
+  })
+
+  it('a soft 17 that demotes to a low hard total keeps hitting until 17+', () => {
+    // A,6 = soft 17. Drawing a 5: 11+6+5=22 busts with the ace at 11, so it
+    // demotes to 1+6+5=12 (hard 12) — still below 17, so H17 means the
+    // dealer draws AGAIN rather than stopping at the first post-hit total.
+    // Drawing a 6 next: 12+6=18, hard, stop.
+    const result = resolveDealerHand(c('A'), c('6'), queueDrawer([c('5'), c('6')]))
+    expect(result.cards).toEqual([c('A'), c('6'), c('5'), c('6')])
     expect(result.busted).toBe(false)
   })
 

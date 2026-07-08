@@ -2,11 +2,26 @@ import type { Action } from '../types'
 
 /**
  * The real Illustrious 18 (Don Schlesinger, "Blackjack Attack"), minus
- * Insurance, for this app's fixed rule set (6 decks, S17, DAS, no
+ * Insurance, for this app's fixed rule set (6 decks, H17, DAS, no
  * surrender) — v2 step 9. Insurance is excluded for the same reason step 8
  * excluded it: it's a side bet, not a Hit/Stand/Double/Split decision, and
  * would need a genuinely new decision-point type threaded through the
  * whole engine — confirmed with the user as still out of scope.
+ *
+ * KNOWN LIMITATION (flagged, not guessed): the 14 thresholds below were
+ * sourced and cross-verified (see the paragraph below) against S17
+ * material, from before this app's engine/chart were converted to H17
+ * (dealer hits soft 17). Real Illustrious 18 threshold numbers do shift
+ * slightly between S17 and H17 in a full combinatorial re-analysis, but
+ * unlike the two basic-strategy chart cells that changed with the H17
+ * conversion (a well-established, easily-verified mnemonic), exact I18
+ * threshold deltas vary by simulation methodology across sources — and
+ * this file's own standard, demonstrated below, is multi-source
+ * cross-verification before encoding a number here, not a single recalled
+ * figure. So these 14 numbers are left as-is: still directionally correct
+ * and commonly taught as one set regardless of S17/H17, but NOT yet
+ * re-verified for H17 precision. Revisit if/when a verified H17-specific
+ * Illustrious 18 source is found — don't hand-tune these without one.
  *
  * Verified by cross-referencing three independent sources (blackjack3000.com,
  * gamblingcalc.com, and a Schlesinger-attributed summary) rather than
@@ -36,14 +51,14 @@ import type { Action } from '../types'
  *    dataset. Revisit only if a future pass wants a second, pair-aware
  *    dataset just for that drill.
  *  - 11 vs A (Double, TC>=+1): a genuine no-op in this codebase, not an
- *    omission. v1's `hardTotals[11]` always returns Double regardless of
- *    dealer upcard (see CLAUDE.md §11's existing hard-11-vs-Ace TODO) —
- *    the real Illustrious 18 entry assumes a rule variant where basic
- *    strategy is Hit vs Ace, with the index play being "deviate to Double
- *    at TC>=+1." Since this app's chart already always doubles 11
- *    regardless of count, there's nothing to deviate from or to here.
- *    Revisit only if/when that TODO's "make hard-11-vs-Ace configurable"
- *    is ever actioned.
+ *    omission. The real Illustrious 18 entry assumes an S17 rule variant
+ *    where basic strategy is Hit vs Ace, with the index play being
+ *    "deviate to Double at TC>=+1." Under this app's H17 rule set,
+ *    `hardTotals[11]` already always Doubles regardless of dealer upcard —
+ *    that's not a simplification anymore, it's the H17-correct play — so
+ *    there's genuinely nothing to deviate from or to here. (This used to
+ *    be flagged as an open TODO back when the rule set was S17; the H17
+ *    conversion resolved it rather than leaving it open.)
  *
  * Positive-correlation entries (deviate once the count is high ENOUGH —
  * `direction: 'aboveOrEqual'`) and negative-correlation entries (basic

@@ -18,7 +18,7 @@ Ten modes across four sections of a structured curriculum:
 ### Basic Strategy
 
 **Strategy Trainer** — Grade every decision against a verified basic-strategy
-chart (6-deck, S17, DAS, no surrender). Adaptive weighting steers practice
+chart (6-deck, H17, DAS, no surrender). Adaptive weighting steers practice
 toward your weak situations; a 150-hand perfect streak is the headline goal.
 A weakness heatmap shows at a glance which hard/soft/pair situations need
 more work.
@@ -85,7 +85,7 @@ ten modes.
 
 ## Rule set
 
-6 decks · dealer stands on soft 17 · double after split allowed · no
+6 decks · dealer hits on soft 17 (H17) · double after split allowed · no
 surrender (the strategy chart never recommends it; Surrender is always wrong
 in strategy drills) · blackjack pays 3:2.
 

@@ -2,8 +2,8 @@ import type { Action, Card, DealerUpcardKey, PairRankKey } from '../types'
 import { handValue } from './cards'
 
 /**
- * Basic strategy for the fixed v1 rule set: 6 decks, dealer stands on soft
- * 17, double after split allowed, no surrender, blackjack pays 3:2.
+ * Basic strategy for the fixed rule set: 6 decks, dealer hits soft 17
+ * (H17), double after split allowed, no surrender, blackjack pays 3:2.
  */
 
 const DEALER_KEYS: DealerUpcardKey[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'A']
@@ -42,6 +42,10 @@ export const hardTotals: Record<number, Record<DealerUpcardKey, Action>> = {
     { '2': 'Double', '3': 'Double', '4': 'Double', '5': 'Double', '6': 'Double', '7': 'Double', '8': 'Double', '9': 'Double' },
     'Hit',
   ),
+  // vs A: Double is correct under this app's H17 rule set (S17 charts say
+  // Hit vs Ace instead) — the third of the three well-known "H17 adds a
+  // double" cells, and the reason this app always Doubles 11 regardless of
+  // dealer upcard, not a simplification. See CLAUDE.md's now-resolved TODO.
   11: row({}, 'Double'),
   12: row({ '4': 'Stand', '5': 'Stand', '6': 'Stand' }, 'Hit'),
   13: row({ '2': 'Stand', '3': 'Stand', '4': 'Stand', '5': 'Stand', '6': 'Stand' }, 'Hit'),
@@ -67,8 +71,11 @@ export const softTotals: Record<number, Record<DealerUpcardKey, Action>> = {
   15: row({ '4': 'Double', '5': 'Double', '6': 'Double' }, 'Hit'),
   16: row({ '4': 'Double', '5': 'Double', '6': 'Double' }, 'Hit'),
   17: row({ '3': 'Double', '4': 'Double', '5': 'Double', '6': 'Double' }, 'Hit'),
-  18: row({ '2': 'Stand', '3': 'Double', '4': 'Double', '5': 'Double', '6': 'Double', '7': 'Stand', '8': 'Stand' }, 'Hit'),
-  19: row({}, 'Stand'),
+  // vs 2: Double under this app's H17 rule set (Stand under S17) — one of
+  // the three well-known "H17 adds a double" cells.
+  18: row({ '2': 'Double', '3': 'Double', '4': 'Double', '5': 'Double', '6': 'Double', '7': 'Stand', '8': 'Stand' }, 'Hit'),
+  // vs 6: Double under H17 (Stand under S17) — the second of the three.
+  19: row({ '6': 'Double' }, 'Stand'),
   20: row({}, 'Stand'),
   21: row({}, 'Stand'),
 }

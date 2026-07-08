@@ -130,13 +130,13 @@ export interface DealerHandResult {
   busted: boolean
 }
 
-/** Hits to 17, stands on soft 17 — matching this app's fixed rule set. */
+/** Hits to 17, and hits a soft 17 too — matching this app's fixed H17 rule set. */
 export function resolveDealerHand(upcard: Card, holeCard: Card, drawCard: () => Card): DealerHandResult {
   const cards = [upcard, holeCard]
 
   while (true) {
-    const { total } = handValue(cards)
-    if (total >= 17) break
+    const { total, soft } = handValue(cards)
+    if (total >= 18 || (total === 17 && !soft)) break
     cards.push(drawCard())
   }
 
