@@ -1,11 +1,5 @@
 import { INDEX_PLAYS } from '../lib/indexPlays'
-
-/** Red (weak) -> green (strong) gradient; unseen deviations get a neutral gray. Same mapping as WeaknessHeatmap's. */
-function heatColor(accuracy: number, seen: boolean): string {
-  if (!seen) return '#334155' // slate-700
-  const hue = accuracy * 120
-  return `hsl(${hue}, 70%, 38%)`
-}
+import { heatColor } from '../lib/heatColor'
 
 function conditionText(play: (typeof INDEX_PLAYS)[number]): string {
   const cmp = play.direction === 'aboveOrEqual' ? '≥' : '<'

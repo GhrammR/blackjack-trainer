@@ -1,14 +1,8 @@
 import { DEALER_KEYS, HARD_TOTALS, PAIR_RANKS, SOFT_TOTALS } from '../lib/handGenerator'
 import { type Stats, getStat, recentAccuracy } from '../lib/adaptiveEngine'
 import { categoryMastery } from '../lib/mastery'
+import { heatColor } from '../lib/heatColor'
 import type { Category } from '../types'
-
-/** Red (weak) -> green (strong) gradient; unseen situations get a neutral gray. */
-function heatColor(accuracy: number, seen: boolean): string {
-  if (!seen) return '#334155' // slate-700
-  const hue = accuracy * 120
-  return `hsl(${hue}, 70%, 38%)`
-}
 
 function Cell({ situationKey, stats }: { situationKey: string; stats: Stats }) {
   const stat = getStat(stats, situationKey)
