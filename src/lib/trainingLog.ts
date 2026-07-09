@@ -1,4 +1,5 @@
 import type { CountingProgress, CountingState, PersistedState } from './persistence'
+import { parseProgress } from './persistence'
 import type { PersonalBests } from './shoeCountdown'
 import { lifetimeAccuracy } from './mastery'
 import { formatPace, formatSeconds } from './format'
@@ -50,7 +51,23 @@ export function loadSessionBaseline(): SessionBaseline | null {
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object' || !parsed.strategy || !parsed.counting) return null
-    return parsed as SessionBaseline
+    // Normalize through the same defensive parser `loadCountingState` uses,
+    // rather than trusting the stored shape outright — a baseline captured
+    // under an older app version can be missing a field a later release
+    // added (e.g. Shoe Countdown's fullCountdown attempts/correct, added
+    // after this baseline may have been saved). Without this, a missing
+    // field reads as `undefined`, and `current - undefined` is `NaN`, which
+    // silently drops that one mode's line from the session report (while
+    // the Lifetime view, which ignores the baseline entirely, still shows
+    // it) — a bug, not a "no activity" case.
+    const strategy = parsed.strategy as { attempts?: unknown; correct?: unknown }
+    return {
+      strategy: {
+        attempts: typeof strategy.attempts === 'number' ? strategy.attempts : 0,
+        correct: typeof strategy.correct === 'number' ? strategy.correct : 0,
+      },
+      counting: parseProgress(parsed.counting),
+    }
   } catch {
     return null
   }

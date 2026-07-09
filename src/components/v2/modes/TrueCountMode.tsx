@@ -9,7 +9,7 @@ import {
   gradeEstimate,
   gradeTrueCountMath,
 } from '../../../lib/trueCountDrill'
-import { trueCount } from '../../../lib/counting'
+import { MIN_DECKS_REMAINING, trueCount } from '../../../lib/counting'
 import { isValidSignedInt, signed } from '../../../lib/format'
 import { SignedNumberInput } from '../../SignedNumberInput'
 import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
@@ -98,7 +98,14 @@ export function TrueCountMode({ numDecks, initialProgress, onProgressChange }: T
     if (!scenario) return
     const playedEstimate = Number(playedInput)
     const trueCountAnswer = Number(trueCountInput)
-    const derivedRemaining = decksRemainingFromPlayedEstimate(scenario.numDecks, playedEstimate)
+    // Floored the same way trueCount()'s own denominator is floored (see counting.ts) —
+    // an overshoot estimate (playedEstimate > numDecks) would otherwise produce a negative
+    // "decks remaining" that's shown to the user but doesn't match what trueCount() actually
+    // divides by internally, making the displayed math (e.g. "-2 ÷ -1.5 = -4") look nonsensical.
+    const derivedRemaining = Math.max(
+      MIN_DECKS_REMAINING,
+      decksRemainingFromPlayedEstimate(scenario.numDecks, playedEstimate),
+    )
     const actualDecksRemaining = scenario.numDecks - scenario.actualDecksPlayed
 
     const estimateGrade = gradeEstimate(playedEstimate, scenario.actualDecksPlayed)

@@ -24,6 +24,22 @@ interface RunningCountProgress {
   roundsCorrect: number
 }
 
+/**
+ * The live shoe + cumulative count — lifted to App.tsx (see App.tsx) so it
+ * survives a Card Counting sub-tab switch away from Running Count and back.
+ * Previously this was local component state, which meant switching tabs
+ * unmounted RunningCountMode and silently reset the running count to 0 mid-
+ * shoe — the count would then disagree with what the user had kept in their
+ * head, marking a genuinely correct count as wrong. Only the in-flight round
+ * (cards dealt, guess, feedback) stays local; that's fine to lose on a tab
+ * switch, but the shoe and its cumulative count must not be.
+ */
+export interface RunningCountShoeState {
+  shoe: Card[]
+  position: number
+  sessionCount: number
+}
+
 interface RunningCountModeProps {
   numDecks: number
   seatCount: number
@@ -31,6 +47,8 @@ interface RunningCountModeProps {
   initialProgress: RunningCountProgress
   onProgressChange: (p: RunningCountProgress) => void
   isPaused: boolean
+  shoeState: RunningCountShoeState
+  onShoeStateChange: (s: RunningCountShoeState) => void
 }
 
 export function RunningCountMode({
@@ -40,11 +58,11 @@ export function RunningCountMode({
   initialProgress,
   onProgressChange,
   isPaused,
+  shoeState,
+  onShoeStateChange,
 }: RunningCountModeProps) {
-  const [shoe, setShoe] = useState<Card[]>(() => shuffle(createShoe(numDecks)))
-  const [position, setPosition] = useState(0)
+  const { shoe, position, sessionCount } = shoeState
   const [roundNextPosition, setRoundNextPosition] = useState(0)
-  const [sessionCount, setSessionCount] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
   const [round, setRound] = useState<DealtRound | null>(null)
   const [revealedCount, setRevealedCount] = useState(0)
@@ -74,12 +92,11 @@ export function RunningCountMode({
       isFirstNumDecks.current = false
       return
     }
-    setShoe(shuffle(createShoe(numDecks)))
-    setPosition(0)
-    setSessionCount(0)
+    onShoeStateChange({ shoe: shuffle(createShoe(numDecks)), position: 0, sessionCount: 0 })
     setPhase('idle')
     setRound(null)
     setFeedback(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [numDecks])
 
   // Auto-focus the count input when entering the input phase
@@ -90,12 +107,12 @@ export function RunningCountMode({
   function startRound() {
     let activeShoe = shoe
     let pos = position
+    // Shoe genuinely exhausted (can't deal a full round) — this is the ONLY
+    // place the running count resets, matching a real shoe change.
     if (activeShoe.length - pos < needed) {
       activeShoe = shuffle(createShoe(numDecks))
       pos = 0
-      setShoe(activeShoe)
-      setPosition(0)
-      setSessionCount(0)
+      onShoeStateChange({ shoe: activeShoe, position: 0, sessionCount: 0 })
     }
     const { round: newRound, nextPosition } = dealRound(activeShoe, pos, seatCount)
     setRound(newRound)
@@ -112,12 +129,13 @@ export function RunningCountMode({
   useEffect(() => {
     if (phase !== 'dealing' || !round || isPaused) return
     if (revealedCount >= round.dealOrder.length) {
-      setPosition(roundNextPosition)
+      onShoeStateChange({ shoe, position: roundNextPosition, sessionCount })
       setPhase('input')
       return
     }
     const timer = setTimeout(() => setRevealedCount((n) => n + 1), 1000 / cardsPerSecond)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, round, revealedCount, cardsPerSecond, isPaused, roundNextPosition])
 
   function submitGuess() {
@@ -127,7 +145,7 @@ export function RunningCountMode({
     const dealerDelta = runningCount(round.dealerCards)
     const roundDelta = seatDeltas.reduce((sum, d) => sum + d, dealerDelta)
     const actual = sessionCount + roundDelta
-    setSessionCount(actual)
+    onShoeStateChange({ shoe, position, sessionCount: actual })
     setFeedback({ guess: guessNum, actual, roundDelta, seatDeltas, dealerDelta })
     setRoundsPlayed((n) => n + 1)
     if (guessNum === actual) setRoundsCorrect((n) => n + 1)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BasicStrategyMode } from './components/v2/modes/BasicStrategyMode'
-import { RunningCountMode } from './components/v2/modes/RunningCountMode'
+import { RunningCountMode, type RunningCountShoeState } from './components/v2/modes/RunningCountMode'
 import { TrueCountMode } from './components/v2/modes/TrueCountMode'
 import { ShoeCountdownMode } from './components/v2/modes/ShoeCountdownMode'
 import { IndexPlayMode } from './components/v2/modes/IndexPlayMode'
@@ -30,6 +30,7 @@ import {
   saveCountingState,
 } from './lib/persistence'
 import { lifetimeAccuracy } from './lib/mastery'
+import { createShoe, shuffle } from './lib/shoe'
 
 type ActiveOverlay = 'settings' | 'guides' | 'overview' | null
 
@@ -41,6 +42,14 @@ function App() {
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>('overview')
   const [strategyResetKey, setStrategyResetKey] = useState(0)
   const [counting, setCounting] = useState(() => loadCountingState())
+  // Lifted out of RunningCountMode so a Card Counting sub-tab switch away
+  // from Running Count and back doesn't remount the drill and silently
+  // reset the shoe/running count mid-shoe — see RunningCountMode.tsx.
+  const [runningCountShoe, setRunningCountShoe] = useState<RunningCountShoeState>(() => ({
+    shoe: shuffle(createShoe(loadCountingState().settings.numDecks)),
+    position: 0,
+    sessionCount: 0,
+  }))
 
   useEffect(() => {
     saveCountingState(counting)
@@ -50,6 +59,10 @@ function App() {
     setCounting((prev) => ({ ...prev, progress }))
   }
 
+  function freshRunningCountShoe(): RunningCountShoeState {
+    return { shoe: shuffle(createShoe(counting.settings.numDecks)), position: 0, sessionCount: 0 }
+  }
+
   function handleResetStrategy() {
     clearState()
     setStrategyResetKey((k) => k + 1)
@@ -57,10 +70,12 @@ function App() {
 
   function handleResetCounting() {
     setCounting((prev) => resetCountingProgress(prev))
+    setRunningCountShoe(freshRunningCountShoe())
   }
 
   function handleResetCountingMode(mode: CountingModeKey) {
     setCounting((prev) => resetCountingMode(prev, mode))
+    if (mode === 'runningCount') setRunningCountShoe(freshRunningCountShoe())
   }
 
   function handleResetAll() {
@@ -103,6 +118,8 @@ function App() {
               handleProgressChange({ ...progress, runningCount })
             }
             isPaused={isPaused}
+            shoeState={runningCountShoe}
+            onShoeStateChange={setRunningCountShoe}
           />
         )
       case 'trueCount':

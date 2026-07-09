@@ -212,7 +212,14 @@ function parseSettings(raw: unknown): CountingSettings {
   }
 }
 
-function parseProgress(raw: unknown): CountingProgress {
+/**
+ * Exported so trainingLog.ts's session-baseline loader can normalize a
+ * baseline snapshot the same defensive way `loadCountingState` normalizes
+ * live progress — a baseline captured under an older app version (missing a
+ * field a later release added, e.g. Shoe Countdown's fullCountdown
+ * attempts/correct) must not silently corrupt just that field's delta math.
+ */
+export function parseProgress(raw: unknown): CountingProgress {
   if (!raw || typeof raw !== 'object') return DEFAULT_COUNTING_PROGRESS
   const r = raw as Record<string, unknown>
 
