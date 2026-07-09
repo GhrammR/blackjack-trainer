@@ -107,6 +107,17 @@ export interface PlayHand {
   isSplitAces: boolean
   done: boolean
   surrendered: boolean
+  /**
+   * Both optional, defaulting to falsy when absent, so no existing PlayHand
+   * object literal (test fixtures included) needs updating — only the
+   * production factories below (freshHand/dealRound's natural check,
+   * splitHand's make) ever set them. Used by handPayout/roundPayout, not by
+   * decision grading, which never reads either field.
+   */
+  /** Set true only for the original, never-split, still-2-card starting hand that's a real 21 — a split-created 21 is never a natural (no 3:2), matching real-table rules. */
+  isNatural?: boolean
+  /** Set true once this specific hand has been doubled — its wager is 2x for payout purposes, independent of any other hand in the round. */
+  doubled?: boolean
 }
 
 export interface LiveRound {
@@ -119,7 +130,7 @@ export interface LiveRound {
 }
 
 function freshHand(cards: Card[]): PlayHand {
-  return { cards, isFirstDecision: true, isSplitAces: false, done: false, surrendered: false }
+  return { cards, isFirstDecision: true, isSplitAces: false, done: false, surrendered: false, isNatural: isBlackjack(cards) }
 }
 
 export function dealRound(state: LivePlaySessionState): { state: LivePlaySessionState; round: LiveRound } {
@@ -147,24 +158,31 @@ export function dealRound(state: LivePlaySessionState): { state: LivePlaySession
  * + dealer upcard instead of dealing them from shoe position — for callers
  * (Basic Strategy Trainer) whose hand is chosen by an adaptive weakness
  * engine rather than dealt randomly. `drawShoe` still backs subsequent
- * Hit/Split draws via the normal `applyAction`/`decide` path, starting at
- * position 0 since it's a fresh pile unrelated to the hand already in hand.
- * `holeCard` is a placeholder (never a real dealt card) since callers of
- * this function never call `resolveDealer` — there's no dealer play-out or
- * win/lose outcome here, only decision grading. Reuses the exact same
- * natural-blackjack auto-resolve behavior as `dealRound`.
+ * Hit/Split draws via the normal `applyAction`/`decide` path. `holeCard` is
+ * now a REAL card drawn from `drawShoe[0]` (same hole-card-timing
+ * convention as `dealRound`: dealt now, not added to the running count
+ * until `resolveDealer` reveals it) — this is what lets a caller resolve
+ * the dealer's hand for a real win/lose/push outcome (the chip-payout
+ * system) using the exact same `resolveDealer`/`resolveDealerHand` Live
+ * Play already uses, unmodified. Decision grading (`correctActionFor`/
+ * `decide`/`getSituationKey`) never reads `holeCard`, so this change is
+ * invisible to grading — only to callers that now choose to resolve the
+ * dealer. Reuses the exact same natural-blackjack auto-resolve behavior as
+ * `dealRound`.
  */
 export function dealRoundFromHand(
   playerHand: Card[],
   dealerUpcard: Card,
   drawShoe: Card[],
 ): { state: LivePlaySessionState; round: LiveRound } {
+  const d = makeDrawers(drawShoe, 0, 0)
+  const holeCard = d.draw()
   const hand = freshHand(playerHand)
   const hands = isBlackjack(playerHand) ? [{ ...hand, done: true }] : [hand]
 
   return {
-    state: { shoe: drawShoe, position: 0, count: 0 },
-    round: { hands, activeHandIndex: nextActiveHandIndex(hands, 0), dealerUpcard, holeCard: dealerUpcard },
+    state: { shoe: drawShoe, position: d.position(), count: d.count() },
+    round: { hands, activeHandIndex: nextActiveHandIndex(hands, 0), dealerUpcard, holeCard },
   }
 }
 
@@ -266,6 +284,8 @@ function splitHand(hand: PlayHand, drawCard: () => Card): [PlayHand, PlayHand] {
     isSplitAces: isAces,
     done: isAces,
     surrendered: false,
+    isNatural: false, // a split-created 21 is never a natural (no 3:2) — real-table rule
+    doubled: false,
   })
   return [make(hand.cards[0]), make(hand.cards[1])]
 }
@@ -293,7 +313,7 @@ export function applyAction(
       break
     case 'Double': {
       const cards = [...hand.cards, d.drawAndCount()]
-      hands[idx] = { ...hand, cards, isFirstDecision: false, done: true }
+      hands[idx] = { ...hand, cards, isFirstDecision: false, done: true, doubled: true }
       nextIdx = nextActiveHandIndex(hands, idx + 1)
       break
     }
@@ -381,4 +401,43 @@ const OUTCOME_UNIT_MULTIPLIER: Record<HandOutcome, number> = {
  */
 export function netUnitsForRound(hands: PlayHand[], dealerCards: Card[], dealerBusted: boolean, betUnits: number): number {
   return hands.reduce((sum, hand) => sum + OUTCOME_UNIT_MULTIPLIER[handOutcome(hand, dealerCards, dealerBusted)] * betUnits, 0)
+}
+
+/**
+ * The REAL chip-payout consequence layer (step "chip wager" — separate from
+ * the flavor-only netUnitsForRound above, which stays untouched and keeps
+ * powering its own display). Unlike netUnitsForRound, this is
+ * blackjack/double/split-aware:
+ *   - A natural (hand.isNatural) pays 3:2, UNLESS the dealer also has a
+ *     natural (isBlackjack(dealerCards) — resolveDealerHand never draws
+ *     past a 2-card 21, so this is a reliable check), in which case it's a
+ *     push, not a win. A dealer natural beats any non-natural player hand
+ *     outright (checked before the bust/compare path).
+ *   - Surrender loses exactly half the wager — that's what surrender is.
+ *   - A doubled hand's wager is 2x `betAmount` for that hand only; other
+ *     hands in the same split round use their own `doubled` flag
+ *     independently (roundPayout below sums each hand's own payout).
+ * Decision-grading never calls or is called by this — chips are a parallel
+ * consequence of the actual outcome, not merged into the chart grade (see
+ * BasicStrategyMode.tsx / LivePlayMode.tsx: a perfectly graded hand can
+ * still lose chips here, which is the point).
+ */
+export function handPayout(hand: PlayHand, betAmount: number, dealerCards: Card[], dealerBusted: boolean): number {
+  const wagered = betAmount * (hand.doubled ? 2 : 1)
+  if (hand.surrendered) return -wagered / 2
+  const playerTotal = handValue(hand.cards).total
+  if (playerTotal > 21) return -wagered
+  const dealerNatural = isBlackjack(dealerCards)
+  if (hand.isNatural) return dealerNatural ? 0 : wagered * 1.5
+  if (dealerNatural) return -wagered
+  if (dealerBusted) return wagered
+  const dealerTotal = handValue(dealerCards).total
+  if (playerTotal > dealerTotal) return wagered
+  if (playerTotal < dealerTotal) return -wagered
+  return 0
+}
+
+/** Sums handPayout across every hand in the round — each split hand resolves (and pays) independently. */
+export function roundPayout(hands: PlayHand[], betAmount: number, dealerCards: Card[], dealerBusted: boolean): number {
+  return hands.reduce((sum, hand) => sum + handPayout(hand, betAmount, dealerCards, dealerBusted), 0)
 }

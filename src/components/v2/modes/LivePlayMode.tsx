@@ -19,10 +19,12 @@ import {
   needsReshuffle,
   netUnitsForRound,
   resolveDealer,
+  roundPayout,
   startLivePlaySession,
 } from '../../../lib/livePlaySession'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
+import { ChipBetPicker } from '../../ChipBetPicker'
 import { ShoeRack } from '../../ShoeRack'
 import { SignedNumberInput } from '../../SignedNumberInput'
 import {
@@ -150,13 +152,24 @@ interface LivePlayProgress {
 interface LivePlayModeProps {
   numDecks: number
   lateSurrender: boolean
+  bankroll: number
+  onBankrollChange: (bankroll: number) => void
+  onResetBankroll: () => void
   initialProgress: LivePlayProgress
   onProgressChange: (progress: LivePlayProgress) => void
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgressChange }: LivePlayModeProps) {
+export function LivePlayMode({
+  numDecks,
+  lateSurrender,
+  bankroll,
+  onBankrollChange,
+  onResetBankroll,
+  initialProgress,
+  onProgressChange,
+}: LivePlayModeProps) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [session, setSession] = useState<LivePlaySessionState | null>(null)
   const [round, setRound] = useState<LiveRound | null>(null)
@@ -169,6 +182,11 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
   const [betFeedback, setBetFeedback] = useState<BetFeedback | null>(null)
   const [currentBetUnits, setCurrentBetUnits] = useState(1)
   const [netUnits, setNetUnits] = useState(0)
+  // Real-dollar chip wager — separate from currentBetUnits above (that's the
+  // EV-tier picker's graded abstract unit, unrelated). null while the
+  // ChipBetPicker step hasn't been completed yet for the upcoming hand.
+  const [chipBet, setChipBet] = useState<number | null>(null)
+  const [payout, setPayout] = useState<number | null>(null)
   const [progress, setProgress] = useState(initialProgress)
 
   useEffect(() => {
@@ -192,7 +210,17 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
     setRound(null)
     setLastDecision(null)
     setDealerResolution(null)
+    setChipBet(null)
+    setPayout(null)
     setPhase('betting')
+  }
+
+  /** Settles the real-dollar chip wager once the dealer's hand is resolved — parallel to, and independent of, the flavor-only netUnits tally above. */
+  function settleChips(hands: PlayHand[], dealer: DealerResolution) {
+    if (chipBet === null) return
+    const roundPay = roundPayout(hands, chipBet, dealer.dealerCards, dealer.dealerBusted)
+    setPayout(roundPay)
+    onBankrollChange(bankroll + roundPay)
   }
 
   function dealNextRound(fromSession: LivePlaySessionState) {
@@ -206,6 +234,7 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
     setTrueCountGuess('')
     setCountFeedback(null)
     setBetFeedback(null)
+    setPayout(null)
 
     // A natural blackjack starting hand is already "done" with no decision
     // offered — skip straight to resolving the dealer, same as when a
@@ -217,6 +246,7 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
       setNetUnits((prev) =>
         prev + netUnitsForRound(newRound.hands, dealer.dealerCards, dealer.dealerBusted, currentBetUnits)
       )
+      settleChips(newRound.hands, dealer)
       setPhase('roundComplete')
     } else {
       setPhase('deciding')
@@ -246,6 +276,7 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
       setNetUnits((prev) =>
         prev + netUnitsForRound(result.round.hands, dealer.dealerCards, dealer.dealerBusted, currentBetUnits)
       )
+      settleChips(result.round.hands, dealer)
       setPhase('roundComplete')
     }
   }
@@ -275,6 +306,7 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
     if (!countFeedback) return
     setPendingTrueCountForBet(countFeedback.trueCountActual)
     setBetFeedback(null)
+    setChipBet(null)
     setPhase('betting')
   }
 
@@ -375,14 +407,19 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
           <span>Bet: {accuracyLabel(progress.betCorrect, progress.betAttempts)} ({progress.betAttempts})</span>
         </div>
 
-        {/* Net units — visible once a session is running */}
+        {/* Net units (flavor-only, unchanged) + real bankroll — both visible once a session is running */}
         {phase !== 'idle' && (
-          <p className="text-xs text-slate-500">
-            Net units this session:{' '}
-            <span className={netUnits > 0 ? SUCCESS_TEXT : netUnits < 0 ? ERROR_TEXT : 'text-slate-400'}>
-              {netUnits > 0 ? '+' : ''}{netUnits.toFixed(1)}
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span>
+              Net units this session:{' '}
+              <span className={netUnits > 0 ? SUCCESS_TEXT : netUnits < 0 ? ERROR_TEXT : 'text-slate-400'}>
+                {netUnits > 0 ? '+' : ''}{netUnits.toFixed(1)}
+              </span>
             </span>
-          </p>
+            <span>
+              Bankroll: <span className="font-semibold text-white">${bankroll.toFixed(0)}</span>
+            </span>
+          </div>
         )}
 
         {/* ── IDLE ── */}
@@ -399,14 +436,20 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
           </div>
         )}
 
-        {/* ── BETTING — chip picker ── */}
-        {phase === 'betting' && !betFeedback && (
+        {/* ── BETTING — real-dollar chip wager, FIRST (separate from the EV-tier
+            picker below — this one wagers real bankroll and isn't graded) ── */}
+        {phase === 'betting' && chipBet === null && (
+          <ChipBetPicker bankroll={bankroll} onBet={setChipBet} onResetBankroll={onResetBankroll} />
+        )}
+
+        {/* ── BETTING — EV-tier chip picker (existing, graded) ── */}
+        {phase === 'betting' && chipBet !== null && !betFeedback && (
           <div className="flex flex-col items-center gap-4">
             <p className="text-xl text-slate-200">
               True count:{' '}
               <span className="font-semibold text-white">{signed(pendingTrueCountForBet)}</span>
             </p>
-            <p className="text-sm text-slate-400">Place your bet:</p>
+            <p className="text-sm text-slate-400">Size your bet for EV (practice — graded, not real chips):</p>
             <div className="flex flex-wrap justify-center gap-3">
               {BET_TIERS.map((units) => {
                 const color = tierChipColor(units)
@@ -505,6 +548,11 @@ export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgr
                 {lastDecision.isCorrect
                   ? 'Correct!'
                   : `Incorrect — correct play was ${lastDecision.correctAction}`}
+              </p>
+            )}
+            {payout !== null && (
+              <p className={`text-sm font-semibold ${payout > 0 ? SUCCESS_TEXT : payout < 0 ? ERROR_TEXT : 'text-slate-400'}`}>
+                {payout > 0 ? `Won $${payout.toFixed(2)}` : payout < 0 ? `Lost $${Math.abs(payout).toFixed(2)}` : 'Push — bet returned'}
               </p>
             )}
             <button type="button" onClick={continueToCountCheck} className={PRIMARY_BUTTON_LG}>

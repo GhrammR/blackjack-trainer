@@ -14,6 +14,8 @@ interface GlobalSettingsModalProps {
   countingSettings: CountingSettings
   onCountingSettingsChange: (settings: CountingSettings) => void
   countingProgress: CountingProgress
+  bankroll: number
+  onResetBankroll: () => void
   strategySnapshot: StrategySnapshot
   onResetStrategy: () => void
   onResetCounting: () => void
@@ -65,6 +67,8 @@ export function GlobalSettingsModal({
   countingSettings,
   onCountingSettingsChange,
   countingProgress,
+  bankroll,
+  onResetBankroll,
   strategySnapshot,
   onResetStrategy,
   onResetCounting,
@@ -127,7 +131,13 @@ export function GlobalSettingsModal({
           </p>
         </section>
 
-        <CountingSettingsPanel settings={countingSettings} onSettingsChange={onCountingSettingsChange} progress={countingProgress} />
+        <CountingSettingsPanel
+          settings={countingSettings}
+          onSettingsChange={onCountingSettingsChange}
+          progress={countingProgress}
+          bankroll={bankroll}
+          onResetBankroll={onResetBankroll}
+        />
 
         <section className="flex flex-col gap-3 rounded-lg bg-slate-800/50 p-4">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Reset a single mode</h3>

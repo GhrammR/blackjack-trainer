@@ -72,6 +72,14 @@ export interface CountingSettings {
    * the base chart already proven correct by the chart-reference test.
    */
   lateSurrender: boolean
+  /**
+   * The bankroll amount a "Reset Bankroll" action restores (chip wager
+   * system, shared by Basic Strategy and Live Play — see
+   * livePlaySession.ts's handPayout/roundPayout). Changing this does NOT
+   * retroactively touch the live `CountingState.bankroll` below — only a
+   * reset applies it, same as any other "starting value" setting.
+   */
+  startingBankroll: number
 }
 
 /**
@@ -130,6 +138,13 @@ export interface CountingProgress {
 export interface CountingState {
   settings: CountingSettings
   progress: CountingProgress
+  /**
+   * Live chip total, shared across Basic Strategy and Live Play (both
+   * settle it via livePlaySession.ts's roundPayout at the end of each
+   * round) — a sibling of settings/progress, not nested under either,
+   * since it's neither a per-mode setting nor a per-mode progress stat.
+   */
+  bankroll: number
 }
 
 const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
@@ -137,6 +152,7 @@ const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
   seatCount: 4,
   dealSpeed: 'medium',
   lateSurrender: false,
+  startingBankroll: 1000,
 }
 
 const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
@@ -166,6 +182,7 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
 const DEFAULT_COUNTING_STATE: CountingState = {
   settings: DEFAULT_COUNTING_SETTINGS,
   progress: DEFAULT_COUNTING_PROGRESS,
+  bankroll: DEFAULT_COUNTING_SETTINGS.startingBankroll,
 }
 
 /**
@@ -222,6 +239,7 @@ function parseSettings(raw: unknown): CountingSettings {
       ? (r.dealSpeed as DealSpeed)
       : DEFAULT_COUNTING_SETTINGS.dealSpeed,
     lateSurrender: typeof r.lateSurrender === 'boolean' ? r.lateSurrender : DEFAULT_COUNTING_SETTINGS.lateSurrender,
+    startingBankroll: typeof r.startingBankroll === 'number' ? r.startingBankroll : DEFAULT_COUNTING_SETTINGS.startingBankroll,
   }
 }
 
@@ -313,9 +331,14 @@ export function loadCountingState(): CountingState {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return DEFAULT_COUNTING_STATE
 
+    const settings = parseSettings(parsed.settings)
     return {
-      settings: parseSettings(parsed.settings),
+      settings,
       progress: parseProgress(parsed.progress),
+      // Falls back to the (parsed) startingBankroll setting, not the hardcoded
+      // default, so a first-ever load with a customized startingBankroll but no
+      // bankroll value yet saved still starts at the right amount.
+      bankroll: typeof parsed.bankroll === 'number' ? parsed.bankroll : settings.startingBankroll,
     }
   } catch {
     return DEFAULT_COUNTING_STATE
@@ -330,18 +353,24 @@ export function saveCountingState(state: CountingState): void {
   }
 }
 
-/** Resets progress (personal bests + round history) to defaults while leaving `settings` untouched. */
+/** Resets progress (personal bests + round history) to defaults while leaving `settings` and the live `bankroll` untouched. */
 export function resetCountingProgress(state: CountingState): CountingState {
-  return { settings: state.settings, progress: DEFAULT_COUNTING_PROGRESS }
+  return { settings: state.settings, progress: DEFAULT_COUNTING_PROGRESS, bankroll: state.bankroll }
 }
 
 /** One of the nine independent Card Counting modes tracked in `CountingProgress`. */
 export type CountingModeKey = keyof CountingProgress
 
-/** Resets a single counting mode's stats to defaults, leaving every other mode's progress and all settings untouched. */
+/** Resets a single counting mode's stats to defaults, leaving every other mode's progress, all settings, and the live bankroll untouched. */
 export function resetCountingMode(state: CountingState, mode: CountingModeKey): CountingState {
   return {
     settings: state.settings,
     progress: { ...state.progress, [mode]: DEFAULT_COUNTING_PROGRESS[mode] },
+    bankroll: state.bankroll,
   }
+}
+
+/** Resets the live bankroll to the current `startingBankroll` setting — independent of (and not implied by) any progress reset. */
+export function resetBankroll(state: CountingState): CountingState {
+  return { ...state, bankroll: state.settings.startingBankroll }
 }

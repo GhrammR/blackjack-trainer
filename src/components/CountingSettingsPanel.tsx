@@ -9,6 +9,8 @@ interface CountingSettingsPanelProps {
   settings: CountingSettings
   onSettingsChange: (settings: CountingSettings) => void
   progress: CountingProgress
+  bankroll: number
+  onResetBankroll: () => void
 }
 
 function accuracyLabel(correct: number, attempts: number): string {
@@ -16,7 +18,7 @@ function accuracyLabel(correct: number, attempts: number): string {
   return `${Math.round((correct / attempts) * 100)}%`
 }
 
-export function CountingSettingsPanel({ settings, onSettingsChange, progress }: CountingSettingsPanelProps) {
+export function CountingSettingsPanel({ settings, onSettingsChange, progress, bankroll, onResetBankroll }: CountingSettingsPanelProps) {
   const fullCountdownBests = Object.entries(progress.shoeCountdown.fullCountdown.personalBests)
     .map(([decks, best]) => [Number(decks), best] as const)
     .sort((a, b) => a[0] - b[0])
@@ -87,6 +89,37 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress }: 
           Counting system
           <span className="text-slate-500">Hi-Lo</span>
         </div>
+      </section>
+
+      <section className="flex w-full flex-col gap-3 rounded-lg bg-slate-800/50 p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Chip Wager (Basic Strategy, Live Play)</h2>
+        <p className="text-sm text-slate-300">
+          Current bankroll: <span className="font-semibold text-white">${bankroll.toFixed(0)}</span>
+        </p>
+        <label className="flex items-center justify-between gap-2 text-slate-300">
+          Starting bankroll
+          <input
+            type="number"
+            min={0}
+            step={50}
+            value={settings.startingBankroll}
+            onChange={(e) => {
+              const value = Number(e.target.value)
+              if (Number.isFinite(value) && value >= 0) onSettingsChange({ ...settings, startingBankroll: value })
+            }}
+            className="w-24 rounded bg-slate-800 px-2 py-1 text-right text-white"
+          />
+        </label>
+        <p className="text-xs text-slate-500">
+          Takes effect the next time you reset the bankroll below — it doesn't change your current chips.
+        </p>
+        <button
+          type="button"
+          onClick={onResetBankroll}
+          className="self-start rounded-md bg-red-900/60 px-4 py-1.5 text-sm font-medium text-red-200 transition hover:bg-red-900"
+        >
+          Reset Bankroll to ${settings.startingBankroll}
+        </button>
       </section>
 
       <section className="flex w-full flex-col gap-2 rounded-lg bg-slate-800/50 p-4">

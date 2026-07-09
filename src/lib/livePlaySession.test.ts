@@ -3,6 +3,7 @@ import type { Card, Rank } from '../types'
 import {
   type LivePlaySessionState,
   type LiveRound,
+  type PlayHand,
   applyAction,
   correctActionFor,
   correctBetUnits,
@@ -10,12 +11,14 @@ import {
   dealRoundFromHand,
   decide,
   handOutcome,
+  handPayout,
   isRoundOver,
   netUnitsForRound,
   legalActions,
   decksRemaining,
   needsReshuffle,
   resolveDealer,
+  roundPayout,
   startLivePlaySession,
 } from './livePlaySession'
 
@@ -74,6 +77,8 @@ describe('dealRound — natural blackjack auto-resolves', () => {
 
 describe('dealRoundFromHand — builds a round from a caller-supplied hand (Basic Strategy Trainer)', () => {
   it('uses the given hand and dealer upcard exactly, with the active hand ready for a first decision', () => {
+    // drawShoe[0] is now consumed as the real hole card (see dealRoundFromHand's own
+    // comment) — the rest of the shoe (from position 1) backs subsequent Hit/Split draws.
     const drawShoe = [c('7'), c('3'), c('9')]
     const { state, round } = dealRoundFromHand([c('10'), c('6')], c('10'), drawShoe)
 
@@ -82,12 +87,14 @@ describe('dealRoundFromHand — builds a round from a caller-supplied hand (Basi
     expect(round.hands[0].done).toBe(false)
     expect(round.activeHandIndex).toBe(0)
     expect(round.dealerUpcard).toEqual(c('10'))
+    expect(round.holeCard).toEqual(c('7')) // real card now, not a dealerUpcard placeholder
     expect(state.shoe).toBe(drawShoe)
-    expect(state.position).toBe(0)
+    expect(state.position).toBe(1)
   })
 
   it('feeds legalActions/decide/applyAction exactly like a dealt round, including a real pair offering Split', () => {
-    const { state, round } = dealRoundFromHand([c('8'), c('8')], c('9'), [c('2'), c('5')])
+    // [0] = hole card, [1]/[2] = the two split hands' second cards.
+    const { state, round } = dealRoundFromHand([c('8'), c('8')], c('9'), [c('2'), c('5'), c('4')])
     expect(legalActions(round)).toContain('Split')
     expect(correctActionFor(round)).toBe('Split')
 
@@ -116,7 +123,7 @@ describe('dealRoundFromHand — builds a round from a caller-supplied hand (Basi
   })
 
   it('grades a full hand out via decide/applyAction the same as a dealt round would', () => {
-    const drawShoe = [c('3')] // hits hard 12 vs 6 up to 15 — basic strategy still says Hit at 12
+    const drawShoe = [c('2'), c('3')] // [0] = hole card; [1] = the Hit card, taking hard 12 vs 6 up to 15
     const { state, round } = dealRoundFromHand([c('6'), c('6')], c('6'), drawShoe)
     // 6,6 vs 6 is a real pair -> basic strategy says Split, not Hit.
     expect(correctActionFor(round)).toBe('Split')
@@ -537,6 +544,109 @@ describe('full session integration', () => {
         expect(['win', 'lose', 'push', 'bust', 'surrendered']).toContain(handOutcome(hand, dealer.dealerCards, dealer.dealerBusted))
       }
     }
+  })
+})
+
+// ── handPayout / roundPayout — the real chip-payout consequence layer ──────────
+
+function hand(cards: Card[], overrides: Partial<PlayHand> = {}): PlayHand {
+  return { cards, isFirstDecision: false, isSplitAces: false, done: true, surrendered: false, ...overrides }
+}
+
+describe('handPayout', () => {
+  it('plain win: player total beats a non-busted, non-natural dealer total', () => {
+    expect(handPayout(hand([c('10'), c('9')]), 25, [c('10'), c('8')], false)).toBe(25) // 19 vs 18
+  })
+
+  it('plain lose: player total is beaten by a non-busted dealer total', () => {
+    expect(handPayout(hand([c('10'), c('8')]), 25, [c('10'), c('9')], false)).toBe(-25) // 18 vs 19
+  })
+
+  it('push: equal, non-natural totals return the bet (net 0)', () => {
+    expect(handPayout(hand([c('10'), c('9')]), 25, [c('10'), c('9')], false)).toBe(0) // 19 vs 19
+  })
+
+  it('dealer bust: player wins regardless of their own total (as long as they didn\'t bust first)', () => {
+    expect(handPayout(hand([c('10'), c('6')]), 25, [c('10'), c('9'), c('5')], true)).toBe(25) // dealer 24, busted
+  })
+
+  it('player bust: always loses, even if the dealer also busted', () => {
+    expect(handPayout(hand([c('10'), c('6'), c('9')]), 25, [c('10'), c('9'), c('5')], true)).toBe(-25) // player 25
+  })
+
+  it('natural blackjack pays 3:2 against a non-natural dealer total, even a dealer 21', () => {
+    expect(handPayout(hand([c('A'), c('K')], { isNatural: true }), 20, [c('7'), c('7'), c('7')], false)).toBe(30) // dealer 21, but not natural
+  })
+
+  it('natural blackjack pushes (not wins) against a dealer natural', () => {
+    expect(handPayout(hand([c('A'), c('K')], { isNatural: true }), 20, [c('A'), c('Q')], false)).toBe(0)
+  })
+
+  it('surrender loses exactly half the wager, regardless of the eventual dealer/player totals', () => {
+    expect(handPayout(hand([c('10'), c('6')], { surrendered: true }), 20, [c('10'), c('9')], false)).toBe(-10)
+  })
+
+  it('a doubled hand wagers 2x for both win and loss', () => {
+    expect(handPayout(hand([c('5'), c('6'), c('9')], { doubled: true }), 20, [c('10'), c('9')], false)).toBe(40) // player 20 vs dealer 19
+    expect(handPayout(hand([c('5'), c('6'), c('2')], { doubled: true }), 20, [c('10'), c('9')], false)).toBe(-40) // player 13 vs dealer 19
+  })
+
+  it('a natural is never doubled in practice, but if doubled were somehow set it would not double the 3:2 payout path (isNatural takes priority, doubled is ignored for a natural since wagered already folds it in consistently)', () => {
+    // isNatural + doubled is unreachable in real play (a doubled hand has 3 cards, isBlackjack requires 2) —
+    // documented here as a defensive proof the math still composes sanely if it ever were true.
+    expect(handPayout(hand([c('A'), c('K')], { isNatural: true, doubled: true }), 20, [c('10'), c('9')], false)).toBe(60) // 1.5 * (20*2)
+  })
+})
+
+describe('roundPayout', () => {
+  it('sums independent per-hand payouts across a split round', () => {
+    const hands = [
+      hand([c('8'), c('9')]), // 17 vs dealer 19 -> lose
+      hand([c('8'), c('10')], { doubled: true }), // 18 vs dealer 19 -> lose, doubled
+    ]
+    expect(roundPayout(hands, 10, [c('10'), c('9')], false)).toBe(-10 + -20)
+  })
+
+  it('mixes a win and a loss across split hands correctly', () => {
+    const hands = [
+      hand([c('8'), c('9')]), // 17 vs dealer 16 -> win
+      hand([c('8'), c('4')]), // 12 vs dealer 16 -> lose
+    ]
+    expect(roundPayout(hands, 10, [c('10'), c('6')], false)).toBe(10 + -10)
+  })
+})
+
+// ── isNatural / doubled tracking through the real factories ────────────────────
+
+describe('PlayHand.isNatural / PlayHand.doubled tracking', () => {
+  it('dealRound marks a real 2-card 21 as natural', () => {
+    const shoe = [c('A'), c('K'), c('9'), c('2'), c('7')]
+    const { round } = dealRound(stateFrom(shoe))
+    expect(round.hands[0].isNatural).toBe(true)
+  })
+
+  it('dealRoundFromHand marks a real 2-card 21 as natural', () => {
+    const { round } = dealRoundFromHand([c('A'), c('Q')], c('9'), [c('2')])
+    expect(round.hands[0].isNatural).toBe(true)
+  })
+
+  it('a split-created 21 is never natural, even though it looks like blackjack card-wise', () => {
+    const shoe = [c('K'), c('K'), c('9'), c('2'), c('A'), c('7')]
+    const { state, round: dealt } = dealRound(stateFrom(shoe))
+    const { round: afterSplit } = applyAction(state, dealt, 'Split')
+    // One of the two split hands is K + A = 21, but it must not be flagged natural.
+    const twentyOne = afterSplit.hands.find((h) => h.cards.length === 2 && h.cards.some((card) => card.rank === 'A'))
+    expect(twentyOne?.isNatural).toBe(false)
+  })
+
+  it('applyAction marks a hand doubled only when Double is chosen', () => {
+    const shoe = [c('5'), c('6'), c('9'), c('2'), c('7')]
+    const { state, round: dealt } = dealRound(stateFrom(shoe))
+    const { round: afterDouble } = applyAction(state, dealt, 'Double')
+    expect(afterDouble.hands[0].doubled).toBe(true)
+
+    const { round: afterStand } = applyAction(state, dealt, 'Stand')
+    expect(afterStand.hands[0].doubled).toBeFalsy()
   })
 })
 

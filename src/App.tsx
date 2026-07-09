@@ -25,6 +25,7 @@ import {
   clearState,
   loadCountingState,
   loadState,
+  resetBankroll,
   resetCountingMode,
   resetCountingProgress,
   saveCountingState,
@@ -71,6 +72,18 @@ function App() {
 
   function handleProgressChange(progress: CountingProgress) {
     setCounting((prev) => ({ ...prev, progress }))
+  }
+
+  // Bankroll (chip wager system) — shared by Basic Strategy and Live Play,
+  // settled once per round at the outcome (see livePlaySession.ts's
+  // roundPayout). Lifted here, like every other cross-mode value, so it
+  // persists across mode switches.
+  function handleBankrollChange(bankroll: number) {
+    setCounting((prev) => ({ ...prev, bankroll }))
+  }
+
+  function handleResetBankroll() {
+    setCounting((prev) => resetBankroll(prev))
   }
 
   function freshRunningCountShoe(): RunningCountShoeState {
@@ -120,7 +133,15 @@ function App() {
   function renderMode() {
     switch (currentMode) {
       case 'strategy':
-        return <BasicStrategyMode key={strategyResetKey} lateSurrender={settings.lateSurrender} />
+        return (
+          <BasicStrategyMode
+            key={strategyResetKey}
+            lateSurrender={settings.lateSurrender}
+            bankroll={counting.bankroll}
+            onBankrollChange={handleBankrollChange}
+            onResetBankroll={handleResetBankroll}
+          />
+        )
       case 'runningCount':
         return (
           <RunningCountMode
@@ -198,6 +219,9 @@ function App() {
           <LivePlayMode
             numDecks={settings.numDecks}
             lateSurrender={settings.lateSurrender}
+            bankroll={counting.bankroll}
+            onBankrollChange={handleBankrollChange}
+            onResetBankroll={handleResetBankroll}
             initialProgress={progress.livePlay}
             onProgressChange={(livePlay) => handleProgressChange({ ...progress, livePlay })}
           />
@@ -329,6 +353,8 @@ function App() {
           countingSettings={counting.settings}
           onCountingSettingsChange={(settings) => setCounting((prev) => ({ ...prev, settings }))}
           countingProgress={counting.progress}
+          bankroll={counting.bankroll}
+          onResetBankroll={handleResetBankroll}
           strategySnapshot={strategySnapshot}
           onResetStrategy={handleResetStrategy}
           onResetCounting={handleResetCounting}

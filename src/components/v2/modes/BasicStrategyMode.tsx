@@ -2,16 +2,20 @@ import { useEffect, useState } from 'react'
 import type { Action } from '../../../types'
 import { ALL_SITUATION_KEYS, generateHand } from '../../../lib/handGenerator'
 import { getSituationKey } from '../../../lib/strategy'
-import { handValue, isBlackjack, isBust } from '../../../lib/cards'
+import { handValue, isBust } from '../../../lib/cards'
 import { createShoe, shuffle } from '../../../lib/shoe'
 import {
+  type DealerResolution,
   type LivePlaySessionState,
   type LiveRound,
   type PlayHand,
   dealRoundFromHand,
   decide,
+  handOutcome,
   isRoundOver,
   legalActions,
+  resolveDealer,
+  roundPayout,
 } from '../../../lib/livePlaySession'
 import { type Stats, recordResult, selectNextSituation } from '../../../lib/adaptiveEngine'
 import { categoryOfSituationKey, lifetimeAccuracy, updateStreak } from '../../../lib/mastery'
@@ -19,6 +23,7 @@ import { loadState, saveState } from '../../../lib/persistence'
 import { reasonFor } from '../../../lib/reasons'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
+import { ChipBetPicker } from '../../ChipBetPicker'
 import { ProgressPanel } from '../../ProgressPanel'
 import { ERROR_TEXT, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
@@ -41,9 +46,19 @@ import { CasinoTable } from '../table/CasinoTable'
  * chart could never actually grade correct. Default off fixes that; on
  * makes the 7 sourced surrender cells (see strategy.ts) both offered and
  * graded correctly.
+ *
+ * CHIP WAGER (additive, parallel to grading — never merged into it):
+ * `dealRoundFromHand` now draws a real hole card, which is what lets this
+ * mode call the exact same `resolveDealer` Live Play uses, unmodified, to
+ * get a real win/lose/push outcome. A bet is placed BEFORE each hand is
+ * dealt (new 'betting' phase); `roundPayout` (also unmodified/shared with
+ * Live Play) settles the bankroll once the round is over, independent of
+ * `decisionLog`/`stats`/`currentStreak`, which still grade every decision
+ * exactly as before. A perfectly graded hand can still lose chips — that's
+ * the intended lesson, not a bug.
  */
 
-type Phase = 'deciding' | 'roundComplete'
+type Phase = 'betting' | 'deciding' | 'roundComplete'
 
 interface DecisionRecord {
   situationKey: string
@@ -58,20 +73,27 @@ function buildRound(stats: Stats): { state: LivePlaySessionState; round: LiveRou
   return dealRoundFromHand(playerHand, dealerUpcard, shuffle(createShoe(1)))
 }
 
+const OUTCOME_LABELS: Record<string, string> = {
+  win: 'Win', lose: 'Lose', push: 'Push', bust: 'Bust', surrendered: 'Surrender',
+}
+const OUTCOME_COLORS: Record<string, string> = {
+  win: SUCCESS_TEXT, lose: ERROR_TEXT, push: 'text-slate-400',
+  bust: ERROR_TEXT, surrendered: 'text-slate-400',
+}
+
 // Local, one-off — same convention as LivePlayMode.tsx's own HandGroup.
-// No `outcome` prop here: this drill grades decisions, not a dealer play-out,
-// so status is just how the hand ended, never win/lose/push.
 function inProgressStatus(hand: PlayHand): string | null {
   if (!hand.done) return null
   if (hand.surrendered) return 'Surrendered'
   if (isBust(hand.cards)) return 'Bust'
-  if (isBlackjack(hand.cards)) return 'Blackjack!'
+  if (hand.isNatural) return 'Blackjack!'
   return 'Stood'
 }
 
-function HandGroup({ hand, isActive }: { hand: PlayHand; isActive: boolean }) {
+function HandGroup({ hand, isActive, outcome }: { hand: PlayHand; isActive: boolean; outcome: string | null }) {
   const { total, soft } = handValue(hand.cards)
-  const statusText = inProgressStatus(hand)
+  const statusText = outcome ? (outcome === 'win' && hand.isNatural ? 'Blackjack!' : OUTCOME_LABELS[outcome]) : inProgressStatus(hand)
+  const statusColor = outcome ? OUTCOME_COLORS[outcome] : 'text-slate-500'
   return (
     <div
       className={`flex flex-col items-center gap-1 rounded-md p-1 ${isActive ? 'ring-2 ring-blue-500' : ''}`}
@@ -86,34 +108,65 @@ function HandGroup({ hand, isActive }: { hand: PlayHand; isActive: boolean }) {
         {total}
         {soft ? ' soft' : ''}
       </p>
-      {statusText && <p className="text-xs font-medium text-slate-500">{statusText}</p>}
+      {statusText && <p className={`text-xs font-medium ${statusColor}`}>{statusText}</p>}
     </div>
   )
 }
 
 interface BasicStrategyModeProps {
   lateSurrender: boolean
+  bankroll: number
+  onBankrollChange: (bankroll: number) => void
+  onResetBankroll: () => void
 }
 
-export function BasicStrategyMode({ lateSurrender }: BasicStrategyModeProps) {
+export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, onResetBankroll }: BasicStrategyModeProps) {
   const [persisted] = useState(() => loadState())
   const [stats, setStats] = useState<Stats>(persisted.stats)
   const [handsPlayed, setHandsPlayed] = useState(persisted.handsPlayed)
   const [currentStreak, setCurrentStreak] = useState(persisted.currentStreak)
 
-  const [initial] = useState(() => buildRound(persisted.stats))
-  const [session, setSession] = useState<LivePlaySessionState>(initial.state)
-  const [round, setRound] = useState<LiveRound>(initial.round)
+  const [session, setSession] = useState<LivePlaySessionState | null>(null)
+  const [round, setRound] = useState<LiveRound | null>(null)
+  const [dealerResolution, setDealerResolution] = useState<DealerResolution | null>(null)
+  const [currentBet, setCurrentBet] = useState<number | null>(null)
+  const [payout, setPayout] = useState<number | null>(null)
   const [decisionLog, setDecisionLog] = useState<DecisionRecord[]>([])
   const [lastDecision, setLastDecision] = useState<DecisionRecord | null>(null)
-  const [phase, setPhase] = useState<Phase>(isRoundOver(initial.round) ? 'roundComplete' : 'deciding')
+  const [phase, setPhase] = useState<Phase>('betting')
 
   useEffect(() => {
     saveState({ stats, handsPlayed, currentStreak })
   }, [stats, handsPlayed, currentStreak])
 
+  function settleRound(finalState: LivePlaySessionState, finalRound: LiveRound, betAmount: number) {
+    const dealer = resolveDealer(finalState, finalRound)
+    setDealerResolution(dealer)
+    const roundPay = roundPayout(finalRound.hands, betAmount, dealer.dealerCards, dealer.dealerBusted)
+    setPayout(roundPay)
+    onBankrollChange(bankroll + roundPay)
+    setPhase('roundComplete')
+  }
+
+  function placeBet(amount: number) {
+    const next = buildRound(stats)
+    setSession(next.state)
+    setRound(next.round)
+    setCurrentBet(amount)
+    setDecisionLog([])
+    setLastDecision(null)
+    setDealerResolution(null)
+    setPayout(null)
+
+    if (isRoundOver(next.round)) {
+      settleRound(next.state, next.round, amount)
+    } else {
+      setPhase('deciding')
+    }
+  }
+
   function handleChoose(action: Action) {
-    if (phase !== 'deciding') return
+    if (phase !== 'deciding' || !session || !round || currentBet === null) return
     const hand = round.hands[round.activeHandIndex]
     // Derived fresh from the CURRENT hand state, not the original generation
     // key — this is what makes every decision (post-hit, post-split) its
@@ -138,38 +191,64 @@ export function BasicStrategyMode({ lateSurrender }: BasicStrategyModeProps) {
     setCurrentStreak((prev) => updateStreak(prev, result.isCorrect))
 
     if (isRoundOver(result.round)) {
-      setPhase('roundComplete')
+      settleRound(result.state, result.round, currentBet)
     }
   }
 
   function handleNext() {
-    const next = buildRound(stats)
-    setSession(next.state)
-    setRound(next.round)
-    setDecisionLog([])
-    setLastDecision(null)
-    setPhase(isRoundOver(next.round) ? 'roundComplete' : 'deciding')
+    setSession(null)
+    setRound(null)
+    setPhase('betting')
   }
 
   const correctCount = decisionLog.filter((d) => d.isCorrect).length
   const misses = decisionLog.filter((d) => !d.isCorrect)
 
+  const showCards = phase === 'deciding' || phase === 'roundComplete'
+
   const dealerSlot = (
     <>
       <p className={SECTION_LABEL}>Dealer</p>
-      <div className="flex gap-2">
-        <PlayingCard card={round.dealerUpcard} suitIndex={0} size="sm" />
-        <HiddenCard size="sm" />
-      </div>
+      {showCards && round && (
+        <>
+          <div className="flex gap-2">
+            <PlayingCard card={round.dealerUpcard} suitIndex={0} size="sm" />
+            {phase === 'roundComplete' && dealerResolution ? (
+              dealerResolution.dealerCards.slice(1).map((card, i) => (
+                <PlayingCard key={i} card={card} suitIndex={i + 1} size="sm" />
+              ))
+            ) : (
+              <HiddenCard size="sm" />
+            )}
+          </div>
+          {phase === 'roundComplete' && dealerResolution && (
+            <p className="text-xs text-slate-400">
+              {handValue(dealerResolution.dealerCards).total}
+              {dealerResolution.dealerBusted ? ' (bust)' : ''}
+            </p>
+          )}
+        </>
+      )}
     </>
   )
 
-  const seatContent = (
+  const seatContent = showCards && round ? (
     <div className="flex flex-wrap justify-center gap-2">
       {round.hands.map((hand, i) => (
-        <HandGroup key={i} hand={hand} isActive={i === round.activeHandIndex} />
+        <HandGroup
+          key={i}
+          hand={hand}
+          isActive={i === round.activeHandIndex}
+          outcome={
+            phase === 'roundComplete' && dealerResolution
+              ? handOutcome(hand, dealerResolution.dealerCards, dealerResolution.dealerBusted)
+              : null
+          }
+        />
       ))}
     </div>
+  ) : (
+    <span />
   )
 
   return (
@@ -195,7 +274,15 @@ export function BasicStrategyMode({ lateSurrender }: BasicStrategyModeProps) {
       >
         <ProgressPanel currentStreak={currentStreak} lifetime={lifetimeAccuracy(stats)} />
 
-        {phase === 'deciding' && (
+        <p className="text-center text-xs text-slate-500">
+          Bankroll: <span className="font-semibold text-white">${bankroll.toFixed(0)}</span>
+        </p>
+
+        {phase === 'betting' && (
+          <ChipBetPicker bankroll={bankroll} onBet={placeBet} onResetBankroll={onResetBankroll} />
+        )}
+
+        {phase === 'deciding' && round && (
           <div className="flex flex-col items-center gap-3">
             {lastDecision && (
               <p className={`text-sm font-medium ${lastDecision.isCorrect ? SUCCESS_TEXT : ERROR_TEXT}`}>
@@ -224,6 +311,11 @@ export function BasicStrategyMode({ lateSurrender }: BasicStrategyModeProps) {
                 </p>
               )
             })}
+            {payout !== null && (
+              <p className={`text-sm font-semibold ${payout > 0 ? SUCCESS_TEXT : payout < 0 ? ERROR_TEXT : 'text-slate-400'}`}>
+                {payout > 0 ? `Won $${payout.toFixed(2)}` : payout < 0 ? `Lost $${Math.abs(payout).toFixed(2)}` : 'Push — bet returned'}
+              </p>
+            )}
             <button type="button" onClick={handleNext} className={PRIMARY_BUTTON_LG}>
               Next hand
             </button>

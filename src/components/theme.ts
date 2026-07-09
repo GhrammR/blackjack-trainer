@@ -61,9 +61,19 @@ export const NEUTRAL_TEXT = 'text-slate-400'
  * change to that mode's own grid layout, not this sizing scheme.
  */
 export const HUD_HEIGHT = {
-  strategy: 220,
+  // Re-measured after the chip wager system landed (bankroll line, betting
+  // phase, dealer-reveal + payout at roundComplete). strategy grew 220->340:
+  // its own roundComplete now routinely needs a bankroll line, a payout
+  // line, AND a full reason sentence (up to 124 chars, measured against
+  // reasons.ts's longest entries) for a single-decision miss — genuinely
+  // routine, not the rare multi-split case, which still scrolls internally.
+  // livePlay grew only slightly (380->390): its existing countCheck-inputs
+  // state was already this mode's routine max before chips, and the new
+  // bankroll/payout lines didn't push any state past it (measured 368px
+  // live, same as before) — 390 just restores a bit more safety margin.
+  strategy: 340,
   trueCount: 340,
-  livePlay: 380,
+  livePlay: 390,
   indexPlays: 260,
   evasion: 350,
   counterDetection: 300,
