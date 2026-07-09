@@ -8,6 +8,16 @@ const REFERENCE_TABLE_WIDTH = 1500 // width ceiling — a sanity cap on very wid
                                     // governed by height instead: see the wrapper's aspect-ratio/max-height sizing
                                     // below, which fills whatever height its flex-1 parent slot gives it.
 
+// Floor on the shoe/rack scale below — at REFERENCE_TABLE_WIDTH=1500 as the
+// unreachable ceiling, the table's typical rendered width (usually a few
+// hundred px, governed by height not width) puts the raw ratio around
+// 0.2-0.45 in normal play, which shrinks DiscardRack's tick-mark labels
+// (7px native) and card-stack detail below legibility. PlayingCard already
+// has its own floor via clamp(); this gives the shoe/rack the same floor,
+// unlike PlayingCard's continuous CSS clamp this is a JS step at the floor
+// value, since these two components compute pixel geometry, not a CSS size.
+const MIN_GLYPH_SCALE = 0.65
+
 /**
  * Tracks this table's own rendered width so the shoe/rack (built from
  * absolute pixel offsets, not CSS) can scale in proportion to the felt
@@ -25,7 +35,7 @@ function useTableScale(ref: React.RefObject<HTMLDivElement | null>): number {
     return () => ro.disconnect()
   }, [ref])
 
-  return Math.min(1, width / REFERENCE_TABLE_WIDTH)
+  return Math.max(MIN_GLYPH_SCALE, Math.min(1, width / REFERENCE_TABLE_WIDTH))
 }
 
 // ─── Felt color presets ────────────────────────────────────────────────────────

@@ -18,7 +18,7 @@ import {
 import { finalizeRounds, scoreSession } from '../../../lib/evasionScoring'
 import { isEvidenceRound } from '../../../lib/evidenceGrading'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
-import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT } from '../../theme'
+import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 // ── Bet options ────────────────────────────────────────────────────────────────
@@ -294,7 +294,10 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
       </div>
 
       {/* HUD */}
-      <div className="flex w-full max-w-md flex-col items-center gap-4">
+      <div
+        className="flex w-full max-w-md flex-col items-center gap-4 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.evasion, flexShrink: 0 }}
+      >
 
         {/* ── IDLE ── */}
         {phase === 'idle' && (

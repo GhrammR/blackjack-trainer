@@ -12,7 +12,7 @@ import {
 import { trueCount } from '../../../lib/counting'
 import { isValidSignedInt, signed } from '../../../lib/format'
 import { SignedNumberInput } from '../../SignedNumberInput'
-import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT } from '../../theme'
+import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
 import { DiscardRack } from '../table/DiscardRack'
 import { CasinoTable } from '../table/CasinoTable'
 
@@ -147,7 +147,10 @@ export function TrueCountMode({ numDecks, initialProgress, onProgressChange }: T
       </div>
 
       {/* HUD */}
-      <div className="flex w-full max-w-md flex-col items-center gap-4">
+      <div
+        className="flex w-full max-w-md flex-col items-center gap-4 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.trueCount, flexShrink: 0 }}
+      >
         {/* Settings row — difficulty selector, always visible */}
         <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
           <span className="text-slate-500">{numDecks} deck{numDecks !== 1 ? 's' : ''} (change in Settings)</span>

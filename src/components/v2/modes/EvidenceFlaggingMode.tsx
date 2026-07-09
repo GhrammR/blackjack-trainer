@@ -13,6 +13,7 @@ import {
   SECONDARY_BUTTON,
   SUCCESS_TEXT,
   ERROR_TEXT,
+  HUD_HEIGHT,
 } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
@@ -289,7 +290,10 @@ export function EvidenceFlaggingMode({
       </div>
 
       {/* HUD */}
-      <div className="flex w-full max-w-2xl flex-col items-center gap-4">
+      <div
+        className="flex w-full max-w-2xl flex-col items-center gap-4 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.evidenceFlagging, flexShrink: 0 }}
+      >
 
         {/* Difficulty + progress — always visible */}
         <div className="flex flex-wrap items-center justify-center gap-4 text-sm">

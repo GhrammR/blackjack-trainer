@@ -6,7 +6,7 @@ import { signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
 import { Feedback } from '../../Feedback'
-import { SECTION_LABEL } from '../../theme'
+import { SECTION_LABEL, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 const INDEX_PLAY_SITUATION_KEYS = new Set(INDEX_PLAYS.map((p) => p.situationKey))
@@ -109,7 +109,10 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
       </div>
 
       {/* HUD */}
-      <div className="flex w-full max-w-md flex-col items-center gap-4">
+      <div
+        className="flex w-full max-w-md flex-col items-center gap-4 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.indexPlays, flexShrink: 0 }}
+      >
         <p className="text-xs text-slate-500">
           Attempts: {attempts} · Accuracy:{' '}
           {attempts === 0 ? '—' : `${Math.round((correct / attempts) * 100)}%`}

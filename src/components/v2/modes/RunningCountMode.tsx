@@ -6,7 +6,7 @@ import { runningCount } from '../../../lib/counting'
 import { isValidSignedInt, signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
-import { ERROR_TEXT, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT } from '../../theme'
+import { ERROR_TEXT, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 type Phase = 'idle' | 'dealing' | 'input' | 'feedback'
@@ -206,7 +206,10 @@ export function RunningCountMode({
       </div>
 
       {/* HUD */}
-      <div className="flex w-full max-w-md flex-col items-center gap-4">
+      <div
+        className="flex w-full max-w-md flex-col items-center gap-4 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.runningCount, flexShrink: 0 }}
+      >
         {/* Session metadata — always visible */}
         <p className="text-center text-sm text-slate-500">
           {numDecks} deck{numDecks !== 1 ? 's' : ''} · {seatCount} seat{seatCount !== 1 ? 's' : ''} · {cardsPerSecond} cards/s

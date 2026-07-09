@@ -6,7 +6,7 @@ import { generateFullCountdownRound, generateMissingCardsRound, updatePersonalBe
 import { formatPace, formatSeconds, isValidSignedInt, signed } from '../../../lib/format'
 import { PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
-import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, ERROR_TEXT } from '../../theme'
+import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 type Phase = 'idle' | 'running' | 'finished'
@@ -264,7 +264,10 @@ export function ShoeCountdownMode({
       </div>
 
       {/* HUD */}
-      <div className="flex w-full max-w-md flex-col items-center gap-4">
+      <div
+        className="flex w-full max-w-md flex-col items-center gap-4 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.shoeCountdown, flexShrink: 0 }}
+      >
         <p className="text-sm text-slate-500">
           {numDecks} deck{numDecks !== 1 ? 's' : ''} (change in Settings)
           {format === 'fullCountdown' && fullCountdownBest !== undefined &&

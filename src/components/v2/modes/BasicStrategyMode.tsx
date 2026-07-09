@@ -20,7 +20,7 @@ import { reasonFor } from '../../../lib/reasons'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
 import { ProgressPanel } from '../../ProgressPanel'
-import { ERROR_TEXT, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT } from '../../theme'
+import { ERROR_TEXT, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 /**
@@ -173,8 +173,15 @@ export function BasicStrategyMode() {
         />
       </div>
 
-      {/* HUD */}
-      <div className="flex w-full max-w-md flex-col gap-3">
+      {/* HUD — fixed height (HUD_HEIGHT.strategy), this mode's own routine
+          max, so the table above never resizes within this mode. The rare
+          multi-miss roundComplete state scrolls internally via
+          overflow-y-auto instead of being reserved for — see HUD_HEIGHT's
+          doc comment in theme.ts. */}
+      <div
+        className="flex w-full max-w-md flex-col gap-3 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.strategy, flexShrink: 0 }}
+      >
         <ProgressPanel currentStreak={currentStreak} lifetime={lifetimeAccuracy(stats)} />
 
         {phase === 'deciding' && (

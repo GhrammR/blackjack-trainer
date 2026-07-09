@@ -14,6 +14,10 @@ const TRAY_W = 46
 const TRAY_H = 80
 const INNER_W = TRAY_W - 8
 const INNER_H = TRAY_H - 14
+// Fixed (unscaled) gutter reserved to the right of the tray for tick labels
+// — labels render at a constant font size outside the scaled shell (see
+// below), so their reserved space must stay constant too, not shrink with scale.
+const LABEL_GUTTER = 22
 
 /**
  * Clear-acrylic discard tray. Shows played cards accumulating from the bottom.
@@ -25,11 +29,12 @@ export function DiscardRack({ fillFraction, totalDecks = 6, difficulty, scale = 
   const cardH = Math.round(fill * INNER_H)
   const innerLeft = (TRAY_W - INNER_W) / 2
   const ticks = difficulty ? tickMarks(totalDecks, difficulty) : []
-  const nativeWidth = TRAY_W + (ticks.some(t => t.label) ? 14 : 0)
+  const hasLabels = ticks.some(t => t.label)
+  const outerWidth = TRAY_W * scale + (hasLabels ? LABEL_GUTTER : 0)
 
   return (
-    <div style={{ position: 'relative', width: nativeWidth * scale, height: TRAY_H * scale }}>
-    <div style={{ position: 'relative', width: nativeWidth, height: TRAY_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+    <div style={{ position: 'relative', width: outerWidth, height: TRAY_H * scale }}>
+    <div style={{ position: 'relative', width: TRAY_W, height: TRAY_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
       {/* Outer acrylic shell — faint blue-tint border like clear plastic */}
       <div
         style={{
@@ -102,24 +107,6 @@ export function DiscardRack({ fillFraction, totalDecks = 6, difficulty, scale = 
           ))}
         </div>
 
-        {/* Tick labels — rendered to the right of the inner well, inside the shell */}
-        {ticks.filter(t => t.label).map((tick, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              right: 2,
-              bottom: `calc(${tick.fraction * INNER_H}px + 5px - 4px)`,
-              fontSize: 7,
-              lineHeight: 1,
-              color: 'rgba(180,210,255,0.70)',
-              pointerEvents: 'none',
-            }}
-          >
-            {tick.label}
-          </div>
-        ))}
-
         {/* Acrylic top-edge sheen */}
         <div
           style={{
@@ -147,6 +134,30 @@ export function DiscardRack({ fillFraction, totalDecks = 6, difficulty, scale = 
         />
       </div>
     </div>
+
+    {/* Tick labels — rendered OUTSIDE the scaled inner wrapper (transform:
+        scale shrinks text along with the shape), positioned by percentage
+        of the outer box so they still land next to the right tick mark at
+        any table size, but at a constant, always-legible font size instead
+        of shrinking into illegibility on a small table. */}
+    {ticks.filter(t => t.label).map((tick, i) => (
+      <div
+        key={i}
+        style={{
+          position: 'absolute',
+          right: 2,
+          bottom: `${((tick.fraction * INNER_H + 5 - 4) / TRAY_H) * 100}%`,
+          fontSize: 10,
+          lineHeight: 1,
+          color: 'rgba(200,225,255,0.85)',
+          fontWeight: 600,
+          textShadow: '0 1px 2px rgba(0,0,0,0.9)',
+          pointerEvents: 'none',
+        }}
+      >
+        {tick.label}
+      </div>
+    ))}
     </div>
   )
 }

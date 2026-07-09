@@ -31,6 +31,7 @@ import {
   PRIMARY_BUTTON_LG,
   SECTION_LABEL,
   SUCCESS_TEXT,
+  HUD_HEIGHT,
 } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
@@ -360,7 +361,10 @@ export function LivePlayMode({ numDecks, initialProgress, onProgressChange }: Li
       </div>
 
       {/* HUD */}
-      <div className="flex w-full max-w-md flex-col items-center gap-4">
+      <div
+        className="flex w-full max-w-md flex-col items-center gap-4 overflow-y-auto"
+        style={{ height: HUD_HEIGHT.livePlay, flexShrink: 0 }}
+      >
 
         {/* Lifetime stats — always visible */}
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-slate-500">
