@@ -44,18 +44,25 @@ more work.
 
 ### Surveillance & Detection
 
+Four **simulated training drills**, not a real, validated surveillance
+system — the "detection" here is a rule-based classifier (flags elevated bet
+sizing and count-driven strategy deviations) built to train the judgment
+skill of correlating a player's bets and plays with the count, not a
+production casino detection model.
+
 - **Counter Detection** — Watch a simulated player through a full shoe and
   render a verdict: were they counting? Bet spread and index-play deviations
   are your evidence. Three difficulty tiers.
-- **Table Scan** — Multiple seats, one counter hidden among flat bettors.
-  Identify the counter from a full shoe of bet data. Three difficulty tiers.
-- **Evidence Flagging** — Flag the individual rounds within a shoe that are
-  genuine tells — a real uncamouflaged bet spike or a real index deviation,
-  not a cover play. Scored on precision and recall separately.
-- **Evasion** — Switch sides: play as the counter. Choose your bets and
-  deviations to maximize EV while keeping heat — rounds that read as evidence
-  to the Detection classifier — low. Scored on two independent axes mirroring
-  the Detection drill's grading.
+- **Table Scan** — Multiple seats, one simulated counter hidden among flat
+  bettors. Identify the counter from a full shoe of bet data. Three
+  difficulty tiers.
+- **Evidence Flagging** — Flag the individual rounds within a simulated shoe
+  that are genuine tells — a real uncamouflaged bet spike or a real index
+  deviation, not a cover play. Scored on precision and recall separately.
+- **Evasion** — Switch sides: play as a simulated counter yourself. Choose
+  your bets and deviations to maximize EV while keeping heat — rounds that
+  read as evidence to the Detection drill's classifier — low. Scored on two
+  independent axes mirroring the Detection drill's grading.
 
 ### Capstone
 
@@ -85,9 +92,17 @@ ten modes.
 
 ## Rule set
 
-6 decks · dealer hits on soft 17 (H17) · double after split allowed · no
-surrender (the strategy chart never recommends it; Surrender is always wrong
-in strategy drills) · blackjack pays 3:2.
+6 decks · dealer hits on soft 17 (H17) · double after split allowed ·
+blackjack pays 3:2. Each mode shows a small rule badge (e.g. `6D · H17 ·
+DAS · 3:2 · Surrender: off`) confirming this for that mode.
+
+Surrender availability is **mode-specific**, not a single flat rule: the
+basic-strategy chart (`strategy.ts`) that every strategy-grading mode is
+graded against is a no-surrender chart, so Surrender is never the correct
+answer and isn't offered as an action in those drills. Live Play's own
+hand-play engine (`livePlaySession.ts`) is the one exception — it legally
+offers late surrender as a playable action, independent of the chart used
+to grade basic-strategy decisions elsewhere.
 
 See `src/lib/strategy.ts` for the chart encoding and `CLAUDE.md §11` for
 a few judgment calls made while encoding it (e.g. hard 11 vs. dealer Ace).

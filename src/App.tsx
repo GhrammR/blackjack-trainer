@@ -34,6 +34,22 @@ import { createShoe, shuffle } from './lib/shoe'
 
 type ActiveOverlay = 'settings' | 'guides' | 'overview' | null
 
+/**
+ * Rule badge shown in the header for whichever mode is active — makes the
+ * fixed chart rule set (always 6D/H17/DAS/3:2, independent of the
+ * adjustable shoe-size SETTING the counting drills use for their own
+ * simulated shoe) explicit per mode, and specifically clears up surrender:
+ * every strategy-grading mode's chart is no-surrender (CLAUDE.md §3), but
+ * Live Play's own hand-play engine (livePlaySession.ts's canSurrender)
+ * legally offers Surrender as a playable action — the README used to state
+ * a flat "surrender is always wrong," which contradicted Live Play. This
+ * badge (and the corresponding README wording) makes that mode-specific
+ * split explicit instead of leaving it as an unstated contradiction.
+ */
+function ruleBadgeText(mode: ModeId): string {
+  return `6D · H17 · DAS · 3:2 · Surrender: ${mode === 'livePlay' ? 'on' : 'off'}`
+}
+
 function App() {
   const [currentMode, setCurrentMode] = useState<ModeId | null>(null)
   // Single overlay state (not independent booleans) so at most one modal is
@@ -214,6 +230,16 @@ function App() {
           <div className="min-w-[140px] flex-1">
             <ModeSwitcher currentMode={currentMode} onChange={handleEnterMode} />
           </div>
+          {/* Rule badge — same header row (not a new one), so it doesn't eat
+              into the mode-content area's carefully-tuned height budget (see
+              theme.ts's HUD_HEIGHT). Hidden below sm: on a narrow phone
+              viewport it would otherwise force the already-wrapping header
+              row even taller; the rules are still one tap away in Guides. */}
+          {currentMode !== null && (
+            <span className="hidden shrink-0 rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-400 sm:inline-block">
+              {ruleBadgeText(currentMode)}
+            </span>
+          )}
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"

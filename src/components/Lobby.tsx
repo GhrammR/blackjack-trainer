@@ -58,19 +58,27 @@ function SectionHeader({
   label,
   masteredCount,
   total,
+  subtitle,
 }: {
   label: string
   masteredCount: number
   total: number
+  /** Optional clarifying line under the label — used by Surveillance &
+      Detection to state up front that these are simulated training drills,
+      not a real, validated surveillance system. */
+  subtitle?: string
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <p className={SECTION_LABEL}>{label}</p>
-      {masteredCount === total ? (
-        <p className="text-xs font-medium text-emerald-500">✓ all mastered</p>
-      ) : (
-        <p className="text-xs text-slate-500">{masteredCount} / {total} mastered</p>
-      )}
+    <div className="flex flex-col gap-0.5">
+      <div className="flex items-center justify-between">
+        <p className={SECTION_LABEL}>{label}</p>
+        {masteredCount === total ? (
+          <p className="text-xs font-medium text-emerald-500">✓ all mastered</p>
+        ) : (
+          <p className="text-xs text-slate-500">{masteredCount} / {total} mastered</p>
+        )}
+      </div>
+      {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
     </div>
   )
 }
@@ -278,11 +286,16 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
 
       {/* ── Surveillance & Detection ─────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
-        <SectionHeader label="Surveillance & Detection" masteredCount={surveillanceMastered} total={4} />
+        <SectionHeader
+          label="Surveillance & Detection"
+          masteredCount={surveillanceMastered}
+          total={4}
+          subtitle="Simulated training drills — a rule-based classifier for practicing detection judgment, not a validated real-world surveillance system."
+        />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <ModeCard
             name="Counter Detection"
-            description="Observe a single player through a shoe and decide: were they counting? Bet spread and index-play deviations are your evidence."
+            description="Training drill: observe a simulated player through a shoe and decide — were they counting? Bet spread and index-play deviations are your evidence."
             note="3 difficulty tiers"
             stat={dtStat}
             tiers={ach.counterDetection}
@@ -290,7 +303,7 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
           />
           <ModeCard
             name="Table Scan"
-            description="One counter, several flat bettors — a full shoe of bets across all seats. Which column is the counter?"
+            description="Training drill: one simulated counter among several flat bettors, across a full shoe of bets at every seat. Which column is the counter?"
             note="3 difficulty tiers"
             stat={tsStat}
             tiers={ach.tableScan}
@@ -298,7 +311,7 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
           />
           <ModeCard
             name="Evidence Flagging"
-            description="Flag the individual rounds that are actual tells — a real bet-size spike or a real index deviation, not a cover play. Scored on precision and recall."
+            description="Training drill: flag the individual rounds in a simulated shoe that are genuine tells — a real bet-size spike or a real index deviation, not a cover play. Scored on precision and recall."
             note="3 difficulty tiers"
             stat={evStat}
             tiers={ach.evidenceFlagging}
@@ -306,7 +319,7 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
           />
           <ModeCard
             name="Evasion"
-            description="Switch sides: play as the counter. Size your bets and choose your deviations to maximize edge while keeping heat low."
+            description="Training drill: switch sides and play a simulated counter yourself. Size bets and choose deviations to maximize edge while keeping heat — how you'd read to this section's detection drills — low."
             stat={eaStat}
             tiers={ach.evasion}
             onClick={() => onEnter('evasion')}
