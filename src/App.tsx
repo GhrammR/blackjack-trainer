@@ -112,7 +112,7 @@ function App() {
           <RunningCountMode
             numDecks={settings.numDecks}
             seatCount={settings.seatCount}
-            cardsPerSecond={settings.cardsPerSecond}
+            dealSpeed={settings.dealSpeed}
             initialProgress={progress.runningCount}
             onProgressChange={(runningCount) =>
               handleProgressChange({ ...progress, runningCount })

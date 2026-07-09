@@ -1,5 +1,6 @@
 import type { Stats } from './adaptiveEngine'
 import type { PersonalBests } from './shoeCountdown'
+import { DEAL_SPEEDS, type DealSpeed } from './dealSpeed'
 
 const STORAGE_KEY = 'double-down:v1'
 
@@ -62,7 +63,8 @@ const COUNTING_STORAGE_KEY = 'double-down:counting:v1'
 export interface CountingSettings {
   numDecks: number
   seatCount: number
-  cardsPerSecond: number
+  /** Timed auto-deal pace for Running Count (the one mode that deals cards on a timer). */
+  dealSpeed: DealSpeed
 }
 
 /**
@@ -126,7 +128,7 @@ export interface CountingState {
 const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
   numDecks: 6,
   seatCount: 4,
-  cardsPerSecond: 2,
+  dealSpeed: 'medium',
 }
 
 const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
@@ -208,7 +210,9 @@ function parseSettings(raw: unknown): CountingSettings {
   return {
     numDecks: typeof r.numDecks === 'number' ? r.numDecks : DEFAULT_COUNTING_SETTINGS.numDecks,
     seatCount: typeof r.seatCount === 'number' ? r.seatCount : DEFAULT_COUNTING_SETTINGS.seatCount,
-    cardsPerSecond: typeof r.cardsPerSecond === 'number' ? r.cardsPerSecond : DEFAULT_COUNTING_SETTINGS.cardsPerSecond,
+    dealSpeed: DEAL_SPEEDS.includes(r.dealSpeed as DealSpeed)
+      ? (r.dealSpeed as DealSpeed)
+      : DEFAULT_COUNTING_SETTINGS.dealSpeed,
   }
 }
 

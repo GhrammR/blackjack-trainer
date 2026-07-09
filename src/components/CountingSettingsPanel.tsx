@@ -1,9 +1,9 @@
 import { SHOE_SIZE_OPTIONS } from '../lib/shoe'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
 import { formatPace, formatSeconds } from '../lib/format'
+import { DEAL_SPEEDS, DEAL_SPEED_LABELS, type DealSpeed } from '../lib/dealSpeed'
 
 const SEAT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6] as const
-const SPEED_OPTIONS = [1, 2, 3, 4] as const
 
 interface CountingSettingsPanelProps {
   settings: CountingSettings
@@ -59,15 +59,15 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress }: 
           </select>
         </label>
         <label className="flex items-center justify-between gap-2 text-slate-300">
-          Speed (Running Count)
+          Dealer pace (Running Count)
           <select
-            value={settings.cardsPerSecond}
-            onChange={(e) => onSettingsChange({ ...settings, cardsPerSecond: Number(e.target.value) })}
+            value={settings.dealSpeed}
+            onChange={(e) => onSettingsChange({ ...settings, dealSpeed: e.target.value as DealSpeed })}
             className="rounded bg-slate-800 px-2 py-1 text-white"
           >
-            {SPEED_OPTIONS.map((s) => (
+            {DEAL_SPEEDS.map((s) => (
               <option key={s} value={s}>
-                {s} cards/sec
+                {DEAL_SPEED_LABELS[s]}
               </option>
             ))}
           </select>

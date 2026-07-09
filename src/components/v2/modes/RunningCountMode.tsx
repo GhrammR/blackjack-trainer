@@ -3,6 +3,7 @@ import type { Card } from '../../../types'
 import { createShoe, shuffle } from '../../../lib/shoe'
 import { type DealtRound, cardSlotAt, cardsPerRound, dealRound } from '../../../lib/countingDrill'
 import { runningCount } from '../../../lib/counting'
+import { DEAL_SPEED_MS_PER_CARD, type DealSpeed } from '../../../lib/dealSpeed'
 import { isValidSignedInt, signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
@@ -43,7 +44,7 @@ export interface RunningCountShoeState {
 interface RunningCountModeProps {
   numDecks: number
   seatCount: number
-  cardsPerSecond: number
+  dealSpeed: DealSpeed
   initialProgress: RunningCountProgress
   onProgressChange: (p: RunningCountProgress) => void
   isPaused: boolean
@@ -54,13 +55,14 @@ interface RunningCountModeProps {
 export function RunningCountMode({
   numDecks,
   seatCount,
-  cardsPerSecond,
+  dealSpeed,
   initialProgress,
   onProgressChange,
   isPaused,
   shoeState,
   onShoeStateChange,
 }: RunningCountModeProps) {
+  const msPerCard = DEAL_SPEED_MS_PER_CARD[dealSpeed]
   const { shoe, position, sessionCount } = shoeState
   const [roundNextPosition, setRoundNextPosition] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
@@ -133,10 +135,10 @@ export function RunningCountMode({
       setPhase('input')
       return
     }
-    const timer = setTimeout(() => setRevealedCount((n) => n + 1), 1000 / cardsPerSecond)
+    const timer = setTimeout(() => setRevealedCount((n) => n + 1), msPerCard)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, round, revealedCount, cardsPerSecond, isPaused, roundNextPosition])
+  }, [phase, round, revealedCount, msPerCard, isPaused, roundNextPosition])
 
   function submitGuess() {
     if (!round) return
@@ -230,8 +232,8 @@ export function RunningCountMode({
       >
         {/* Session metadata — always visible */}
         <p className="text-center text-sm text-slate-500">
-          {numDecks} deck{numDecks !== 1 ? 's' : ''} · {seatCount} seat{seatCount !== 1 ? 's' : ''} · {cardsPerSecond} cards/s
-          · {cardsLeft} cards left
+          {numDecks} deck{numDecks !== 1 ? 's' : ''} · {seatCount} seat{seatCount !== 1 ? 's' : ''} ·{' '}
+          {dealSpeed} pace · {cardsLeft} cards left
         </p>
 
         {phase === 'idle' && (

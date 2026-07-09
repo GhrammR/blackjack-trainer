@@ -74,7 +74,7 @@ describe('clearState', () => {
 })
 
 const DEFAULT_COUNTING_STATE: CountingState = {
-  settings: { numDecks: 6, seatCount: 4, cardsPerSecond: 2 },
+  settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium' },
   progress: {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
     trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
@@ -104,7 +104,7 @@ describe('loadCountingState', () => {
   it('fills in missing fields from a partial object', () => {
     localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { numDecks: 2 } }))
     expect(loadCountingState()).toEqual({
-      settings: { numDecks: 2, seatCount: 4, cardsPerSecond: 2 },
+      settings: { numDecks: 2, seatCount: 4, dealSpeed: 'medium' },
       progress: DEFAULT_COUNTING_STATE.progress,
     })
   })
@@ -208,7 +208,7 @@ describe('loadCountingState', () => {
 describe('saveCountingState / loadCountingState round trip', () => {
   it('persists settings and progress, including shoe countdown personal bests and detection sessions', () => {
     const state: CountingState = {
-      settings: { numDecks: 1, seatCount: 2, cardsPerSecond: 4 },
+      settings: { numDecks: 1, seatCount: 2, dealSpeed: 'fast' },
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
@@ -232,7 +232,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
 describe('resetCountingProgress', () => {
   it('resets progress to defaults while leaving settings untouched', () => {
     const state: CountingState = {
-      settings: { numDecks: 8, seatCount: 6, cardsPerSecond: 3 },
+      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow' },
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
@@ -249,7 +249,7 @@ describe('resetCountingProgress', () => {
       },
     }
     expect(resetCountingProgress(state)).toEqual({
-      settings: { numDecks: 8, seatCount: 6, cardsPerSecond: 3 },
+      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow' },
       progress: DEFAULT_COUNTING_STATE.progress,
     })
   })
@@ -257,7 +257,7 @@ describe('resetCountingProgress', () => {
 
 describe('resetCountingMode', () => {
   const state: CountingState = {
-    settings: { numDecks: 2, seatCount: 3, cardsPerSecond: 2 },
+    settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium' },
     progress: {
       runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
       trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
