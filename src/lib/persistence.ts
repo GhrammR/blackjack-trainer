@@ -65,6 +65,13 @@ export interface CountingSettings {
   seatCount: number
   /** Timed auto-deal pace for Running Count (the one mode that deals cards on a timer). */
   dealSpeed: DealSpeed
+  /**
+   * Late surrender, applied to both Basic Strategy (grading) and Live Play
+   * (the play option) via strategy.ts's effectiveHardTotals/effectivePairs
+   * overlay — see strategy.ts and livePlaySession.ts. Default off, matching
+   * the base chart already proven correct by the chart-reference test.
+   */
+  lateSurrender: boolean
 }
 
 /**
@@ -129,6 +136,7 @@ const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
   numDecks: 6,
   seatCount: 4,
   dealSpeed: 'medium',
+  lateSurrender: false,
 }
 
 const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
@@ -213,6 +221,7 @@ function parseSettings(raw: unknown): CountingSettings {
     dealSpeed: DEAL_SPEEDS.includes(r.dealSpeed as DealSpeed)
       ? (r.dealSpeed as DealSpeed)
       : DEFAULT_COUNTING_SETTINGS.dealSpeed,
+    lateSurrender: typeof r.lateSurrender === 'boolean' ? r.lateSurrender : DEFAULT_COUNTING_SETTINGS.lateSurrender,
   }
 }
 

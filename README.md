@@ -18,10 +18,10 @@ Ten modes across four sections of a structured curriculum:
 ### Basic Strategy
 
 **Strategy Trainer** — Grade every decision against a verified basic-strategy
-chart (6-deck, H17, DAS, no surrender). Adaptive weighting steers practice
-toward your weak situations; a 150-hand perfect streak is the headline goal.
-A weakness heatmap shows at a glance which hard/soft/pair situations need
-more work.
+chart (6-deck, H17, DAS, late surrender toggleable — off by default).
+Adaptive weighting steers practice toward your weak situations; a 150-hand
+perfect streak is the headline goal. A weakness heatmap shows at a glance
+which hard/soft/pair situations need more work.
 
 ![Strategy Trainer on the felt table — dealer upcard, player cards, streak counter, and weakness heatmap](docs/screenshot-strategy.png)
 
@@ -70,7 +70,8 @@ production casino detection model.
 count, converting to true count, and sizing bets for EV. All four skills
 tested together in one unbroken session — basic strategy decisions, running
 count, true-count conversion, and EV bet sizing — the way a real observer
-actually works a table. Late surrender is available as a legal option.
+actually works a table. Late surrender is available as a legal option when
+the Late Surrender setting is on (see Rule set below).
 
 ## Achievement system
 
@@ -93,16 +94,19 @@ ten modes.
 ## Rule set
 
 6 decks · dealer hits on soft 17 (H17) · double after split allowed ·
-blackjack pays 3:2. Each mode shows a small rule badge (e.g. `6D · H17 ·
-DAS · 3:2 · Surrender: off`) confirming this for that mode.
+blackjack pays 3:2 · Late Surrender (toggleable in Settings, **off by
+default**). Each mode shows a small rule badge (e.g. `6D · H17 · DAS · 3:2 ·
+Surrender: off`) confirming the current setting.
 
-Surrender availability is **mode-specific**, not a single flat rule: the
-basic-strategy chart (`strategy.ts`) that every strategy-grading mode is
-graded against is a no-surrender chart, so Surrender is never the correct
-answer and isn't offered as an action in those drills. Live Play's own
-hand-play engine (`livePlaySession.ts`) is the one exception — it legally
-offers late surrender as a playable action, independent of the chart used
-to grade basic-strategy decisions elsewhere.
+Late Surrender is a single global setting applied identically to **both**
+Basic Strategy (grading) and Live Play (the play option) — not a per-mode
+rule. When off, the chart is exactly the base no-surrender chart (the one
+verified cell-by-cell by the chart-reference test). When on, 7 specific
+cells (hard 15/16/17 vs. certain dealer upcards, and pair 8,8 vs. Ace)
+become Surrender instead — also verified cell-by-cell, cited to the same
+published source, in the same test file. See `src/lib/strategy.ts`'s
+`effectiveHardTotals`/`effectivePairs` for the overlay and
+`src/lib/strategy.chartReference.test.ts` for both states' sourcing.
 
 See `src/lib/strategy.ts` for the chart encoding and `CLAUDE.md §11` for
 a few judgment calls made while encoding it (e.g. hard 11 vs. dealer Ace).

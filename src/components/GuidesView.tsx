@@ -1,5 +1,5 @@
 import type { Action } from '../types'
-import { hardTotals, softTotals, pairs } from '../lib/strategy'
+import { softTotals, effectiveHardTotals, effectivePairs } from '../lib/strategy'
 import { INDEX_PLAYS } from '../lib/indexPlays'
 import { hiLoValue, MIN_DECKS_REMAINING } from '../lib/counting'
 import { EV_BET_RAMP } from '../lib/livePlaySession'
@@ -7,14 +7,16 @@ import { PAGE_WRAPPER, SECTION_LABEL } from './theme'
 
 /**
  * Reference guides — Basic Strategy chart, Illustrious 18, and how-to-count
- * content. Deliberately zero props: every table below reads its values
- * directly from the same engine data the drills grade against
- * (`strategy.ts`'s hardTotals/softTotals/pairs, `indexPlays.ts`'s
+ * content. Every table below reads its values directly from the same engine
+ * data the drills grade against (`strategy.ts`'s
+ * effectiveHardTotals/softTotals/effectivePairs, `indexPlays.ts`'s
  * INDEX_PLAYS, `counting.ts`'s hiLoValue, `livePlaySession.ts`'s
  * EV_BET_RAMP) — nothing here is a hand-retyped copy that could drift from
- * the grader. Self-contained so this view can be remounted elsewhere
- * (e.g. under the future persistent-table-shell restructure) with no
- * rewrite, matching `TrainingSessionRecord`'s pattern.
+ * the grader. The one prop, `lateSurrender`, is the current value of the
+ * global late-surrender setting, threaded through so the rendered Basic
+ * Strategy chart reflects the same toggle Basic Strategy/Live Play grade
+ * against — everything else stays self-contained, matching
+ * `TrainingSessionRecord`'s pattern.
  */
 
 const DEALER_COLUMNS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'A'] as const
@@ -119,22 +121,33 @@ function StrategyTable({
   )
 }
 
-function BasicStrategySection() {
+function BasicStrategySection({ lateSurrender }: { lateSurrender: boolean }) {
   return (
     <section className="flex flex-col gap-4">
       <div>
         <h2 className="text-lg font-semibold text-white">Basic Strategy</h2>
         <p className="text-sm text-slate-400">
           The exact chart this app grades against (6 decks, dealer hits on soft 17, double after
-          split allowed, no surrender) — read directly from <code>strategy.ts</code>, not a separate
-          copy. Rows are your hand, columns are the dealer's upcard — find your row, find the
-          column, read the intersection.
+          split allowed, blackjack pays 3:2) — read directly from <code>strategy.ts</code>, not a
+          separate copy. Late Surrender is currently{' '}
+          <strong className="text-slate-200">{lateSurrender ? 'ON' : 'OFF'}</strong> (change in
+          Settings) — the 7 cells that become Surrender when it's on are shown below when enabled.
+          Rows are your hand, columns are the dealer's upcard — find your row, find the column, read
+          the intersection.
         </p>
       </div>
       <ActionLegend />
-      <StrategyTable title="Hard Totals" rowLabel={(k) => k} rows={hardTotals as unknown as Record<string, Record<string, Action>>} />
+      <StrategyTable
+        title="Hard Totals"
+        rowLabel={(k) => k}
+        rows={effectiveHardTotals(lateSurrender) as unknown as Record<string, Record<string, Action>>}
+      />
       <StrategyTable title="Soft Totals (with an Ace)" rowLabel={(k) => `A,${Number(k) - 11}`} rows={softTotals as unknown as Record<string, Record<string, Action>>} />
-      <StrategyTable title="Pairs" rowLabel={(k) => `${k},${k}`} rows={pairs as unknown as Record<string, Record<string, Action>>} />
+      <StrategyTable
+        title="Pairs"
+        rowLabel={(k) => `${k},${k}`}
+        rows={effectivePairs(lateSurrender) as unknown as Record<string, Record<string, Action>>}
+      />
     </section>
   )
 }
@@ -296,11 +309,11 @@ function CountingAdvancedSection() {
   )
 }
 
-export function GuidesView() {
+export function GuidesView({ lateSurrender }: { lateSurrender: boolean }) {
   return (
     <div className={`${PAGE_WRAPPER} pb-12`}>
       <p className={SECTION_LABEL}>Guides &amp; Reference</p>
-      <BasicStrategySection />
+      <BasicStrategySection lateSurrender={lateSurrender} />
       <IllustriousEighteenSection />
       <CountingBasicsSection />
       <CountingAdvancedSection />

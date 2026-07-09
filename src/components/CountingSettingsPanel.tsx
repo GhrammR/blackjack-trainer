@@ -72,6 +72,17 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress }: 
             ))}
           </select>
         </label>
+        <label className="flex items-center justify-between gap-2 text-slate-300">
+          Late Surrender (Basic Strategy, Live Play)
+          <select
+            value={settings.lateSurrender ? 'on' : 'off'}
+            onChange={(e) => onSettingsChange({ ...settings, lateSurrender: e.target.value === 'on' })}
+            className="rounded bg-slate-800 px-2 py-1 text-white"
+          >
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </label>
         <div className="flex items-center justify-between gap-2 text-slate-300">
           Counting system
           <span className="text-slate-500">Hi-Lo</span>

@@ -34,6 +34,13 @@ import { CasinoTable } from '../table/CasinoTable'
  * also why Split now only appears for a real pair (Ace+King no longer
  * offers it): `legalActions` already gates it on `isPair`, matching-rank
  * only — this mode simply never wired that gating in before.
+ *
+ * `lateSurrender` (the global setting) is threaded into both `legalActions`
+ * and `decide` — before this prop existed, `legalActions` offered Surrender
+ * unconditionally, which meant this mode showed a Surrender button that the
+ * chart could never actually grade correct. Default off fixes that; on
+ * makes the 7 sourced surrender cells (see strategy.ts) both offered and
+ * graded correctly.
  */
 
 type Phase = 'deciding' | 'roundComplete'
@@ -84,7 +91,11 @@ function HandGroup({ hand, isActive }: { hand: PlayHand; isActive: boolean }) {
   )
 }
 
-export function BasicStrategyMode() {
+interface BasicStrategyModeProps {
+  lateSurrender: boolean
+}
+
+export function BasicStrategyMode({ lateSurrender }: BasicStrategyModeProps) {
   const [persisted] = useState(() => loadState())
   const [stats, setStats] = useState<Stats>(persisted.stats)
   const [handsPlayed, setHandsPlayed] = useState(persisted.handsPlayed)
@@ -109,7 +120,7 @@ export function BasicStrategyMode() {
     // own gradable, trackable situation, feeding the weakness heatmap at
     // every real decision point encountered, not just the first.
     const situationKey = getSituationKey(hand.cards, round.dealerUpcard)
-    const result = decide(session, round, action)
+    const result = decide(session, round, action, lateSurrender)
 
     const record: DecisionRecord = {
       situationKey,
@@ -193,7 +204,7 @@ export function BasicStrategyMode() {
                   : `Incorrect — correct play was ${lastDecision.correctAction}`}
               </p>
             )}
-            <ActionButtons onSelect={handleChoose} actions={legalActions(round)} />
+            <ActionButtons onSelect={handleChoose} actions={legalActions(round, lateSurrender)} />
           </div>
         )}
 

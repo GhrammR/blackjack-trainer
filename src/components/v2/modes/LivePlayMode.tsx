@@ -149,13 +149,14 @@ interface LivePlayProgress {
 
 interface LivePlayModeProps {
   numDecks: number
+  lateSurrender: boolean
   initialProgress: LivePlayProgress
   onProgressChange: (progress: LivePlayProgress) => void
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function LivePlayMode({ numDecks, initialProgress, onProgressChange }: LivePlayModeProps) {
+export function LivePlayMode({ numDecks, lateSurrender, initialProgress, onProgressChange }: LivePlayModeProps) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [session, setSession] = useState<LivePlaySessionState | null>(null)
   const [round, setRound] = useState<LiveRound | null>(null)
@@ -224,7 +225,7 @@ export function LivePlayMode({ numDecks, initialProgress, onProgressChange }: Li
 
   function choose(action: Action) {
     if (!session || !round) return
-    const result = decide(session, round, action)
+    const result = decide(session, round, action, lateSurrender)
     setSession(result.state)
     setRound(result.round)
     setLastDecision({
@@ -491,7 +492,7 @@ export function LivePlayMode({ numDecks, initialProgress, onProgressChange }: Li
               </p>
             )}
             {!isRoundOver(round) && (
-              <ActionButtons onSelect={choose} actions={legalActions(round)} />
+              <ActionButtons onSelect={choose} actions={legalActions(round, lateSurrender)} />
             )}
           </div>
         )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hardTotals, pairs, softTotals } from './strategy'
+import { effectiveHardTotals, effectivePairs, hardTotals, pairs, softTotals } from './strategy'
 import type { Action, DealerUpcardKey, PairRankKey } from '../types'
 
 /**
@@ -31,15 +31,18 @@ import type { Action, DealerUpcardKey, PairRankKey } from '../types'
  * 6-deck H17 chart are the same chart.
  *
  * RULE-SET DIFFERENCES FROM THE SOURCE, AND HOW THEY'RE HANDLED:
- *   - Surrender: this app offers no surrender anywhere (CLAUDE.md §3), so
- *     the source's entire Surrender section is omitted here. The cells it
- *     would otherwise touch (hard 15 vs 10, hard 16 vs 9/10/A) instead use
- *     the source's own BASE Hit-or-Stand rule for those totals ("Stand on
- *     hard 13-16 against a dealer 2-6, otherwise hit") — confirmed from
- *     the source's own text that H17 does not change this hit/stand
- *     boundary independent of surrender; surrender is presented as an
- *     ADDITIONAL option layered on top of the base chart, not a change to
- *     it. Nothing here is guessed.
+ *   - Surrender: HARD_REFERENCE/PAIR_REFERENCE below (the "chart vs. sourced
+ *     reference" describe block) are the surrender-OFF reference — the
+ *     cells surrender would otherwise touch (hard 15 vs 10, hard 16 vs
+ *     9/10/A) instead use the source's own BASE Hit-or-Stand rule for those
+ *     totals ("Stand on hard 13-16 against a dealer 2-6, otherwise hit") —
+ *     confirmed from the source's own text that H17 does not change this
+ *     hit/stand boundary independent of surrender; surrender is presented
+ *     as an ADDITIONAL option layered on top of the base chart, not a
+ *     change to it. A separate describe block below
+ *     ("effectiveHardTotals/effectivePairs — late surrender ON") covers the
+ *     surrender-ON state, sourced from the same page's Surrender section —
+ *     see that block's own comment for citations. Nothing here is guessed.
  *   - Double after split (DAS): this app always has DAS on, so the
  *     source's conditional splits ("split 2s against a 2 or 3 IF DAS is
  *     allowed") collapse to unconditional Splits across that cell's full
@@ -178,5 +181,81 @@ describe('app-specific fallback cells (not real basic-strategy chart entries —
     for (const dealer of DEALER_KEYS) {
       expect(softTotals[12][dealer]).toBe('Hit')
     }
+  })
+})
+
+// ── Late surrender (ON state) ───────────────────────────────────────────────
+//
+// SOURCE: the same Wizard of Odds page, Surrender section, fetched live via
+// WebFetch (quoted verbatim, confirmed identical across two separately-
+// worded fetches):
+//   Base rule: "Surrender hard 16 (but not a pair of 8s) vs. dealer 9, 10,
+//   or A, and hard 15 vs. dealer 10."
+//   H17 addition: "Surrender 15, a pair of 8s, and 17 vs. dealer A."
+// Independently corroborated by two separate web searches: a
+// blackjackinfo.com forum thread specifically computing 17-vs-Ace surrender
+// EV under H17, and a second source giving the identical three-cell H17
+// addition list verbatim ("Hard 15 against an Ace; hard 17 against an Ace
+// and 8-8 against an Ace"). All three sources agree exactly — nothing here
+// is guessed, and nothing was flagged as uncertain.
+//
+// Built by cloning HARD_REFERENCE/PAIR_REFERENCE (the already-proven
+// surrender-OFF reference above) and applying ONLY these 7 cells, so this
+// block proves both (a) the 7 sourced cells become Surrender, AND (b) every
+// other cell is untouched by the overlay — not just spot-checking the 7.
+const SURRENDER_HARD_REFERENCE: Record<number, Record<DealerUpcardKey, Action>> = Object.fromEntries(
+  Object.entries(HARD_REFERENCE).map(([total, r]) => [Number(total), { ...r }]),
+)
+SURRENDER_HARD_REFERENCE[15]['10'] = 'Surrender'
+SURRENDER_HARD_REFERENCE[15].A = 'Surrender' // H17 addition
+SURRENDER_HARD_REFERENCE[16]['9'] = 'Surrender'
+SURRENDER_HARD_REFERENCE[16]['10'] = 'Surrender'
+SURRENDER_HARD_REFERENCE[16].A = 'Surrender'
+SURRENDER_HARD_REFERENCE[17].A = 'Surrender' // H17 addition
+
+const SURRENDER_PAIR_REFERENCE: Record<PairRankKey, Record<DealerUpcardKey, Action>> = Object.fromEntries(
+  Object.entries(PAIR_REFERENCE).map(([rank, r]) => [rank, { ...r }]),
+) as Record<PairRankKey, Record<DealerUpcardKey, Action>>
+SURRENDER_PAIR_REFERENCE['8'].A = 'Surrender' // H17 addition — the one pair override
+
+describe('effectiveHardTotals/effectivePairs — late surrender ON', () => {
+  it.each(Object.keys(SURRENDER_HARD_REFERENCE).map(Number))(
+    'hard %i matches the sourced surrender-ON reference for every dealer upcard',
+    (total) => {
+      const effective = effectiveHardTotals(true)
+      for (const dealer of DEALER_KEYS) {
+        expect(effective[total][dealer], `hard ${total} vs ${dealer} (surrender ON)`).toBe(SURRENDER_HARD_REFERENCE[total][dealer])
+      }
+    },
+  )
+
+  it.each(Object.keys(SURRENDER_PAIR_REFERENCE) as PairRankKey[])(
+    'pair %s,%s matches the sourced surrender-ON reference for every dealer upcard',
+    (rank) => {
+      const effective = effectivePairs(true)
+      for (const dealer of DEALER_KEYS) {
+        expect(effective[rank][dealer], `pair ${rank},${rank} vs ${dealer} (surrender ON)`).toBe(SURRENDER_PAIR_REFERENCE[rank][dealer])
+      }
+    },
+  )
+
+  it('soft totals have no surrender cells under this rule set — softTotals is untouched by the toggle', () => {
+    // softTotals has no effective-table variant at all (getAction/getHardSoftAction
+    // never apply the overlay to it) — this just re-confirms the sourced reference
+    // agrees no soft cell is ever Surrender.
+    for (const row of Object.values(SOFT_REFERENCE)) {
+      for (const dealer of DEALER_KEYS) {
+        expect(row[dealer]).not.toBe('Surrender')
+      }
+    }
+  })
+})
+
+describe('effectiveHardTotals/effectivePairs — late surrender OFF is byte-identical to the base tables', () => {
+  it('returns the exact same hardTotals/pairs objects (not a copy) when surrenderEnabled is false', () => {
+    // Reference equality, not deep equality — proves the OFF path never rebuilds
+    // or risks the already-proven-correct base tables, exactly per the plan.
+    expect(effectiveHardTotals(false)).toBe(hardTotals)
+    expect(effectivePairs(false)).toBe(pairs)
   })
 })

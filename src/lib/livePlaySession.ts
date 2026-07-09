@@ -190,8 +190,16 @@ function canSurrender(round: LiveRound): boolean {
   return hand.isFirstDecision && round.hands.length === 1
 }
 
-/** The actions legally available for the round's current active hand. Empty once the round is over (or, transiently, for a split-Aces hand, which is never actually offered a decision). */
-export function legalActions(round: LiveRound): Action[] {
+/**
+ * The actions legally available for the round's current active hand. Empty
+ * once the round is over (or, transiently, for a split-Aces hand, which is
+ * never actually offered a decision). `surrenderEnabled` defaults to false
+ * — Surrender is never offered unless the caller explicitly opts in with
+ * the current late-surrender setting (Basic Strategy Mode and Live Play
+ * both do; this default is what makes a plain `legalActions(round)` call
+ * behave exactly as it did before this parameter existed).
+ */
+export function legalActions(round: LiveRound, surrenderEnabled = false): Action[] {
   if (isRoundOver(round)) return []
   const hand = round.hands[round.activeHandIndex]
   if (hand.isSplitAces) return []
@@ -200,7 +208,7 @@ export function legalActions(round: LiveRound): Action[] {
   if (hand.isFirstDecision) {
     actions.push('Double')
     if (canSplit(round)) actions.push('Split')
-    if (canSurrender(round)) actions.push('Surrender')
+    if (surrenderEnabled && canSurrender(round)) actions.push('Surrender')
   }
   return actions
 }
@@ -222,12 +230,30 @@ function noDoubleAlternative(cards: Card[]): Action {
   return handValue(cards).total >= 18 ? 'Stand' : 'Hit'
 }
 
-/** What basic strategy (adjusted for Split/Double legality right now) says is correct for the round's current active hand. */
-export function correctActionFor(round: LiveRound): Action {
+/**
+ * What basic strategy (adjusted for Split/Double/Surrender legality right
+ * now) says is correct for the round's current active hand.
+ *
+ * `eligibleForSurrender` folds the setting AND `canSurrender`'s own
+ * decision-point legality gate together before it ever reaches `getAction`
+ * — so "chart says Surrender" can never surface as the correct answer at a
+ * point where Surrender isn't actually a legal button (e.g. after a hit, or
+ * on any hand past the first decision of a split).
+ */
+export function correctActionFor(round: LiveRound, surrenderEnabled = false): Action {
   const hand = round.hands[round.activeHandIndex]
-  const action = getAction(hand.cards, round.dealerUpcard)
+  const eligibleForSurrender = surrenderEnabled && canSurrender(round)
+  const action = getAction(hand.cards, round.dealerUpcard, eligibleForSurrender)
 
-  if (action === 'Split' && !canSplit(round)) return getHardSoftAction(hand.cards, round.dealerUpcard)
+  if (action === 'Split' && !canSplit(round)) {
+    // Never surrender-eligible here: reaching this fallback with the hand
+    // cap already hit requires round.hands.length >= MAX_HANDS, which is
+    // mutually exclusive with canSurrender's round.hands.length === 1
+    // requirement — so eligibleForSurrender is always already false by the
+    // time this branch is reachable. Passed explicitly rather than reused,
+    // so that invariant doesn't have to be trusted implicitly here.
+    return getHardSoftAction(hand.cards, round.dealerUpcard, false)
+  }
   if (action === 'Double' && !hand.isFirstDecision) return noDoubleAlternative(hand.cards)
   return action
 }
@@ -301,8 +327,8 @@ export interface DecisionResult {
 }
 
 /** Grades `chosenAction` against what basic strategy indicates right now, then applies it. */
-export function decide(state: LivePlaySessionState, round: LiveRound, chosenAction: Action): DecisionResult {
-  const correctAction = correctActionFor(round)
+export function decide(state: LivePlaySessionState, round: LiveRound, chosenAction: Action, surrenderEnabled = false): DecisionResult {
+  const correctAction = correctActionFor(round, surrenderEnabled)
   const { state: nextState, round: nextRound } = applyAction(state, round, chosenAction)
   return { chosenAction, correctAction, isCorrect: chosenAction === correctAction, state: nextState, round: nextRound }
 }

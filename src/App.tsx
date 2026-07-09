@@ -38,16 +38,14 @@ type ActiveOverlay = 'settings' | 'guides' | 'overview' | null
  * Rule badge shown in the header for whichever mode is active — makes the
  * fixed chart rule set (always 6D/H17/DAS/3:2, independent of the
  * adjustable shoe-size SETTING the counting drills use for their own
- * simulated shoe) explicit per mode, and specifically clears up surrender:
- * every strategy-grading mode's chart is no-surrender (CLAUDE.md §3), but
- * Live Play's own hand-play engine (livePlaySession.ts's canSurrender)
- * legally offers Surrender as a playable action — the README used to state
- * a flat "surrender is always wrong," which contradicted Live Play. This
- * badge (and the corresponding README wording) makes that mode-specific
- * split explicit instead of leaving it as an unstated contradiction.
+ * simulated shoe) explicit per mode. Surrender now reflects the real,
+ * user-toggleable `lateSurrender` setting (CountingSettings) — applied to
+ * both Basic Strategy and Live Play via the shared livePlaySession.ts
+ * engine (see strategy.ts's effectiveHardTotals/effectivePairs overlay) —
+ * rather than being hardcoded per mode.
  */
-function ruleBadgeText(mode: ModeId): string {
-  return `6D · H17 · DAS · 3:2 · Surrender: ${mode === 'livePlay' ? 'on' : 'off'}`
+function ruleBadgeText(lateSurrender: boolean): string {
+  return `6D · H17 · DAS · 3:2 · Surrender: ${lateSurrender ? 'on' : 'off'}`
 }
 
 function App() {
@@ -122,7 +120,7 @@ function App() {
   function renderMode() {
     switch (currentMode) {
       case 'strategy':
-        return <BasicStrategyMode key={strategyResetKey} />
+        return <BasicStrategyMode key={strategyResetKey} lateSurrender={settings.lateSurrender} />
       case 'runningCount':
         return (
           <RunningCountMode
@@ -199,6 +197,7 @@ function App() {
         return (
           <LivePlayMode
             numDecks={settings.numDecks}
+            lateSurrender={settings.lateSurrender}
             initialProgress={progress.livePlay}
             onProgressChange={(livePlay) => handleProgressChange({ ...progress, livePlay })}
           />
@@ -237,7 +236,7 @@ function App() {
               row even taller; the rules are still one tap away in Guides. */}
           {currentMode !== null && (
             <span className="hidden shrink-0 rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-400 sm:inline-block">
-              {ruleBadgeText(currentMode)}
+              {ruleBadgeText(counting.settings.lateSurrender)}
             </span>
           )}
           <div className="flex shrink-0 items-center gap-1.5">
@@ -320,7 +319,7 @@ function App() {
 
       {activeOverlay === 'guides' && (
         <Modal title="Guides" onClose={() => setActiveOverlay(null)}>
-          <GuidesView />
+          <GuidesView lateSurrender={settings.lateSurrender} />
         </Modal>
       )}
 
