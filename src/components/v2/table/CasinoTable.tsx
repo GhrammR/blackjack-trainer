@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { DifficultyLevel } from '../../../lib/trueCountDrill'
+import { DealerChipTray, TRAY_W } from './DealerChipTray'
 import { DealingShoe } from './DealingShoe'
 import { DiscardRack } from './DiscardRack'
 import { TableSeat } from './TableSeat'
@@ -58,8 +59,27 @@ const FELT_COLORS: Record<FeltColor, { center: string; mid: string; edge: string
 // the dShapePath()/arcPositions() comments below and DECISIONS.md.
 // Rail: 24 px dark bumper cushion.
 
-const RAIL_PX = 24                    // rail thickness
+const RAIL_PX = 24                    // rail (padded leather bumper) thickness
+const WOOD_EDGE_PX = 11               // visible thickness of the wood dealer-edge strip — deliberately much
+                                       // thinner than RAIL_PX (~2x difference), not a scaled-down bumper.
 const CORNER_RADIUS_FRAC = 0.07       // top-corner fillet, as a fraction of the box (scales with table size)
+// The leather bumper doesn't end exactly at the top corner — per the
+// reference photos, it rounds the corner and continues a short distance
+// along the flat top before stopping, with the wood dealer edge filling
+// the middle. Dealer area (wood + chip tray/shoe) ≈ 7/8 of the top edge's
+// straight run; the two leather extensions together ≈ the remaining 1/8
+// (so each extension ≈ 1/16 of that span). WOOD_START_FRAC is where the
+// wood strip (and the leather extension's end point / seam line) sits.
+const TOP_STRAIGHT_SPAN = 1 - 2 * CORNER_RADIUS_FRAC
+const LEATHER_EXTENSION_FRAC = TOP_STRAIGHT_SPAN / 16
+const WOOD_START_FRAC = CORNER_RADIUS_FRAC + LEATHER_EXTENSION_FRAC
+// Tray-to-edge span: the exact horizontal distance from the chip tray's
+// real edge (not its center — traySpanPosition() below subtracts the
+// tray's own half-width) out to each side's table corner target
+// (CORNER_RADIUS_FRAC on the left, CORNER_FRAC on the right). "1/3 of the
+// way" or "1/2 of the way" are fractions of THIS span, computed exactly by
+// traySpanPosition() — not eyeballed guesses at a raw felt-percentage.
+const CORNER_FRAC = 1 - CORNER_RADIUS_FRAC
 const STRAIGHT_SIDE_FRACTION = 0.10   // sides run straight for this fraction of height before curving — subtle,
                                        // just a hint before the curve begins (a real table's straight run is nearly
                                        // imperceptible, not a pronounced segment) —
@@ -76,12 +96,22 @@ const TABLE_ASPECT_RATIO = 1.75       // width ÷ height of the table box. A sho
                                        // the box is "spent" on straight sides, so a slightly shallower box (vs. the
                                        // previous 1.65) still reads as a well-proportioned curve.
 
-// Dark padded bumper rail — near-black leather cushion with top-surface highlight
-// and deep shadow at the outer/bottom edge to suggest a convex cross-section.
-const RAIL_BG = [
-  'radial-gradient(ellipse at 50% -20%, rgba(110,110,110,0.45) 0%, transparent 42%)',
-  'radial-gradient(ellipse at 50% 140%, rgba(0,0,0,0.82) 0%, transparent 46%)',
-  'linear-gradient(180deg, #262626 0%, #141414 35%, #080808 100%)',
+// Padded leather bumper — ONE FLAT, UNIFORM COLOR across the entire
+// surface. Every earlier attempt at this (a broad dark-to-gray fade, then
+// a "highlight band + shadow band" structure) still produced a visible
+// light side and dark side, which reads as a cast shadow rather than a
+// leather material — so this is deliberately a single solid color with NO
+// gradient, highlight, or shadow layered onto the cushion body at all.
+const RAIL_BG = '#1c1512'
+
+// Wood dealer edge — a genuinely different MATERIAL from the leather
+// bumper (warm brown wood tones + a subtle grain texture), not a thinner
+// slice of the same dark cushion gradient. Flush/flat shading (a soft top
+// highlight, no raised-object drop-shadow) so it reads as an inset cabinet
+// edge rather than a rod sitting on top of the felt.
+const WOOD_EDGE_BG = [
+  'repeating-linear-gradient(90deg, rgba(0,0,0,0.12) 0px, transparent 1.5px, transparent 5px, rgba(0,0,0,0.08) 6px, transparent 9px)',
+  'linear-gradient(180deg, #9a7248 0%, #7a5535 55%, #5c3f22 100%)',
 ].join(', ')
 
 /**
@@ -115,7 +145,17 @@ function dShapePath(r: number, d: number): string {
  *   x(t) = 50 + 50·SEAT_SCALE_X·cos(t)
  *   y(t) = STRAIGHT_SIDE_FRACTION·100 + (100 − STRAIGHT_SIDE_FRACTION·100)·SEAT_INSET_Y·sin(t)
  *
- * i=0 → leftmost (t=ARC_MAX·π), i=N-1 → rightmost (t=ARC_MIN·π).
+ * i=0 → RIGHTMOST (t=ARC_MIN·π), i=N-1 → LEFTMOST (t=ARC_MAX·π) — matching
+ * real-table seat numbering: Seat 1 is the dealer's left (first base),
+ * which in this top-down player-facing view is the RIGHT side of the felt;
+ * seats count up leftward from there (highest number = third base, dealer's
+ * right). Every mode's seatLabels/seatContents are already indexed in
+ * seat-number order (index 0 = "Seat 1"), so this index→position mapping
+ * is the only place the numbering convention lives — no mode file needed
+ * to change. (Previously i=0 was leftmost, i.e. Seat 1 rendered on the
+ * dealer's right — backwards from the real convention; confirmed via grep
+ * that no grading/dealing logic anywhere depends on screen position, only
+ * array index, so this flip is purely visual.)
  * N=1 snaps to t=π/2 (dead center, deepest point of the curve).
  * zIndex increases with topPct so nearer seats render in front of corner seats.
  */
@@ -128,11 +168,55 @@ function arcPositions(n: number): { leftPct: number; topPct: number; zIndex: num
     return [{ leftPct: 50, topPct, zIndex: Math.round(topPct) }]
   }
   return Array.from({ length: n }, (_, i) => {
-    const t = Math.PI * (ARC_MAX - (ARC_MAX - ARC_MIN) * (i / (n - 1)))
+    const t = Math.PI * (ARC_MIN + (ARC_MAX - ARC_MIN) * (i / (n - 1)))
     const leftPct = 50 + 50 * SEAT_SCALE_X * Math.cos(t)
     const topPct = baseTopPct + curveDepthPct * SEAT_INSET_Y * Math.sin(t)
     return { leftPct, topPct, zIndex: Math.round(topPct) }
   })
+}
+
+/**
+ * Exact position (as a CSS `calc()` string, for use as `left` with a
+ * `translateX(-50%)` centering transform) of a point that sits `fraction`
+ * of the way along the real tray-to-edge span — from the chip tray's own
+ * edge (center 50% minus its half-width, in real rendered pixels) out to
+ * `cornerPct` (the felt-percentage corner target on that side).
+ *
+ * Splits into a pure-percentage term (the corner target is only known as a
+ * felt fraction, since felt width is responsive) and a pure-pixel term
+ * (the tray's half-width is a known real pixel constant, TRAY_W, already
+ * scaled by the caller) — `calc()` combines the two exactly, instead of
+ * approximating the tray's width as a felt-percentage guess.
+ *
+ * direction: +1 for the right side (shoe), -1 for the left side (discard
+ * rack) — which way from the tray's center the span runs.
+ */
+function traySpanPosition(fraction: number, direction: 1 | -1, cornerPct: number, trayHalfWidthPx: number): string {
+  const percent = 50 + direction * fraction * Math.abs(cornerPct - 50)
+  const px = direction * trayHalfWidthPx * (1 - fraction)
+  return `calc(${percent}% + ${px}px)`
+}
+
+/**
+ * The shoe's rotation, aimed via a real line from the shoe's own position
+ * to the ACTUAL Seat 3 coordinate from arcPositions() (index 2 — seats are
+ * already indexed in real seat-number order, see arcPositions() above) —
+ * not a hardcoded trig guess. x% and y% are converted to comparable real
+ * distances via TABLE_ASPECT_RATIO before atan2 (a 1% horizontal move and
+ * a 1% vertical move cover different absolute distances on a non-square
+ * table). Falls back to the old hand-picked -6° when there's no real Seat
+ * 3 to aim at (seatCount < 3). Clamped to a modest ±20° — this is a lean
+ * toward Seat 3, not a full point-and-aim, matching the shoe's
+ * bottom-center pivot (only the top swings).
+ */
+function computeShoeTiltDeg(seatPositions: { leftPct: number; topPct: number }[], shoeLeftPct: number): number {
+  if (seatPositions.length < 3) return -6
+  const seat3 = seatPositions[2]
+  const dxPct = seat3.leftPct - shoeLeftPct
+  const dyPct = Math.max(seat3.topPct, 1)
+  const dxReal = dxPct * TABLE_ASPECT_RATIO
+  const angleDeg = Math.atan2(dxReal, dyPct) * (180 / Math.PI)
+  return Math.max(-20, Math.min(20, angleDeg))
 }
 
 interface CasinoTableProps {
@@ -186,6 +270,11 @@ export function CasinoTable({
   const { center, mid, edge } = FELT_COLORS[feltColor]
   const wrapperRef = useRef<HTMLDivElement>(null)
   const scale = useTableScale(wrapperRef)
+  const trayHalfWidthPx = (TRAY_W / 2) * scale
+  const shoeLeft = traySpanPosition(1 / 3, 1, CORNER_FRAC * 100, trayHalfWidthPx)
+  const discardLeft = traySpanPosition(1 / 3, -1, CORNER_RADIUS_FRAC * 100, trayHalfWidthPx)
+  const shoeLeftPctNum = 50 + (1 / 3) * (CORNER_FRAC * 100 - 50)
+  const shoeTiltDeg = computeShoeTiltDeg(positions, shoeLeftPctNum)
   const clipId = useId()
   const railClipId = `${clipId}-rail`
   const feltClipId = `${clipId}-felt`
@@ -267,15 +356,88 @@ export function CasinoTable({
             background: RAIL_BG,
           }}
         >
-          {/* Felt surface — inset RAIL_PX inside the rail. overflow:hidden here
-              (seats/labels near the curved edge are already visually clipped by
-              clipPath, but clip-path alone doesn't stop them contributing to an
-              ancestor's scrollable overflow) so the viewport-fit shell above
-              never gets a phantom scrollbar over content nothing ever shows. */}
+          {/* Leather bumper corner extensions — per the reference photos, the
+              padded leather doesn't end right at the top corner: it rounds
+              the corner and continues a short run along the flat top
+              (LEATHER_EXTENSION_FRAC on each side) before stopping, full
+              RAIL_PX thickness, same leather texture as the curved rail
+              beneath. These sit on top of the (uniformly thin-inset) felt
+              below, capping it back up to full bumper height in just these
+              two zones. */}
           <div
             style={{
               position: 'absolute',
-              top: RAIL_PX,
+              top: 0,
+              left: `${CORNER_RADIUS_FRAC * 100}%`,
+              width: `${LEATHER_EXTENSION_FRAC * 100}%`,
+              height: RAIL_PX,
+              background: RAIL_BG,
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: `${CORNER_RADIUS_FRAC * 100}%`,
+              width: `${LEATHER_EXTENSION_FRAC * 100}%`,
+              height: RAIL_PX,
+              background: RAIL_BG,
+            }}
+          />
+          {/* Wood dealer edge — fills the middle of the flat top (between
+              the two leather extensions above), thin (WOOD_EDGE_PX, about
+              half RAIL_PX) and a genuinely different material/color, so the
+              leather bumper visibly stops (at WOOD_START_FRAC on each side,
+              marked by the seam lines below) instead of wrapping into the
+              dealer's working area. */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: `${WOOD_START_FRAC * 100}%`,
+              right: `${WOOD_START_FRAC * 100}%`,
+              height: WOOD_EDGE_PX,
+              background: WOOD_EDGE_BG,
+              boxShadow: 'inset 0 1px 0 rgba(255,220,180,0.18)',
+            }}
+          />
+          {/* Seam lines — a thin dark groove at each leather-to-wood
+              boundary, making the leather bumper's end point explicit
+              rather than relying on the color change alone to read as a
+              real transition. */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: `calc(${WOOD_START_FRAC * 100}% - 1px)`,
+              width: 2,
+              height: RAIL_PX,
+              background: 'rgba(0,0,0,0.55)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: `calc(${WOOD_START_FRAC * 100}% - 1px)`,
+              width: 2,
+              height: RAIL_PX,
+              background: 'rgba(0,0,0,0.55)',
+            }}
+          />
+          {/* Felt surface — inset RAIL_PX inside the rail on the curved
+              player edge, but only WOOD_EDGE_PX at the top (behind the thin
+              wood strip; the two leather corner-extension pieces above cap
+              it back up to full bumper height in their own zones only).
+              overflow:hidden here (seats/labels near the curved edge are
+              already visually clipped by clipPath, but clip-path alone
+              doesn't stop them contributing to an ancestor's scrollable
+              overflow) so the viewport-fit shell above never gets a phantom
+              scrollbar over content nothing ever shows. */}
+          <div
+            style={{
+              position: 'absolute',
+              top: WOOD_EDGE_PX,
               right: RAIL_PX,
               bottom: RAIL_PX,
               left: RAIL_PX,
@@ -299,13 +461,19 @@ export function CasinoTable({
                   no stretch) and viewBox units map 1:1 to real proportions.
                   All arcs: sweep=1 (clockwise left→right, bowing DOWN toward
                   player), bow/chord ≈12-13% (a shallow "smile", not a deep
-                  dish), sized/placed to match the reference photo
-                  (references/20260627_170137.jpg): centered in the felt's
-                  upper-middle band, spanning roughly half its width.
-                  Text reads "DEALER MUST HIT SOFT 17" — matches the actual
-                  dealer engine (handResolution.ts) and the strategy chart
-                  (strategy.ts), both converted to this app's fixed H17 rule
-                  set. Felt, engine, and grading all agree. */}
+                  dish). Text reads "DEALER MUST HIT SOFT 17" — matches the
+                  actual dealer engine (handResolution.ts) and the strategy
+                  chart (strategy.ts), both converted to this app's fixed
+                  H17 rule set. Felt, engine, and grading all agree.
+
+                  Position: pushed DOWN (+70 on every endpoint y, same
+                  bow/radius) from the original upper-middle placement, so
+                  it sits below the dealer equipment row (which grew when
+                  the chip tray widened) and closer to the player seats —
+                  a QUICK rough-fit for the current layout, not a precise
+                  anchor. A later pass will anchor this properly to a
+                  bounded dealer-area container (shoe → dealer hand → rack)
+                  instead of these hand-tuned coordinates. */}
               <svg
                 viewBox={`0 0 1000 ${(1000 / TABLE_ASPECT_RATIO).toFixed(2)}`}
                 preserveAspectRatio="xMidYMid meet"
@@ -329,13 +497,13 @@ export function CasinoTable({
                     banner is its own small decorative element, not the same
                     curve the seats sit on.
 
-                    Line 1: halfChord=230, bow=57.5  → r≈489, endpoints y=120, center y=177.5
-                    Line 2: halfChord=250, bow=62.5  → r≈531, endpoints y=170, center y=232.5
-                    Line 3: halfChord=270, bow=67.5  → r≈574, endpoints y=220, center y=287.5
+                    Line 1: halfChord=230, bow=57.5  → r≈489, endpoints y=190, center y=247.5
+                    Line 2: halfChord=250, bow=62.5  → r≈531, endpoints y=240, center y=302.5
+                    Line 3: halfChord=270, bow=67.5  → r≈574, endpoints y=290, center y=357.5
                   */}
-                  <path id="feltArc1" d="M 270,120 A 489,489 0 0 0 730,120" />
-                  <path id="feltArc2" d="M 250,170 A 531,531 0 0 0 750,170" />
-                  <path id="feltArc3" d="M 230,220 A 574,574 0 0 0 770,220" />
+                  <path id="feltArc1" d="M 270,190 A 489,489 0 0 0 730,190" />
+                  <path id="feltArc2" d="M 250,240 A 531,531 0 0 0 750,240" />
+                  <path id="feltArc3" d="M 230,290 A 574,574 0 0 0 770,290" />
                 </defs>
                 <text
                   fill="rgba(255,255,255,0.16)"
@@ -372,30 +540,66 @@ export function CasinoTable({
                 </text>
               </svg>
 
-              {/* Dealer zone — centered on the flat top edge */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 14 * scale,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 16 * scale,
-                }}
-              >
-                <DiscardRack
-                  fillFraction={discardFraction}
-                  totalDecks={totalDecks}
-                  difficulty={discardDifficulty}
-                  scale={scale}
-                />
+              {/* Dealer zone — spans the felt's full width so the discard
+                  rack and shoe can be positioned by real geometric targets
+                  instead of flex-row order:
+                    - Chip tray: centered (unchanged mechanism), pulled up
+                      slightly (marginTop) so its taller shape reaches
+                      toward the wood dealer edge above.
+                    - Discard rack: positioned at exactly 1/3 of the real
+                      tray-to-edge span (traySpanPosition(), left side) —
+                      from the chip tray's own edge toward the left corner
+                      target, not a guess at a felt percentage. Flat/
+                      upright, no tilt.
+                    - Shoe: positioned at exactly 1/3 of the tray-to-edge
+                      span (right side), tilted via computeShoeTiltDeg() —
+                      a real atan2 aim from the shoe's own position to the
+                      actual Seat 3 coordinate from arcPositions(), not a
+                      hardcoded trig guess.
+                  Dealer's own hand sits BELOW this row — "in front of" the
+                  tray, toward the player side, matching a real table.
+                  NOTE for a future pass: a bounded "dealer area" container
+                  is planned to hold this whole group (shoe/tray/rack/hand)
+                  plus precisely anchor the arc text to it — this layout is
+                  written to be compatible with that, not fighting it. */}
+              <div style={{ position: 'absolute', top: 14 * scale, left: 0, right: 0 }}>
+                <div style={{ position: 'absolute', left: '50%', top: -8 * scale, transform: 'translateX(-50%)' }}>
+                  {/* Decorative dealer chip tray — static, not bound to any
+                      game/chip-wager state (see DECISIONS.md). */}
+                  <DealerChipTray scale={scale} />
+                </div>
                 <div
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 * scale }}
+                  style={{
+                    position: 'absolute',
+                    left: discardLeft,
+                    top: 0,
+                    transform: 'translateX(-50%)',
+                  }}
+                >
+                  <DiscardRack
+                    fillFraction={discardFraction}
+                    totalDecks={totalDecks}
+                    difficulty={discardDifficulty}
+                    scale={scale}
+                  />
+                </div>
+                <div style={{ position: 'absolute', left: shoeLeft, top: 0, transform: 'translateX(-50%)' }}>
+                  <DealingShoe decksRemaining={decksFill} totalDecks={totalDecks} scale={scale} tiltDeg={shoeTiltDeg} />
+                </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: 112 * scale,
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 8 * scale,
+                  }}
                 >
                   {dealerSlot}
                 </div>
-                <DealingShoe decksRemaining={decksFill} totalDecks={totalDecks} scale={scale} />
               </div>
 
               {/* Seats fanned along the inset arc */}

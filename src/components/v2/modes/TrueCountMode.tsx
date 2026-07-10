@@ -12,7 +12,7 @@ import {
 import { MIN_DECKS_REMAINING, trueCount } from '../../../lib/counting'
 import { isValidSignedInt, signed } from '../../../lib/format'
 import { SignedNumberInput } from '../../SignedNumberInput'
-import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
+import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
 import { DiscardRack } from '../table/DiscardRack'
 import { CasinoTable } from '../table/CasinoTable'
 
@@ -133,8 +133,8 @@ export function TrueCountMode({ numDecks, initialProgress, onProgressChange }: T
 
   const canSubmit = playedInput.trim() !== '' && Number(playedInput) >= 0 && isValidSignedInt(trueCountInput)
 
-  // Dealer zone — static label only, no cards dealt in this drill
-  const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
+  const dealerSlot = null
 
   // Discard rack fill + difficulty ticks driven by scenario (or empty in idle)
   const discardFraction = scenario ? scenario.dealtFraction : 0

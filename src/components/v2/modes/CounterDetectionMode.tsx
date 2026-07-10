@@ -5,7 +5,7 @@ import {
   generateDetectionSession,
 } from '../../../lib/detectionSession'
 import type { DetectionDifficulty } from '../../../lib/playerProfiles'
-import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
+import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 // ── Difficulty config ──────────────────────────────────────────────────────────
@@ -199,7 +199,8 @@ export function CounterDetectionMode({ numDecks, initialProgress, onProgressChan
 
   const isCorrect = session && verdict !== null ? verdict === session.isCounting : null
 
-  const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
+  const dealerSlot = null
 
   return (
     <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">

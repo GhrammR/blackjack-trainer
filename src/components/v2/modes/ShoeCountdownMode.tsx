@@ -6,7 +6,7 @@ import { generateFullCountdownRound, generateMissingCardsRound, updatePersonalBe
 import { formatPace, formatSeconds, isValidSignedInt, signed } from '../../../lib/format'
 import { PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
-import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
+import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 type Phase = 'idle' | 'running' | 'finished'
@@ -235,7 +235,8 @@ export function ShoeCountdownMode({
       ]
     : [<span key="empty" />]
 
-  const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
+  const dealerSlot = null
 
   // Shoe rack depletes, discard fills — live per card flip (anti-cheese: no ratio label).
   // Full Countdown's internal shoe is bigger than its dealt slice (see shoeCountdown.ts), so the

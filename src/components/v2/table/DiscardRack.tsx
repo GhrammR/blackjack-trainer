@@ -14,10 +14,17 @@ const TRAY_W = 46
 const TRAY_H = 80
 const INNER_W = TRAY_W - 8
 const INNER_H = TRAY_H - 14
+// Flared taper — full width at the open top rim (where cards are dropped
+// in), narrower at the base — the opposite taper from DealingShoe's
+// dispenser wedge, reading as an open tray rather than a sealed box.
+const BASE_INSET = 4
 // Fixed (unscaled) gutter reserved to the right of the tray for tick labels
 // — labels render at a constant font size outside the scaled shell (see
 // below), so their reserved space must stay constant too, not shrink with scale.
 const LABEL_GUTTER = 22
+// Flat/upright — the tilt previously here moved to DealingShoe (the shoe is
+// the piece that's angled toward the table center on a real layout; the
+// discard tray sits flat). See DealingShoe.tsx's tiltDeg prop.
 
 /**
  * Clear-acrylic discard tray. Shows played cards accumulating from the bottom.
@@ -35,7 +42,8 @@ export function DiscardRack({ fillFraction, totalDecks = 6, difficulty, scale = 
   return (
     <div style={{ position: 'relative', width: outerWidth, height: TRAY_H * scale }}>
     <div style={{ position: 'relative', width: TRAY_W, height: TRAY_H, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-      {/* Outer acrylic shell — faint blue-tint border like clear plastic */}
+      {/* Outer acrylic shell — flared open-tray taper (full width at the top
+          rim, narrower at the base), faint blue-tint border like clear plastic */}
       <div
         style={{
           position: 'absolute',
@@ -43,14 +51,28 @@ export function DiscardRack({ fillFraction, totalDecks = 6, difficulty, scale = 
           left: 0,
           width: TRAY_W,
           height: TRAY_H,
-          borderRadius: 5,
+          clipPath: `polygon(0 0, ${TRAY_W}px 0, ${TRAY_W - BASE_INSET}px 100%, ${BASE_INSET}px 100%)`,
           border: '1.5px solid rgba(160,205,240,0.22)',
           background:
             'linear-gradient(130deg, rgba(140,185,225,0.07) 0%, rgba(100,155,205,0.03) 100%)',
           boxShadow:
-            '1px 3px 10px rgba(0,0,0,0.75), inset 0 0 10px rgba(0,0,0,0.55)',
+            '1px 3px 10px rgba(0,0,0,0.75), inset 0 0 10px rgba(0,0,0,0.55), 0 6px 10px rgba(0,0,0,0.5)',
         }}
       >
+        {/* Raised rim lip — a brighter, slightly overhanging edge at the open
+            top, reading as a molded plastic rim rather than a flat cut edge. */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: -1,
+            right: -1,
+            height: 4,
+            borderRadius: '5px 5px 0 0',
+            background: 'linear-gradient(180deg, rgba(210,235,255,0.30) 0%, rgba(160,205,240,0.10) 100%)',
+            boxShadow: '0 2px 3px rgba(0,0,0,0.5)',
+          }}
+        />
         {/* Dark interior well */}
         <div
           style={{

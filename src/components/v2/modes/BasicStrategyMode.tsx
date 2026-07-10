@@ -25,7 +25,7 @@ import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
 import { ChipBetPicker } from '../../ChipBetPicker'
 import { ProgressPanel } from '../../ProgressPanel'
-import { ERROR_TEXT, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
+import { ERROR_TEXT, PRIMARY_BUTTON_LG, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 /**
@@ -206,9 +206,9 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
 
   const showCards = phase === 'deciding' || phase === 'roundComplete'
 
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
   const dealerSlot = (
     <>
-      <p className={SECTION_LABEL}>Dealer</p>
       {showCards && round && (
         <>
           <div className="flex gap-2">

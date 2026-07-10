@@ -7,7 +7,6 @@ import {
 import { type FlagGrade, gradeFlags, isEvidenceRound } from '../../../lib/evidenceGrading'
 import type { DetectionDifficulty } from '../../../lib/playerProfiles'
 import {
-  SECTION_LABEL,
   PRIMARY_BUTTON,
   PRIMARY_BUTTON_LG,
   SECONDARY_BUTTON,
@@ -276,7 +275,8 @@ export function EvidenceFlaggingMode({
   const isVerdictCorrect = session && verdict !== null ? verdict === session.isCounting : null
   const evidenceCount = session ? session.rounds.filter(isEvidenceRound).length : 0
 
-  const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
+  const dealerSlot = null
 
   return (
     <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">

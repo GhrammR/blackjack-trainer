@@ -7,7 +7,7 @@ import { DEAL_SPEED_MS_PER_CARD, type DealSpeed } from '../../../lib/dealSpeed'
 import { isValidSignedInt, signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
-import { ERROR_TEXT, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECTION_LABEL, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
+import { ERROR_TEXT, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 type Phase = 'idle' | 'dealing' | 'input' | 'feedback'
@@ -175,9 +175,9 @@ export function RunningCountMode({
 
   // ── Table slot content ──────────────────────────────────────────────────────
 
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
   const dealerSlot = (
     <>
-      <p className={SECTION_LABEL}>Dealer</p>
       <div className="flex gap-1">
         {dealerUpcardVisible && round && (
           <PlayingCard card={round.dealerCards[0]} suitIndex={0} size="sm" />

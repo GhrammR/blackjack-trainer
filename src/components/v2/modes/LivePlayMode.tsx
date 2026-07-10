@@ -31,7 +31,6 @@ import {
   ERROR_TEXT,
   PRIMARY_BUTTON,
   PRIMARY_BUTTON_LG,
-  SECTION_LABEL,
   SUCCESS_TEXT,
   HUD_HEIGHT,
 } from '../../theme'
@@ -332,9 +331,9 @@ export function LivePlayMode({
 
   const showCards = phase === 'deciding' || phase === 'roundComplete' || phase === 'countCheck'
 
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
   const dealerSlot = (
     <>
-      <p className={SECTION_LABEL}>Dealer</p>
       {showCards && round && (
         <>
           <div className="flex gap-1">

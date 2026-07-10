@@ -6,7 +6,7 @@ import { signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
 import { Feedback } from '../../Feedback'
-import { SECTION_LABEL, HUD_HEIGHT } from '../../theme'
+import { HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 const INDEX_PLAY_SITUATION_KEYS = new Set(INDEX_PLAYS.map((p) => p.situationKey))
@@ -78,9 +78,9 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
 
   // ── Table content ──────────────────────────────────────────────────────────
 
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
   const dealerSlot = (
     <>
-      <p className={SECTION_LABEL}>Dealer</p>
       <div className="flex gap-1">
         <PlayingCard card={scenario.dealerUpcard} suitIndex={0} size="sm" />
         <HiddenCard size="sm" />

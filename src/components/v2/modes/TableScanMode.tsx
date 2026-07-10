@@ -4,7 +4,7 @@ import {
   generateMultiPlayerSession,
 } from '../../../lib/multiPlayerSession'
 import type { DetectionDifficulty } from '../../../lib/playerProfiles'
-import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
+import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SUCCESS_TEXT, ERROR_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 // ── Difficulty config ──────────────────────────────────────────────────────────
@@ -180,7 +180,8 @@ export function TableScanMode({
     )
   })
 
-  const dealerSlot = <p className={SECTION_LABEL}>Dealer</p>
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
+  const dealerSlot = null
   const seatLabels = Array.from({ length: effectiveSeatCount }, (_, i) => `Seat ${i + 1}`)
 
   return (

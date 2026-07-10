@@ -18,7 +18,7 @@ import {
 import { finalizeRounds, scoreSession } from '../../../lib/evasionScoring'
 import { isEvidenceRound } from '../../../lib/evidenceGrading'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
-import { SECTION_LABEL, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
+import { PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 // ── Bet options ────────────────────────────────────────────────────────────────
@@ -247,9 +247,9 @@ export function EvasionMode({ numDecks, initialProgress, onProgressChange }: Eva
 
   // ── Table content ────────────────────────────────────────────────────────────
 
+  // "Dealer" label removed — the chip tray uses that space (see CasinoTable.tsx / DealerChipTray.tsx).
   const dealerSlot = (
     <>
-      <p className={SECTION_LABEL}>Dealer</p>
       {(phase === 'playing' || phase === 'hitting' || phase === 'roundDone') && dealt && (
         <div className="flex gap-1">
           <PlayingCard card={dealt.dealerUpcard} suitIndex={0} size="sm" />
