@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Card } from '../../../types'
 import type { ShoeCountdownProgress } from '../../../lib/persistence'
 import { runningCount } from '../../../lib/counting'
-import { generateFullCountdownRound, generateMissingCardsRound, updatePersonalBest } from '../../../lib/shoeCountdown'
+import { addRunTotal, generateFullCountdownRound, generateMissingCardsRound, updatePersonalBest } from '../../../lib/shoeCountdown'
 import { formatPace, formatSeconds, isValidSignedInt, signed } from '../../../lib/format'
 import { PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
@@ -184,10 +184,14 @@ export function ShoeCountdownMode({
         ? updatePersonalBest(fc.personalBests, numDecks, elapsedMs, stopIndex)
         : fc.personalBests
       isNewBest = isCorrect && updatedBests !== fc.personalBests
+      const updatedTotals = isCorrect
+        ? addRunTotal(fc.totals, numDecks, elapsedMs, stopIndex)
+        : fc.totals
       setProgress((prev) => ({
         ...prev,
         fullCountdown: {
           personalBests: updatedBests,
+          totals: updatedTotals,
           attempts: fc.attempts + 1,
           correct: fc.correct + (isCorrect ? 1 : 0),
         },
@@ -198,10 +202,14 @@ export function ShoeCountdownMode({
         ? updatePersonalBest(mc.personalBests, numDecks, elapsedMs, shoe.length)
         : mc.personalBests
       isNewBest = isCorrect && updatedBests !== mc.personalBests
+      const updatedTotals = isCorrect
+        ? addRunTotal(mc.totals, numDecks, elapsedMs, shoe.length)
+        : mc.totals
       setProgress((prev) => ({
         ...prev,
         missingCards: {
           personalBests: updatedBests,
+          totals: updatedTotals,
           attempts: mc.attempts + 1,
           correct: mc.correct + (isCorrect ? 1 : 0),
         },

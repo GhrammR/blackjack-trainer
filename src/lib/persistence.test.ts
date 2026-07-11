@@ -40,26 +40,34 @@ beforeEach(() => {
 
 describe('loadState', () => {
   it('returns defaults when nothing is stored', () => {
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0, bestStreak: 0 })
   })
 
   it('returns defaults for corrupt JSON instead of throwing', () => {
     localStorage.setItem('double-down:v1', '{not json')
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0, bestStreak: 0 })
   })
 
   it('fills in missing fields from a partial object', () => {
     localStorage.setItem('double-down:v1', JSON.stringify({ handsPlayed: 7 }))
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 7, currentStreak: 0 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 7, currentStreak: 0, bestStreak: 0 })
+  })
+
+  it('a missing bestStreak (saved by an older app version) falls back to the parsed currentStreak, not 0 — never understates an in-progress streak as unrecorded', () => {
+    localStorage.setItem('double-down:v1', JSON.stringify({ handsPlayed: 7, currentStreak: 12 }))
+    expect(loadState().bestStreak).toBe(12)
   })
 })
 
 describe('saveState / loadState round trip', () => {
-  it('persists stats, handsPlayed, and currentStreak across a save/load cycle', () => {
+  it('persists stats, handsPlayed, currentStreak, and bestStreak across a save/load cycle', () => {
     const state = {
       stats: { 'hard-16-vs-10': { key: 'hard-16-vs-10', attempts: 3, correct: 2, lastSeen: 2, recentResults: [true, false, true] } },
       handsPlayed: 3,
       currentStreak: 2,
+      // Deliberately different from currentStreak, to confirm bestStreak round-trips
+      // as its own real field rather than incidentally matching currentStreak.
+      bestStreak: 9,
     }
     saveState(state)
     expect(loadState()).toEqual(state)
@@ -68,9 +76,9 @@ describe('saveState / loadState round trip', () => {
 
 describe('clearState', () => {
   it('removes persisted data, reverting loadState to defaults', () => {
-    saveState({ stats: {}, handsPlayed: 5, currentStreak: 5 })
+    saveState({ stats: {}, handsPlayed: 5, currentStreak: 5, bestStreak: 5 })
     clearState()
-    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0 })
+    expect(loadState()).toEqual({ stats: {}, handsPlayed: 0, currentStreak: 0, bestStreak: 0 })
   })
 })
 
@@ -81,8 +89,8 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
     trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
     shoeCountdown: {
-      fullCountdown: { personalBests: {}, attempts: 0, correct: 0 },
-      missingCards: { personalBests: {}, attempts: 0, correct: 0 },
+      fullCountdown: { personalBests: {}, totals: {}, attempts: 0, correct: 0 },
+      missingCards: { personalBests: {}, totals: {}, attempts: 0, correct: 0 },
     },
     detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -139,6 +147,27 @@ describe('loadCountingState', () => {
     expect(sc.fullCountdown.attempts).toBe(5)
     expect(sc.fullCountdown.correct).toBe(3)
     expect(sc.missingCards.personalBests).toEqual({})
+  })
+
+  it('rejects a malformed totals value instead of throwing, keeping only well-shaped { ms, cards, runs } entries', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({
+        progress: {
+          shoeCountdown: {
+            fullCountdown: {
+              totals: { 1: { ms: 9500, cards: 40 }, 6: { ms: 61000, cards: 260, runs: 2 }, 2: 'not an object' },
+            },
+            missingCards: { totals: 'not an object' },
+          },
+        },
+      }),
+    )
+    const sc = loadCountingState().progress.shoeCountdown
+    // The 1-deck entry is missing `runs` (a pre-average-tracking shape) and gets dropped, same
+    // migration pattern as parsePersonalBests dropping a bare-number pre-`{ms,cards}` entry.
+    expect(sc.fullCountdown.totals).toEqual({ 6: { ms: 61000, cards: 260, runs: 2 } })
+    expect(sc.missingCards.totals).toEqual({})
   })
 
   it('treats the old flat shoeCountdown shape (pre-Feature-B) as absent and starts fresh', () => {
@@ -227,8 +256,18 @@ describe('saveCountingState / loadCountingState round trip', () => {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
         shoeCountdown: {
-          fullCountdown: { personalBests: { 1: { ms: 12600, cards: 40 }, 6: { ms: 61000, cards: 260 } }, attempts: 12, correct: 10 },
-          missingCards: { personalBests: { 1: { ms: 12000, cards: 51 }, 6: { ms: 45000, cards: 311 } }, attempts: 9, correct: 7 },
+          fullCountdown: {
+            personalBests: { 1: { ms: 12600, cards: 40 }, 6: { ms: 61000, cards: 260 } },
+            totals: { 1: { ms: 12600, cards: 40, runs: 1 }, 6: { ms: 122000, cards: 520, runs: 2 } },
+            attempts: 12,
+            correct: 10,
+          },
+          missingCards: {
+            personalBests: { 1: { ms: 12000, cards: 51 }, 6: { ms: 45000, cards: 311 } },
+            totals: { 1: { ms: 12000, cards: 51, runs: 1 }, 6: { ms: 45000, cards: 311, runs: 1 } },
+            attempts: 9,
+            correct: 7,
+          },
         },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
@@ -252,8 +291,8 @@ describe('resetCountingProgress', () => {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
         trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
         shoeCountdown: {
-          fullCountdown: { personalBests: { 6: { ms: 61000, cards: 260 } }, attempts: 4, correct: 3 },
-          missingCards: { personalBests: { 8: { ms: 99000, cards: 415 } }, attempts: 4, correct: 3 },
+          fullCountdown: { personalBests: { 6: { ms: 61000, cards: 260 } }, totals: { 6: { ms: 61000, cards: 260, runs: 1 } }, attempts: 4, correct: 3 },
+          missingCards: { personalBests: { 8: { ms: 99000, cards: 415 } }, totals: { 8: { ms: 99000, cards: 415, runs: 1 } }, attempts: 4, correct: 3 },
         },
         detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
         tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },
@@ -279,8 +318,8 @@ describe('resetCountingMode', () => {
       runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
       trueCount: { roundsPlayed: 5, goodEstimates: 4, correctMath: 3 },
       shoeCountdown: {
-        fullCountdown: { personalBests: { 2: { ms: 33000, cards: 85 } }, attempts: 5, correct: 4 },
-        missingCards: { personalBests: { 6: { ms: 45000, cards: 311 } }, attempts: 5, correct: 4 },
+        fullCountdown: { personalBests: { 2: { ms: 33000, cards: 85 } }, totals: { 2: { ms: 33000, cards: 85, runs: 1 } }, attempts: 5, correct: 4 },
+        missingCards: { personalBests: { 6: { ms: 45000, cards: 311 } }, totals: { 6: { ms: 45000, cards: 311, runs: 1 } }, attempts: 5, correct: 4 },
       },
       detection: { sessionsPlayed: 6, sessionsCorrect: 4 },
       tableScan: { sessionsPlayed: 3, sessionsCorrect: 2 },

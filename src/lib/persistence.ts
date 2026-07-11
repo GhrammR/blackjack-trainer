@@ -1,5 +1,5 @@
 import type { Stats } from './adaptiveEngine'
-import type { PersonalBests } from './shoeCountdown'
+import type { PersonalBests, ShoeCountdownTotals } from './shoeCountdown'
 import { DEAL_SPEEDS, type DealSpeed } from './dealSpeed'
 
 const STORAGE_KEY = 'double-down:v1'
@@ -8,12 +8,14 @@ export interface PersistedState {
   stats: Stats
   handsPlayed: number
   currentStreak: number
+  bestStreak: number
 }
 
 const DEFAULT_STATE: PersistedState = {
   stats: {},
   handsPlayed: 0,
   currentStreak: 0,
+  bestStreak: 0,
 }
 
 export function loadState(): PersistedState {
@@ -28,6 +30,13 @@ export function loadState(): PersistedState {
       stats: typeof parsed.stats === 'object' && parsed.stats !== null ? parsed.stats : {},
       handsPlayed: typeof parsed.handsPlayed === 'number' ? parsed.handsPlayed : 0,
       currentStreak: typeof parsed.currentStreak === 'number' ? parsed.currentStreak : 0,
+      // Added after currentStreak — a state saved by an older app version
+      // won't have it, so default to currentStreak itself (never less than
+      // the best actually achieved) rather than 0, which would understate
+      // an existing streak-in-progress as a "new" record the next time it grows.
+      bestStreak: typeof parsed.bestStreak === 'number'
+        ? parsed.bestStreak
+        : (typeof parsed.currentStreak === 'number' ? parsed.currentStreak : 0),
     }
   } catch {
     // Corrupt JSON, or localStorage unavailable (privacy mode, etc.) — start fresh.
@@ -93,8 +102,8 @@ export interface CountingSettings {
  * either format, hence the per-deck-size keying.
  */
 export interface ShoeCountdownProgress {
-  fullCountdown: { personalBests: PersonalBests; attempts: number; correct: number }
-  missingCards: { personalBests: PersonalBests; attempts: number; correct: number }
+  fullCountdown: { personalBests: PersonalBests; totals: ShoeCountdownTotals; attempts: number; correct: number }
+  missingCards: { personalBests: PersonalBests; totals: ShoeCountdownTotals; attempts: number; correct: number }
 }
 
 export interface CountingProgress {
@@ -159,8 +168,8 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
   trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
   shoeCountdown: {
-    fullCountdown: { personalBests: {}, attempts: 0, correct: 0 },
-    missingCards: { personalBests: {}, attempts: 0, correct: 0 },
+    fullCountdown: { personalBests: {}, totals: {}, attempts: 0, correct: 0 },
+    missingCards: { personalBests: {}, totals: {}, attempts: 0, correct: 0 },
   },
   detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
   tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -206,6 +215,27 @@ function parsePersonalBests(value: unknown): PersonalBests {
     ) {
       const e = entry as Record<string, unknown>
       result[decks] = { ms: e.ms as number, cards: e.cards as number }
+    }
+  }
+  return result
+}
+
+/** Same validation pattern as `parsePersonalBests`, for the `{ ms, cards, runs }` average-totals shape. */
+function parseShoeCountdownTotals(value: unknown): ShoeCountdownTotals {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const result: ShoeCountdownTotals = {}
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const decks = Number(key)
+    if (!Number.isFinite(decks)) continue
+    if (
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as Record<string, unknown>).ms === 'number' &&
+      typeof (entry as Record<string, unknown>).cards === 'number' &&
+      typeof (entry as Record<string, unknown>).runs === 'number'
+    ) {
+      const e = entry as Record<string, unknown>
+      result[decks] = { ms: e.ms as number, cards: e.cards as number, runs: e.runs as number }
     }
   }
   return result
@@ -279,11 +309,13 @@ export function parseProgress(raw: unknown): CountingProgress {
     shoeCountdown: {
       fullCountdown: {
         personalBests: parsePersonalBests(scFull.personalBests),
+        totals: parseShoeCountdownTotals(scFull.totals),
         attempts: typeof scFull.attempts === 'number' ? scFull.attempts : 0,
         correct: typeof scFull.correct === 'number' ? scFull.correct : 0,
       },
       missingCards: {
         personalBests: parsePersonalBests(scMissing.personalBests),
+        totals: parseShoeCountdownTotals(scMissing.totals),
         attempts: typeof scMissing.attempts === 'number' ? scMissing.attempts : 0,
         correct: typeof scMissing.correct === 'number' ? scMissing.correct : 0,
       },

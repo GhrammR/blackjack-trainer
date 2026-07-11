@@ -125,6 +125,7 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
   const [stats, setStats] = useState<Stats>(persisted.stats)
   const [handsPlayed, setHandsPlayed] = useState(persisted.handsPlayed)
   const [currentStreak, setCurrentStreak] = useState(persisted.currentStreak)
+  const [bestStreak, setBestStreak] = useState(persisted.bestStreak)
 
   const [session, setSession] = useState<LivePlaySessionState | null>(null)
   const [round, setRound] = useState<LiveRound | null>(null)
@@ -136,8 +137,8 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
   const [phase, setPhase] = useState<Phase>('betting')
 
   useEffect(() => {
-    saveState({ stats, handsPlayed, currentStreak })
-  }, [stats, handsPlayed, currentStreak])
+    saveState({ stats, handsPlayed, currentStreak, bestStreak })
+  }, [stats, handsPlayed, currentStreak, bestStreak])
 
   function settleRound(finalState: LivePlaySessionState, finalRound: LiveRound, betAmount: number) {
     const dealer = resolveDealer(finalState, finalRound)
@@ -188,7 +189,11 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
     setDecisionLog((log) => [...log, record])
     setStats((prev) => recordResult(prev, situationKey, result.isCorrect, handsPlayed))
     setHandsPlayed((prev) => prev + 1)
-    setCurrentStreak((prev) => updateStreak(prev, result.isCorrect))
+    setCurrentStreak((prev) => {
+      const next = updateStreak(prev, result.isCorrect)
+      setBestStreak((best) => Math.max(best, next))
+      return next
+    })
 
     if (isRoundOver(result.round)) {
       settleRound(result.state, result.round, currentBet)

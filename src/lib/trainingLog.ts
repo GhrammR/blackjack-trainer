@@ -1,6 +1,6 @@
 import type { CountingProgress, CountingState, PersistedState } from './persistence'
 import { parseProgress } from './persistence'
-import type { PersonalBests } from './shoeCountdown'
+import type { PersonalBests, ShoeCountdownTotals } from './shoeCountdown'
 import { lifetimeAccuracy } from './mastery'
 import { formatPace, formatSeconds } from './format'
 
@@ -108,92 +108,173 @@ function formatBestsList(current: PersonalBests): string {
     .join(', ')
 }
 
+/**
+ * Per-deck-size AVERAGE pace/time, mirroring `formatBestsList`'s shape but
+ * derived from cumulative totals (`RunTotals`) rather than a single best
+ * run: average pace is `totalMs / totalCards` (correct even though
+ * "Missing cards" runs vary in card count run to run), average time is
+ * `totalMs / runs`.
+ */
+function formatAveragesList(current: ShoeCountdownTotals): string {
+  const entries = Object.entries(current)
+    .map(([decks, totals]) => [Number(decks), totals] as const)
+    .sort((a, b) => a[0] - b[0])
+  if (entries.length === 0) return '—'
+  return entries
+    .map(([decks, t]) => `${decks}-deck: ${formatPace(t.ms / t.cards)} (${formatSeconds(t.ms / t.runs)})`)
+    .join(', ')
+}
+
+/**
+ * One mode's reportable block: a title (rendered as a header line with a
+ * dashed underline), an optional one-line description of what the mode
+ * trains (kept out of the stat list so the numbers aren't buried in prose),
+ * and the stats themselves as individually-bulleted lines — see
+ * `formatBlock` / the module doc comment for why this shape replaced a
+ * single dense comma-joined sentence.
+ */
+interface ModeBlock {
+  title: string
+  what: string
+  stats: string[]
+}
+
+function formatBlock(block: ModeBlock): string {
+  const underline = '-'.repeat(block.title.length)
+  const statLines = block.stats.map((s) => `  - ${s}`).join('\n')
+  return `${block.title}\n${underline}\n  what: ${block.what}\n${statLines}`
+}
+
 // ── Per-mode block builders ─────────────────────────────────────────────────
 // Each returns null when the mode saw no activity in the reported window
 // (session delta, or lifetime totals when there's no baseline), so the
 // export only includes modes actually trained.
 
-function strategyBlock(v1: PersistedState, baselineStrategy: { attempts: number; correct: number }): string | null {
+function strategyBlock(v1: PersistedState, baselineStrategy: { attempts: number; correct: number }): ModeBlock | null {
   const { attempts, correct } = lifetimeAccuracy(v1.stats)
   const sessionAttempts = delta(attempts, baselineStrategy.attempts)
   const sessionCorrect = delta(correct, baselineStrategy.correct)
   if (sessionAttempts <= 0) return null
-  return `Basic Strategy — practicing correct hit/stand/double/split/surrender decisions for every hand — hands: ${sessionAttempts}, correct: ${sessionCorrect}, accuracy: ${pctStr(sessionCorrect, sessionAttempts)}, current streak: ${v1.currentStreak}`
+  return {
+    title: 'Basic Strategy',
+    what: 'practicing correct hit/stand/double/split/surrender decisions for every hand',
+    stats: [
+      `hands: ${sessionAttempts}`,
+      `correct: ${sessionCorrect}`,
+      `accuracy: ${pctStr(sessionCorrect, sessionAttempts)}`,
+      `current streak: ${v1.currentStreak}`,
+      `best streak: ${v1.bestStreak}`,
+    ],
+  }
 }
 
 function roundsBlock(
-  label: string,
+  title: string,
+  what: string,
   current: { roundsPlayed: number; roundsCorrect: number },
   base: { roundsPlayed: number; roundsCorrect: number },
-): string | null {
+): ModeBlock | null {
   const played = delta(current.roundsPlayed, base.roundsPlayed)
   const correct = delta(current.roundsCorrect, base.roundsCorrect)
   if (played <= 0) return null
-  return `${label} — rounds: ${played}, correct: ${correct}, accuracy: ${pctStr(correct, played)}`
+  return { title, what, stats: [`rounds: ${played}`, `correct: ${correct}`, `accuracy: ${pctStr(correct, played)}`] }
 }
 
-function trueCountBlock(current: CountingProgress['trueCount'], base: CountingProgress['trueCount']): string | null {
+function trueCountBlock(current: CountingProgress['trueCount'], base: CountingProgress['trueCount']): ModeBlock | null {
   const played = delta(current.roundsPlayed, base.roundsPlayed)
   if (played <= 0) return null
   const goodEstimates = delta(current.goodEstimates, base.goodEstimates)
   const correctMath = delta(current.correctMath, base.correctMath)
-  return `True Count — converting the running count to a true count by estimating decks remaining — scenarios: ${played}, good estimates: ${pctStr(goodEstimates, played)}, correct math: ${pctStr(correctMath, played)}`
+  return {
+    title: 'True Count',
+    what: 'converting the running count to a true count by estimating decks remaining',
+    stats: [
+      `scenarios: ${played}`,
+      `good estimates: ${pctStr(goodEstimates, played)}`,
+      `correct math: ${pctStr(correctMath, played)}`,
+    ],
+  }
 }
 
 function shoeCountdownBlocks(
   current: CountingProgress['shoeCountdown'],
   base: CountingProgress['shoeCountdown'],
-): string[] {
-  const lines: string[] = []
+): ModeBlock[] {
+  const blocks: ModeBlock[] = []
 
   const fcAttempts = delta(current.fullCountdown.attempts, base.fullCountdown.attempts)
   if (fcAttempts > 0) {
     const fcCorrect = delta(current.fullCountdown.correct, base.fullCountdown.correct)
-    lines.push(
-      `Shoe Countdown (Full Countdown) — speed-counting down a fixed-length deal (longer at bigger shoe sizes, never a zero answer) as fast as possible — attempts: ${fcAttempts}, correct: ${fcCorrect}, accuracy: ${pctStr(fcCorrect, fcAttempts)}, best pace/time: ${formatBestsList(current.fullCountdown.personalBests)}`,
-    )
+    blocks.push({
+      title: 'Shoe Countdown (Full Countdown)',
+      what: 'speed-counting down a fixed-length deal (longer at bigger shoe sizes, never a zero answer) as fast as possible',
+      stats: [
+        `attempts: ${fcAttempts}`,
+        `correct: ${fcCorrect}`,
+        `accuracy: ${pctStr(fcCorrect, fcAttempts)}`,
+        `best pace/time: ${formatBestsList(current.fullCountdown.personalBests)}`,
+        `average pace/time: ${formatAveragesList(current.fullCountdown.totals)}`,
+      ],
+    })
   }
 
   const mcAttempts = delta(current.missingCards.attempts, base.missingCards.attempts)
   if (mcAttempts > 0) {
     const mcCorrect = delta(current.missingCards.correct, base.missingCards.correct)
-    lines.push(
-      `Shoe Countdown (Missing Cards) — counting down a shoe with cards secretly removed, to find what's missing — attempts: ${mcAttempts}, correct: ${mcCorrect}, accuracy: ${pctStr(mcCorrect, mcAttempts)}, best pace/time: ${formatBestsList(current.missingCards.personalBests)}`,
-    )
+    blocks.push({
+      title: 'Shoe Countdown (Missing Cards)',
+      what: "counting down a shoe with cards secretly removed, to find what's missing",
+      stats: [
+        `attempts: ${mcAttempts}`,
+        `correct: ${mcCorrect}`,
+        `accuracy: ${pctStr(mcCorrect, mcAttempts)}`,
+        `best pace/time: ${formatBestsList(current.missingCards.personalBests)}`,
+        `average pace/time: ${formatAveragesList(current.missingCards.totals)}`,
+      ],
+    })
   }
 
-  return lines
+  return blocks
 }
 
-function indexPlaysBlock(current: CountingProgress['indexPlays'], base: CountingProgress['indexPlays']): string | null {
+function indexPlaysBlock(current: CountingProgress['indexPlays'], base: CountingProgress['indexPlays']): ModeBlock | null {
   const attempts = delta(current.attempts, base.attempts)
   if (attempts <= 0) return null
   const correct = delta(current.correct, base.correct)
-  return `Index Plays — practicing count-based deviations from basic strategy (the Illustrious 18) — attempts: ${attempts}, correct: ${correct}, accuracy: ${pctStr(correct, attempts)}`
+  return {
+    title: 'Index Plays',
+    what: 'practicing count-based deviations from basic strategy (the Illustrious 18)',
+    stats: [`attempts: ${attempts}`, `correct: ${correct}`, `accuracy: ${pctStr(correct, attempts)}`],
+  }
 }
 
 function sessionsBlock(
-  label: string,
+  title: string,
+  what: string,
   current: { sessionsPlayed: number; sessionsCorrect: number },
   base: { sessionsPlayed: number; sessionsCorrect: number },
-): string | null {
+): ModeBlock | null {
   const played = delta(current.sessionsPlayed, base.sessionsPlayed)
   if (played <= 0) return null
   const correct = delta(current.sessionsCorrect, base.sessionsCorrect)
-  return `${label} — sessions: ${played}, correct: ${correct}, accuracy: ${pctStr(correct, played)}`
+  return { title, what, stats: [`sessions: ${played}`, `correct: ${correct}`, `accuracy: ${pctStr(correct, played)}`] }
 }
 
-function evasionBlock(current: CountingProgress['evasion'], base: CountingProgress['evasion']): string | null {
+function evasionBlock(current: CountingProgress['evasion'], base: CountingProgress['evasion']): ModeBlock | null {
   const played = delta(current.sessionsPlayed, base.sessionsPlayed)
   if (played <= 0) return null
 
   const edgeStr = current.bestEdgeCapturedPct === null ? '—' : `${Math.round(current.bestEdgeCapturedPct)}%`
   const heatStr = current.lowestHeat === null ? '—' : `${current.lowestHeat}`
 
-  return `Evasion — playing the counter's seat directly to see how bet sizing and deviations read to a detector — sessions: ${played}, best edge captured: ${edgeStr}, lowest heat: ${heatStr}`
+  return {
+    title: 'Evasion',
+    what: "playing the counter's seat directly to see how bet sizing and deviations read to a detector",
+    stats: [`sessions: ${played}`, `best edge captured: ${edgeStr}`, `lowest heat: ${heatStr}`],
+  }
 }
 
-function livePlayBlock(current: CountingProgress['livePlay'], base: CountingProgress['livePlay']): string | null {
+function livePlayBlock(current: CountingProgress['livePlay'], base: CountingProgress['livePlay']): ModeBlock | null {
   const playAttempts = delta(current.playAttempts, base.playAttempts)
   if (playAttempts <= 0) return null
   const playCorrect = delta(current.playCorrect, base.playCorrect)
@@ -204,11 +285,16 @@ function livePlayBlock(current: CountingProgress['livePlay'], base: CountingProg
   const betAttempts = delta(current.betAttempts, base.betAttempts)
   const betCorrect = delta(current.betCorrect, base.betCorrect)
 
-  return (
-    `Live Play — playing full hands while keeping the running count, true count, and bet sizing live — plays: ${playAttempts}/${playCorrect} (${pctStr(playCorrect, playAttempts)}), ` +
-    `count: ${pctStr(countCorrect, countAttempts)}, true count: ${pctStr(trueCountCorrect, trueCountAttempts)}, ` +
-    `bet sizing: ${pctStr(betCorrect, betAttempts)}`
-  )
+  return {
+    title: 'Live Play',
+    what: 'playing full hands while keeping the running count, true count, and bet sizing live',
+    stats: [
+      `plays: ${playAttempts}/${playCorrect} (${pctStr(playCorrect, playAttempts)})`,
+      `count: ${pctStr(countCorrect, countAttempts)}`,
+      `true count: ${pctStr(trueCountCorrect, trueCountAttempts)}`,
+      `bet sizing: ${pctStr(betCorrect, betAttempts)}`,
+    ],
+  }
 }
 
 // ── Assembly ─────────────────────────────────────────────────────────────────
@@ -225,8 +311,8 @@ export function buildTrainingLogText(
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
     trueCount: { roundsPlayed: 0, goodEstimates: 0, correctMath: 0 },
     shoeCountdown: {
-      fullCountdown: { personalBests: {}, attempts: 0, correct: 0 },
-      missingCards: { personalBests: {}, attempts: 0, correct: 0 },
+      fullCountdown: { personalBests: {}, totals: {}, attempts: 0, correct: 0 },
+      missingCards: { personalBests: {}, totals: {}, attempts: 0, correct: 0 },
     },
     detection: { sessionsPlayed: 0, sessionsCorrect: 0 },
     tableScan: { sessionsPlayed: 0, sessionsCorrect: 0 },
@@ -241,10 +327,11 @@ export function buildTrainingLogText(
 
   const p = counting.progress
 
-  const lines: string[] = [
+  const blocks: ModeBlock[] = [
     strategyBlock(v1, baseStrategy),
     roundsBlock(
-      'Running Count — tracking the Hi-Lo running count live across a multi-seat table',
+      'Running Count',
+      'tracking the Hi-Lo running count live across a multi-seat table',
       p.runningCount,
       baseCounting.runningCount,
     ),
@@ -252,29 +339,36 @@ export function buildTrainingLogText(
     ...shoeCountdownBlocks(p.shoeCountdown, baseCounting.shoeCountdown),
     indexPlaysBlock(p.indexPlays, baseCounting.indexPlays),
     sessionsBlock(
-      'Counter Detection — judging whether a single observed player is counting cards',
+      'Counter Detection',
+      'judging whether a single observed player is counting cards',
       p.detection,
       baseCounting.detection,
     ),
     sessionsBlock(
-      'Table Scan — scanning every seat at a table at once to find the one counter',
+      'Table Scan',
+      'scanning every seat at a table at once to find the one counter',
       p.tableScan,
       baseCounting.tableScan,
     ),
     sessionsBlock(
-      'Evidence Flagging — flagging specific rounds as counting evidence from bet spread and strategy deviations',
+      'Evidence Flagging',
+      'flagging specific rounds as counting evidence from bet spread and strategy deviations',
       p.evidence,
       baseCounting.evidence,
     ),
     evasionBlock(p.evasion, baseCounting.evasion),
     livePlayBlock(p.livePlay, baseCounting.livePlay),
-  ].filter((line): line is string => line !== null)
+  ].filter((block): block is ModeBlock => block !== null)
 
   const header = baseline
     ? 'Training Log — since session start'
     : 'Training Log — lifetime totals (no session started)'
 
-  const body = lines.length === 0 ? 'No activity recorded yet.' : lines.join('\n')
+  // Each mode is its own header + bulleted-stats block (see ModeBlock/
+  // formatBlock above), separated by a blank line — plain dashes/indentation
+  // only, so the structure survives a paste into a plain-text field (iTrak)
+  // instead of arriving as one dense comma-joined sentence per mode.
+  const body = blocks.length === 0 ? 'No activity recorded yet.' : blocks.map(formatBlock).join('\n\n')
 
   return includeHeader ? `${header}\n\n${body}` : body
 }

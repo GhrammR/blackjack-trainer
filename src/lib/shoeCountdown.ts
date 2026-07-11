@@ -45,6 +45,22 @@ export function updatePersonalBest(bests: PersonalBests, key: number, ms: number
   return { ...bests, [key]: { ms, cards } }
 }
 
+/** Cumulative totals behind an AVERAGE pace/time (as opposed to `PersonalBests`' single best run) — summed `ms`/`cards` across every correct run at a given deck size, plus a `runs` count so average time-per-run (`ms / runs`) and average pace (`ms / cards`) can both be derived. */
+export interface RunTotals {
+  ms: number
+  cards: number
+  runs: number
+}
+
+/** Personal-average totals keyed by shoe size, same keying convention as `PersonalBests`. */
+export type ShoeCountdownTotals = Record<number, RunTotals>
+
+/** Accumulates a `{ ms, cards }` result into the running totals for `key` — every correct run counts (unlike `updatePersonalBest`, there's no "better than" comparison here, just a sum). */
+export function addRunTotal(totals: ShoeCountdownTotals, key: number, ms: number, cards: number): ShoeCountdownTotals {
+  const existing = totals[key] ?? { ms: 0, cards: 0, runs: 0 }
+  return { ...totals, [key]: { ms: existing.ms + ms, cards: existing.cards + cards, runs: existing.runs + 1 } }
+}
+
 /**
  * Per-deck-size Full Countdown tuning: `dealSize` cards are dealt off a
  * freshly shuffled `shoeDecks`-deck internal shoe (always strictly larger
