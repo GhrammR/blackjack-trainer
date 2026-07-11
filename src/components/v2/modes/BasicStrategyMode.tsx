@@ -20,7 +20,7 @@ import {
 import { type Stats, recordResult, selectNextSituation } from '../../../lib/adaptiveEngine'
 import { categoryOfSituationKey, lifetimeAccuracy, updateStreak } from '../../../lib/mastery'
 import { loadState, saveState } from '../../../lib/persistence'
-import { reasonFor } from '../../../lib/reasons'
+import { h17NoteFor, reasonFor } from '../../../lib/reasons'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { ActionButtons } from '../../ActionButtons'
 import { ChipBetPicker } from '../../ChipBetPicker'
@@ -233,7 +233,15 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
   )
 
   const seatContent = showCards && round ? (
-    <div className="flex flex-wrap justify-center gap-2">
+    // flex-nowrap, not flex-wrap: the seat's box is vertically CENTERED on
+    // its felt anchor point near the bottom curve (TableSeat sits inside a
+    // translate(-50%,-50%) wrapper in CasinoTable.tsx), so wrapping into a
+    // 2nd row grows the box downward past the felt's clipped edge — with 3+
+    // split hands that showed up as "2 hands on top, 1 clipped off below."
+    // A single row has far more horizontal room to work with (the felt is
+    // much wider than tall near this seat), so up to 4 hands (the real
+    // resplit cap) stay in one un-clipped row instead.
+    <div className="flex flex-nowrap justify-center gap-2">
       {round.hands.map((hand, i) => (
         <HandGroup
           key={i}
@@ -304,10 +312,12 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
             </p>
             {misses.map((m, i) => {
               const reason = reasonFor(categoryOfSituationKey(m.situationKey), m.correctAction)
+              const h17Note = h17NoteFor(m.situationKey)
               return (
                 <p key={i} className="text-sm text-slate-400">
                   {m.situationKey}: correct play was {m.correctAction}
                   {reason ? ` — ${reason}` : ''}
+                  {h17Note && <span className="mt-1 block text-xs text-amber-300/80">{h17Note}</span>}
                 </p>
               )
             })}

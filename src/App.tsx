@@ -37,16 +37,24 @@ type ActiveOverlay = 'settings' | 'guides' | 'overview' | null
 
 /**
  * Rule badge shown in the header for whichever mode is active — makes the
- * fixed chart rule set (always 6D/H17/DAS/3:2, independent of the
- * adjustable shoe-size SETTING the counting drills use for their own
- * simulated shoe) explicit per mode. Surrender now reflects the real,
- * user-toggleable `lateSurrender` setting (CountingSettings) — applied to
- * both Basic Strategy and Live Play via the shared livePlaySession.ts
- * engine (see strategy.ts's effectiveHardTotals/effectivePairs overlay) —
- * rather than being hardcoded per mode.
+ * active rule set explicit per mode. H17/DAS/3:2 stay fixed (the strategy
+ * chart itself, not configurable yet — see CLAUDE.md §3). The deck count
+ * shown, though, depends on what's actually being dealt in the current
+ * mode: Basic Strategy and Index Plays have no real shoe (they use v1's
+ * fixed-chart hand generator, always effectively 6D), while every other
+ * mode — the counting-drill family and Live Play — deals from a real,
+ * adjustable-size shoe driven by the Settings shoe-size (`numDecks`), so
+ * the badge must track that setting rather than hardcoding 6D for them.
+ * Surrender reflects the real, user-toggleable `lateSurrender` setting
+ * (CountingSettings) — applied to both Basic Strategy and Live Play via
+ * the shared livePlaySession.ts engine (see strategy.ts's
+ * effectiveHardTotals/effectivePairs overlay) — rather than being
+ * hardcoded per mode.
  */
-function ruleBadgeText(lateSurrender: boolean): string {
-  return `6D · H17 · DAS · 3:2 · Surrender: ${lateSurrender ? 'on' : 'off'}`
+const FIXED_DECK_MODES: ReadonlySet<ModeId> = new Set(['strategy', 'indexPlays'])
+
+function ruleBadgeText(lateSurrender: boolean, numDecks: number): string {
+  return `${numDecks}D · H17 · DAS · 3:2 · Surrender: ${lateSurrender ? 'on' : 'off'}`
 }
 
 function App() {
@@ -260,7 +268,10 @@ function App() {
               row even taller; the rules are still one tap away in Guides. */}
           {currentMode !== null && (
             <span className="hidden shrink-0 rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-400 sm:inline-block">
-              {ruleBadgeText(counting.settings.lateSurrender)}
+              {ruleBadgeText(
+                counting.settings.lateSurrender,
+                FIXED_DECK_MODES.has(currentMode) ? 6 : counting.settings.numDecks,
+              )}
             </span>
           )}
           <div className="flex shrink-0 items-center gap-1.5">

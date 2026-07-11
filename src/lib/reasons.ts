@@ -22,3 +22,23 @@ const REASONS: Partial<Record<`${Category}-${Action}`, string>> = {
 export function reasonFor(category: Category, action: Action): string | null {
   return REASONS[`${category}-${action}`] ?? null
 }
+
+/**
+ * The three cells where this app's fixed H17 rule set (dealer hits soft
+ * 17) genuinely changes the correct play versus the more commonly-known
+ * S17 charts — see CLAUDE.md §11's "Hard 11 always Doubles" note and
+ * DECISIONS.md's S17→H17 conversion log. Missing one of these specific
+ * cells is usually an S17/H17 mix-up rather than an ordinary strategy gap,
+ * so it gets its own short explanatory note on top of the normal
+ * category+action reason — only shown when the user actually gets ONE OF
+ * THESE THREE wrong, not on every double/soft-total miss.
+ */
+const H17_NOTES: Partial<Record<string, string>> = {
+  'soft-19-vs-6': "Under H17 (dealer hits soft 17), double soft 19 vs 6 — the dealer's extra bust risk on soft 17 makes doubling worth it. Under S17 you'd stand.",
+  'soft-18-vs-2': "Under H17, double soft 18 vs 2. Under S17 you'd stand.",
+  'hard-11-vs-A': "Under H17, double 11 vs Ace. Under S17 you'd hit.",
+}
+
+export function h17NoteFor(situationKey: string): string | null {
+  return H17_NOTES[situationKey] ?? null
+}

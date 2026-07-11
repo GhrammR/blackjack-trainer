@@ -97,12 +97,20 @@ export interface TickMark {
  * beginner = labeled whole-deck ticks + unlabeled half-deck ticks,
  * intermediate = labeled whole-deck ticks only, expert = none.
  * See CLAUDE.md §11 for why this exact 3-tier split was chosen.
+ *
+ * Whole-deck labels run through numDecks itself (the top of the tray),
+ * not just the interior boundaries — a 1-deck shoe has no interior
+ * boundary at all (the old `wholeDeck < numDecks` loop produced ZERO
+ * labeled ticks for numDecks=1), leaving the user with no numeric
+ * reference point beyond the settings text. Labeling the full point
+ * (e.g. "1" at the top of a 1-deck tray) gives every deck-size setting
+ * at least one anchor to calibrate a decks-played estimate against.
  */
 export function tickMarks(numDecks: number, difficulty: DifficultyLevel): TickMark[] {
   if (difficulty === 'expert') return []
 
   const ticks: TickMark[] = []
-  for (let wholeDeck = 1; wholeDeck < numDecks; wholeDeck++) {
+  for (let wholeDeck = 1; wholeDeck <= numDecks; wholeDeck++) {
     ticks.push({ fraction: wholeDeck / numDecks, label: String(wholeDeck) })
   }
 

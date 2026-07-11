@@ -122,20 +122,20 @@ describe('tickMarks', () => {
     expect(tickMarks(6, 'expert')).toEqual([])
   })
 
-  it('returns only labeled whole-deck ticks for intermediate difficulty', () => {
+  it('returns labeled whole-deck ticks through the full tray for intermediate difficulty', () => {
     const ticks = tickMarks(6, 'intermediate')
-    expect(ticks).toHaveLength(5)
+    expect(ticks).toHaveLength(6)
     expect(ticks.every((t) => t.label !== undefined)).toBe(true)
-    expect(ticks.map((t) => t.fraction)).toEqual([1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6])
-    expect(ticks.map((t) => t.label)).toEqual(['1', '2', '3', '4', '5'])
+    expect(ticks.map((t) => t.fraction)).toEqual([1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1])
+    expect(ticks.map((t) => t.label)).toEqual(['1', '2', '3', '4', '5', '6'])
   })
 
   it('adds unlabeled half-deck ticks for beginner difficulty', () => {
     const ticks = tickMarks(6, 'beginner')
-    expect(ticks).toHaveLength(11) // 5 labeled whole-deck + 6 unlabeled half-deck
+    expect(ticks).toHaveLength(12) // 6 labeled whole-deck (incl. the full tray) + 6 unlabeled half-deck
     const labeled = ticks.filter((t) => t.label !== undefined)
     const unlabeled = ticks.filter((t) => t.label === undefined)
-    expect(labeled).toHaveLength(5)
+    expect(labeled).toHaveLength(6)
     expect(unlabeled).toHaveLength(6)
     expect(unlabeled.map((t) => t.fraction)).toEqual([0.5 / 6, 1.5 / 6, 2.5 / 6, 3.5 / 6, 4.5 / 6, 5.5 / 6])
   })
@@ -146,8 +146,8 @@ describe('tickMarks', () => {
     expect(fractions).toEqual([...fractions].sort((a, b) => a - b))
   })
 
-  it('handles a single deck: no whole-deck ticks, one half-deck tick at beginner', () => {
-    expect(tickMarks(1, 'intermediate')).toEqual([])
-    expect(tickMarks(1, 'beginner')).toEqual([{ fraction: 0.5 }])
+  it('labels the full tray even for a single deck, so a 1-deck shoe still has a numeric anchor', () => {
+    expect(tickMarks(1, 'intermediate')).toEqual([{ fraction: 1, label: '1' }])
+    expect(tickMarks(1, 'beginner')).toEqual([{ fraction: 0.5 }, { fraction: 1, label: '1' }])
   })
 })
