@@ -67,18 +67,38 @@ export const HUD_HEIGHT = {
   // line, AND a full reason sentence (up to 124 chars, measured against
   // reasons.ts's longest entries) for a single-decision miss — genuinely
   // routine, not the rare multi-split case, which still scrolls internally.
-  // livePlay grew only slightly (380->390): its existing countCheck-inputs
-  // state was already this mode's routine max before chips, and the new
-  // bankroll/payout lines didn't push any state past it (measured 368px
-  // live, same as before) — 390 just restores a bit more safety margin.
   strategy: 340,
   trueCount: 340,
-  livePlay: 390,
+  // livePlay: re-measured (Playwright, `el.style.height = 'auto'` per
+  // phase, at innerHeight 730) across every routine phase — idle 168,
+  // betting/chip-picker 132, betting/EV-tiers 286, betting/feedback 184,
+  // deciding 108, roundComplete 172, countCheck/inputs 368 (the max — its
+  // ShoeRack + two SignedNumberInputs + button, unchanged since before
+  // chips), countCheck/feedback 240. 368 dominates by a wide margin, so
+  // there's little real slack here (this mode's old 390 already had only
+  // ~22px of margin over it) — 380 keeps a small ~12px margin instead.
+  livePlay: 380,
   indexPlays: 260,
   evasion: 350,
   counterDetection: 300,
   evidenceFlagging: 300,
-  tableScan: 460,
+  // tableScan: re-measured the same way — idle 158, reviewing 122,
+  // feedback 230 (the max: result line + "counter was at Seat N" +
+  // optional "you picked Seat M" clause + explainer + button). The old 460
+  // was never actually justified by this HUD box's own content — it was a
+  // conservative placeholder (see this mode's still-unchanged comparison
+  // panel below, which self-caps at maxHeight 440 and is NOT part of this
+  // reserve). 250 gives ~20px of margin over the real 230px max.
+  //
+  // NOTE: during reviewing/feedback, the comparison panel (up to 440px)
+  // plus this 250px HUD can still exceed the mode's total height budget at
+  // innerHeight 730, same as before this change (the old 460 reserve
+  // already overflowed that budget too, by a much larger margin) — that's
+  // Table Scan's separately-documented, deliberately-deferred density
+  // tradeoff (CLAUDE.md), not something this HUD-reserve change fixes or
+  // worsens. The routine idle/reviewing states (no comparison panel yet)
+  // fit the no-scroll budget cleanly; that's what this reserve is sized to.
+  tableScan: 250,
   runningCount: 180,
   shoeCountdown: 250,
 } as const

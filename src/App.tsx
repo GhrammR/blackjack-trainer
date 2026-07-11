@@ -251,7 +251,12 @@ function App() {
           ordinary case. Anything below this shell (heatmap, training log)
           lives in normal page flow and is reached by scrolling past it. */}
       <div className="flex h-[100dvh] flex-col overflow-y-auto">
-        <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-800 px-2 py-1 sm:px-4 sm:py-1.5">
+        {/* Header padding/gaps trimmed (py-1/sm:py-1.5 -> py-0.5/sm:py-1,
+            button/select py-1 -> py-0.5) as part of the fixed per-mode
+            overhead reduction — see the mode-wrapper's gap-1/py-1 change
+            below. Together these free up real table height universally,
+            not just in one mode. */}
+        <header className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-slate-800 px-2 py-0.5 sm:px-4 sm:py-1">
           <h1 className="shrink-0 truncate text-sm font-semibold tracking-tight sm:text-lg">
             Double Down
           </h1>
@@ -267,7 +272,7 @@ function App() {
               viewport it would otherwise force the already-wrapping header
               row even taller; the rules are still one tap away in Guides. */}
           {currentMode !== null && (
-            <span className="hidden shrink-0 rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-slate-400 sm:inline-block">
+            <span className="hidden shrink-0 rounded-md bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-400 sm:inline-block">
               {ruleBadgeText(
                 counting.settings.lateSurrender,
                 FIXED_DECK_MODES.has(currentMode) ? 6 : counting.settings.numDecks,
@@ -278,21 +283,21 @@ function App() {
             <button
               type="button"
               onClick={() => setActiveOverlay('overview')}
-              className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
+              className="rounded-md bg-slate-800 px-1.5 py-0.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
             >
               📊 Progress
             </button>
             <button
               type="button"
               onClick={() => setActiveOverlay('guides')}
-              className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
+              className="rounded-md bg-slate-800 px-1.5 py-0.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
             >
               📖 Guides
             </button>
             <button
               type="button"
               onClick={() => setActiveOverlay('settings')}
-              className="rounded-md bg-slate-800 px-1.5 py-1 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
+              className="rounded-md bg-slate-800 px-1.5 py-0.5 text-xs font-medium text-slate-300 transition hover:bg-slate-700 sm:px-2.5"
             >
               ⚙ Settings
             </button>
@@ -302,7 +307,7 @@ function App() {
               rel="noopener noreferrer"
               aria-label="View source on GitHub"
               title="View source on GitHub"
-              className="flex items-center rounded-md bg-slate-800 p-1.5 text-slate-300 transition hover:bg-slate-700 sm:p-2"
+              className="flex items-center rounded-md bg-slate-800 p-1 text-slate-300 transition hover:bg-slate-700 sm:p-1.5"
             >
               <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
                 <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
@@ -323,7 +328,7 @@ function App() {
             dealerSlot/seatContents) rather than a full-page Lobby. */}
         <div className="flex flex-1 min-h-0">
           {currentMode === null ? (
-            <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">
+            <div className="flex h-full w-full flex-col items-center gap-1 px-2 py-1">
               <div
                 className="flex w-full flex-1 min-h-0 items-center justify-center"
                 style={{ containerType: 'size' }}

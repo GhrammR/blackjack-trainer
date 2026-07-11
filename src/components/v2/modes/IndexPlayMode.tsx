@@ -97,7 +97,7 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
   )
 
   return (
-    <div className="flex h-full w-full flex-col items-center gap-2 px-2 py-2">
+    <div className="flex h-full w-full flex-col items-center gap-1 px-2 py-1">
       <div className="flex w-full flex-1 min-h-0 items-center justify-center"
         style={{ containerType: 'size' }}>
         <CasinoTable

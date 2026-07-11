@@ -39,7 +39,7 @@ export function ModeSwitcher({ currentMode, onChange }: ModeSwitcherProps) {
       value={currentMode ?? ''}
       onChange={(e) => onChange(e.target.value as ModeId)}
       title="Changing modes resets the current hand/round — your stats and scores are kept."
-      className="w-full rounded bg-slate-800 px-2 py-1 text-xs text-white sm:text-sm"
+      className="w-full rounded bg-slate-800 px-2 py-0.5 text-xs text-white sm:text-sm"
     >
       {currentMode === null && (
         <option value="" disabled>

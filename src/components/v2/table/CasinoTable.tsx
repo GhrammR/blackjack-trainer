@@ -92,9 +92,13 @@ const ARC_MAX = 0.94                  // leftmost seat:  t = ARC_MAX × π — s
                                        // since every t in [0,π] stays within the curved bottom portion (sin(t) ≥ 0),
                                        // never climbing into the straight-side zone the way a continuous ellipse would.
 
-const TABLE_ASPECT_RATIO = 1.75       // width ÷ height of the table box. A shorter straight-side run means less of
-                                       // the box is "spent" on straight sides, so a slightly shallower box (vs. the
-                                       // previous 1.65) still reads as a well-proportioned curve.
+const TABLE_ASPECT_RATIO = 2.0        // width ÷ height of the table box. Table is height-bound at every mode's
+                                       // routine no-scroll height budget (theme.ts's HUD_HEIGHT), so a flatter
+                                       // ratio buys real table width for free — confirmed acceptable via a live
+                                       // 1.75-vs-2.0 side-by-side screenshot comparison (+85px wide at the same
+                                       // height, D-shape still reads fine flatter). Previously 1.75 (before that,
+                                       // 1.65) — a shorter straight-side run means less of the box is "spent" on
+                                       // straight sides, so shallower ratios still read as well-proportioned.
 
 // Dealer-zone vertical offsets (real, unscaled px — multiplied by `scale`
 // at render time, same convention as every other glyph in this file).
