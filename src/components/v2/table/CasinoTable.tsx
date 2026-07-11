@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { DifficultyLevel } from '../../../lib/trueCountDrill'
 import { DealerChipTray, TRAY_W } from './DealerChipTray'
-import { DealingShoe } from './DealingShoe'
+import { DealingShoe, SHOE_GLYPH_H } from './DealingShoe'
 import { DiscardRack } from './DiscardRack'
 import { TableSeat } from './TableSeat'
 
@@ -95,6 +95,13 @@ const ARC_MAX = 0.94                  // leftmost seat:  t = ARC_MAX × π — s
 const TABLE_ASPECT_RATIO = 1.75       // width ÷ height of the table box. A shorter straight-side run means less of
                                        // the box is "spent" on straight sides, so a slightly shallower box (vs. the
                                        // previous 1.65) still reads as a well-proportioned curve.
+
+// Dealer-zone vertical offsets (real, unscaled px — multiplied by `scale`
+// at render time, same convention as every other glyph in this file).
+// Named here so the shoe-aim math (computeShoeTiltDeg's target/pivot
+// below) and the actual JSX layout can never drift apart.
+const DEALER_ZONE_TOP_PX = 14         // dealer-zone container's own top, from the felt's top edge
+const DEALER_SLOT_TOP_OFFSET_PX = 112 // dealerSlot's top, relative to the dealer-zone container
 
 // Padded leather bumper — ONE FLAT, UNIFORM COLOR across the entire
 // surface. Every earlier attempt at this (a broad dark-to-gray fade, then
@@ -198,25 +205,43 @@ function traySpanPosition(fraction: number, direction: 1 | -1, cornerPct: number
 }
 
 /**
- * The shoe's rotation, aimed via a real line from the shoe's own position
- * to the ACTUAL Seat 3 coordinate from arcPositions() (index 2 — seats are
- * already indexed in real seat-number order, see arcPositions() above) —
- * not a hardcoded trig guess. x% and y% are converted to comparable real
- * distances via TABLE_ASPECT_RATIO before atan2 (a 1% horizontal move and
- * a 1% vertical move cover different absolute distances on a non-square
- * table). Falls back to the old hand-picked -6° when there's no real Seat
- * 3 to aim at (seatCount < 3). Clamped to a modest ±20° — this is a lean
- * toward Seat 3, not a full point-and-aim, matching the shoe's
- * bottom-center pivot (only the top swings).
+ * The shoe's rotation, aimed via a real atan2 line from the shoe's own
+ * bottom-center pivot (where DealingShoe's `rotate()` transformOrigin
+ * actually sits — NOT the top of its glyph box) to a fixed target point
+ * (see CasinoTable's shoeAimTargetPx: "Preferred Shoe Direction," found by
+ * interactively dragging the aim in a since-removed debug tool). Fixed
+ * regardless of seatCount, unlike the old seat-3-aim approach — the shoe
+ * deals toward its own natural dealing direction, not toward whichever
+ * seat happens to be third.
+ *
+ * No clamp — an earlier ±20° clamp was a leftover "keep it a subtle lean"
+ * guard from before this math was trusted; it was silently overriding the
+ * real geometric answer. The atan2 result is the true angle to the target.
+ *
+ * All coordinates are real CSS px at the table's current rendered size
+ * (derived from `scale`, consistent with how DealingShoe/DealerChipTray/
+ * DiscardRack already scale their own glyph geometry) — not felt
+ * percentages — so this needs no TABLE_ASPECT_RATIO correction.
+ *
+ * SIGN FIX: DealingShoe's housing is a trapezoid, narrow at the top/back
+ * (the hood, where cards are loaded) and full-width at the bottom/front
+ * (the card-delivery slot near `bottom: 8`) — so at tiltDeg=0 (no
+ * rotation), the shoe's card-exit "muzzle" faces due SOUTH (increasing y,
+ * down the screen, toward the players) — forward₀ = (0, 1). `rotate()`'s
+ * transformOrigin is 'bottom center', i.e. exactly this muzzle point, so
+ * rotating by θ carries forward₀ to forward(θ). Under CSS's clockwise
+ * rotate() on a y-down screen (verified: rotating "east" (1,0) by 90°
+ * lands on "south" (0,1), matching x'=x·cosθ−y·sinθ, y'=x·sinθ+y·cosθ),
+ * forward(θ) = (−sinθ, cosθ) — note the MINUS on the x term. An earlier
+ * version of this formula solved θ = atan2(dx, dy), which implicitly
+ * assumes forward(θ) = (sinθ, cosθ) — missing that minus sign — so the
+ * shoe rotated to the MIRROR of the angle the aim line was drawn at. Fixed
+ * by solving forward(θ) ∝ (dx, dy) with the correct sign: θ = atan2(−dx, dy).
  */
-function computeShoeTiltDeg(seatPositions: { leftPct: number; topPct: number }[], shoeLeftPct: number): number {
-  if (seatPositions.length < 3) return -6
-  const seat3 = seatPositions[2]
-  const dxPct = seat3.leftPct - shoeLeftPct
-  const dyPct = Math.max(seat3.topPct, 1)
-  const dxReal = dxPct * TABLE_ASPECT_RATIO
-  const angleDeg = Math.atan2(dxReal, dyPct) * (180 / Math.PI)
-  return Math.max(-20, Math.min(20, angleDeg))
+function computeShoeTiltDeg(shoePivotPx: { x: number; y: number }, targetPx: { x: number; y: number }): number {
+  const dx = targetPx.x - shoePivotPx.x
+  const dy = targetPx.y - shoePivotPx.y
+  return Math.atan2(-dx, dy) * (180 / Math.PI)
 }
 
 interface CasinoTableProps {
@@ -273,8 +298,41 @@ export function CasinoTable({
   const trayHalfWidthPx = (TRAY_W / 2) * scale
   const shoeLeft = traySpanPosition(1 / 3, 1, CORNER_FRAC * 100, trayHalfWidthPx)
   const discardLeft = traySpanPosition(1 / 3, -1, CORNER_RADIUS_FRAC * 100, trayHalfWidthPx)
-  const shoeLeftPctNum = 50 + (1 / 3) * (CORNER_FRAC * 100 - 50)
-  const shoeTiltDeg = computeShoeTiltDeg(positions, shoeLeftPctNum)
+
+  // Real (current-render) px dimensions of the felt sub-box, derived from
+  // `scale` the same way DealingShoe/DealerChipTray/DiscardRack already
+  // derive their own glyph geometry — see useTableScale's comment for why
+  // scale*REFERENCE_TABLE_WIDTH approximates the true rendered width (exact
+  // except at the MIN_GLYPH_SCALE floor, an existing, accepted limitation).
+  const tableWidthPx = scale * REFERENCE_TABLE_WIDTH
+  const tableHeightPx = tableWidthPx / TABLE_ASPECT_RATIO
+  const feltWidthPx = tableWidthPx - 2 * RAIL_PX
+  const feltHeightPx = tableHeightPx - RAIL_PX - WOOD_EDGE_PX
+
+  // Shoe's real bottom-center pivot (traySpanPosition's percent term is a
+  // fraction of feltWidthPx; its px term is already real px) — this is
+  // where DealingShoe's `rotate()` transformOrigin sits, not the top of its
+  // glyph box, so the aim line's origin actually matches the visual pivot.
+  const shoeLeftPercent = 50 + (1 / 3) * (CORNER_FRAC * 100 - 50)
+  const shoeLeftPxOffset = trayHalfWidthPx * (1 - 1 / 3)
+  const shoePivotPx = {
+    x: (shoeLeftPercent / 100) * feltWidthPx + shoeLeftPxOffset,
+    y: DEALER_ZONE_TOP_PX * scale + SHOE_GLYPH_H * scale,
+  }
+  // Shoe aim target — "Preferred Shoe Direction," a natural shallow lean
+  // toward the dealer's card-dealing area, found interactively via a
+  // drag-to-aim debug tool (since removed) and hardcoded here as felt-
+  // relative fractions (not raw px) so it holds the same relative aim at
+  // any felt size, not just the viewport it was measured at. Replaces the
+  // earlier dealerSlot-top anchor, which sat too level with the shoe's own
+  // pivot and produced a ~-88° "toppled over" lean.
+  const SHOE_AIM_TARGET_X_FRAC = 0.5066
+  const SHOE_AIM_TARGET_Y_FRAC = 0.4549
+  const shoeAimTargetPx = {
+    x: SHOE_AIM_TARGET_X_FRAC * feltWidthPx,
+    y: SHOE_AIM_TARGET_Y_FRAC * feltHeightPx,
+  }
+  const shoeTiltDeg = computeShoeTiltDeg(shoePivotPx, shoeAimTargetPx)
   const clipId = useId()
   const railClipId = `${clipId}-rail`
   const feltClipId = `${clipId}-felt`
@@ -553,16 +611,18 @@ export function CasinoTable({
                       upright, no tilt.
                     - Shoe: positioned at exactly 1/3 of the tray-to-edge
                       span (right side), tilted via computeShoeTiltDeg() —
-                      a real atan2 aim from the shoe's own position to the
-                      actual Seat 3 coordinate from arcPositions(), not a
-                      hardcoded trig guess.
+                      a real atan2 aim from the shoe's own bottom-center
+                      pivot to shoeAimTargetPx, a hardcoded felt-relative
+                      "Preferred Shoe Direction" target found by dragging
+                      the aim interactively (see computeShoeTiltDeg's doc
+                      comment), not a per-seat guess.
                   Dealer's own hand sits BELOW this row — "in front of" the
                   tray, toward the player side, matching a real table.
                   NOTE for a future pass: a bounded "dealer area" container
                   is planned to hold this whole group (shoe/tray/rack/hand)
                   plus precisely anchor the arc text to it — this layout is
                   written to be compatible with that, not fighting it. */}
-              <div style={{ position: 'absolute', top: 14 * scale, left: 0, right: 0 }}>
+              <div style={{ position: 'absolute', top: DEALER_ZONE_TOP_PX * scale, left: 0, right: 0 }}>
                 <div style={{ position: 'absolute', left: '50%', top: -8 * scale, transform: 'translateX(-50%)' }}>
                   {/* Decorative dealer chip tray — static, not bound to any
                       game/chip-wager state (see DECISIONS.md). */}
@@ -590,7 +650,7 @@ export function CasinoTable({
                   style={{
                     position: 'absolute',
                     left: '50%',
-                    top: 112 * scale,
+                    top: DEALER_SLOT_TOP_OFFSET_PX * scale,
                     transform: 'translateX(-50%)',
                     display: 'flex',
                     flexDirection: 'column',

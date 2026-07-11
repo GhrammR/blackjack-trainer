@@ -26,6 +26,10 @@ const SLOT_TOP = 10
 const TOP_TAPER_W = SLOT_W
 const TOP_INSET = (SHOE_W - TOP_TAPER_W) / 2
 const HOOD_H = 12
+// Real (unscaled) glyph height, hood included — CasinoTable.tsx needs this
+// to locate the shoe's bottom-center pivot (its rotate() transformOrigin,
+// below) in real page pixels for its aim-line geometry.
+export const SHOE_GLYPH_H = SHOE_H + HOOD_H
 // Fallback tilt for when CasinoTable.tsx has no real Seat 3 to aim at
 // (seatCount < 3) — the old hand-picked estimate, kept only as a graceful
 // default. Every real call now passes a computed tiltDeg prop, derived
