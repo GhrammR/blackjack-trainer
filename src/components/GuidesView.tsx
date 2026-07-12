@@ -1,22 +1,24 @@
+import { useState } from 'react'
 import type { Action } from '../types'
-import { resolveHardTotals, resolveSoftTotals, resolvePairs, type RuleConfig } from '../lib/strategy'
+import { resolveHardTotals, resolveSoftTotals, resolvePairs, type RuleConfig, type Soft17Rule, type SurrenderMode } from '../lib/strategy'
+import { SHOE_SIZE_OPTIONS } from '../lib/shoe'
 import { INDEX_PLAYS } from '../lib/indexPlays'
 import { hiLoValue, MIN_DECKS_REMAINING } from '../lib/counting'
 import { EV_BET_RAMP } from '../lib/livePlaySession'
 import { PAGE_WRAPPER, SECTION_LABEL } from './theme'
 
 /**
- * Reference guides — Basic Strategy chart, Illustrious 18, and how-to-count
- * content. Every table below reads its values directly from the same engine
- * data the drills grade against (`strategy.ts`'s
+ * Reference guides — the interactive Strategy Chart, Illustrious 18, and
+ * how-to-count content. Every table below reads its values directly from
+ * the same engine data the drills grade against (`strategy.ts`'s
  * resolveHardTotals/resolveSoftTotals/resolvePairs, `indexPlays.ts`'s
  * INDEX_PLAYS, `counting.ts`'s hiLoValue, `livePlaySession.ts`'s
  * EV_BET_RAMP) — nothing here is a hand-retyped copy that could drift from
- * the grader. The one prop, `rules`, is the current live RuleConfig (deck
- * size, soft-17 rule, surrender mode), threaded through so the rendered
- * Basic Strategy chart reflects the exact same rule matrix Basic
- * Strategy/Live Play grade against — everything else stays self-contained,
- * matching `TrainingSessionRecord`'s pattern.
+ * the grader. The `rules` prop is the current live RuleConfig, used only
+ * to SEED the Strategy Chart section's own local rule state (see
+ * `StrategyChartSection`) — the chart's selectors are independent of the
+ * app's real training settings so the user can browse any of the 12
+ * sourced combinations without changing what they train under.
  */
 
 const DEALER_COLUMNS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'A'] as const
@@ -121,36 +123,120 @@ function StrategyTable({
   )
 }
 
-function BasicStrategySection({ rules }: { rules: RuleConfig }) {
+// Same dropdown treatment as CountingSettingsPanel.tsx's own rule selectors — visual
+// consistency between "the rules you train under" and "the rules you're browsing".
+const RULE_SELECT_CLASS = 'rounded bg-slate-800 px-2 py-1 text-white'
+
+type ChartTab = 'hard' | 'soft' | 'pairs'
+const CHART_TABS: { id: ChartTab; label: string }[] = [
+  { id: 'hard', label: 'Hard Totals' },
+  { id: 'soft', label: 'Soft Totals' },
+  { id: 'pairs', label: 'Pairs' },
+]
+
+/**
+ * Interactive reference chart (Pass 2) — browses any of the 12 sourced
+ * rule combinations independently of the app's real training settings.
+ * `chartRules` is local state, seeded from the live `rules` prop on mount
+ * only (so the chart opens showing what the user is currently training
+ * under) but never written back — changing a selector here can't alter
+ * `CountingSettings`/localStorage. Tabbed (not stacked) so only one
+ * 10-column table's horizontal scroll region is ever on screen at once —
+ * see StrategyTable's own comment on why that matters on a phone.
+ */
+function StrategyChartSection({ rules }: { rules: RuleConfig }) {
+  const [chartRules, setChartRules] = useState<RuleConfig>(rules)
+  const [tab, setTab] = useState<ChartTab>('hard')
+
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold text-white">Basic Strategy</h2>
+        <h2 className="text-lg font-semibold text-white">Strategy Chart</h2>
         <p className="text-sm text-slate-400">
-          The exact chart this app grades against ({rules.numDecks} deck{rules.numDecks === 1 ? '' : 's'}, dealer{' '}
-          {rules.soft17Rule === 'H17' ? 'hits' : 'stands'} on soft 17, double after split allowed, blackjack pays
-          3:2) — read directly from <code>strategy.ts</code>, not a separate copy. Surrender is currently{' '}
-          <strong className="text-slate-200">{rules.surrenderMode === 'late' ? 'LATE' : 'OFF'}</strong> (change in
-          Settings) — the cells that become Surrender when it's on are shown below when enabled. Rows are your
+          Browse the correct chart for any rule combination — read directly from{' '}
+          <code>strategy.ts</code>'s resolvers, not a separate copy. These selectors only change what's
+          shown here; they don't affect your training rules (change those in Settings). Rows are your
           hand, columns are the dealer's upcard — find your row, find the column, read the intersection.
         </p>
       </div>
+
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          Decks
+          <select
+            value={chartRules.numDecks}
+            onChange={(e) => setChartRules((r) => ({ ...r, numDecks: Number(e.target.value) }))}
+            className={RULE_SELECT_CLASS}
+          >
+            {SHOE_SIZE_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {d} deck{d > 1 ? 's' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          Soft 17
+          <select
+            value={chartRules.soft17Rule}
+            onChange={(e) => setChartRules((r) => ({ ...r, soft17Rule: e.target.value as Soft17Rule }))}
+            className={RULE_SELECT_CLASS}
+          >
+            <option value="H17">Hits (H17)</option>
+            <option value="S17">Stands (S17)</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          Surrender
+          <select
+            value={chartRules.surrenderMode}
+            onChange={(e) => setChartRules((r) => ({ ...r, surrenderMode: e.target.value as SurrenderMode }))}
+            className={RULE_SELECT_CLASS}
+          >
+            <option value="none">Off</option>
+            <option value="late">Late</option>
+          </select>
+        </label>
+      </div>
+
       <ActionLegend />
-      <StrategyTable
-        title="Hard Totals"
-        rowLabel={(k) => k}
-        rows={resolveHardTotals(rules) as unknown as Record<string, Record<string, Action>>}
-      />
-      <StrategyTable
-        title="Soft Totals (with an Ace)"
-        rowLabel={(k) => `A,${Number(k) - 11}`}
-        rows={resolveSoftTotals(rules) as unknown as Record<string, Record<string, Action>>}
-      />
-      <StrategyTable
-        title="Pairs"
-        rowLabel={(k) => `${k},${k}`}
-        rows={resolvePairs(rules) as unknown as Record<string, Record<string, Action>>}
-      />
+
+      <div className="flex gap-1 border-b border-slate-700">
+        {CHART_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`rounded-t px-3 py-1.5 text-sm font-medium transition ${
+              tab === t.id ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'hard' && (
+        <StrategyTable
+          title="Hard Totals"
+          rowLabel={(k) => k}
+          rows={resolveHardTotals(chartRules) as unknown as Record<string, Record<string, Action>>}
+        />
+      )}
+      {tab === 'soft' && (
+        <StrategyTable
+          title="Soft Totals (with an Ace)"
+          rowLabel={(k) => `A,${Number(k) - 11}`}
+          rows={resolveSoftTotals(chartRules) as unknown as Record<string, Record<string, Action>>}
+        />
+      )}
+      {tab === 'pairs' && (
+        <StrategyTable
+          title="Pairs"
+          rowLabel={(k) => `${k},${k}`}
+          rows={resolvePairs(chartRules) as unknown as Record<string, Record<string, Action>>}
+        />
+      )}
     </section>
   )
 }
@@ -316,7 +402,7 @@ export function GuidesView({ rules }: { rules: RuleConfig }) {
   return (
     <div className={`${PAGE_WRAPPER} pb-12`}>
       <p className={SECTION_LABEL}>Guides &amp; Reference</p>
-      <BasicStrategySection rules={rules} />
+      <StrategyChartSection rules={rules} />
       <IllustriousEighteenSection />
       <CountingBasicsSection />
       <CountingAdvancedSection />
