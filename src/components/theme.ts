@@ -78,7 +78,19 @@ export const HUD_HEIGHT = {
   // there's little real slack here (this mode's old 390 already had only
   // ~22px of margin over it) — 380 keeps a small ~12px margin instead.
   livePlay: 380,
-  indexPlays: 260,
+  // indexPlays: re-measured after the play-out conversion (Index Plays now
+  // drives a full LiveRound — hit/stand/double/split — instead of grading
+  // one decision). Sampled 80 rounds of mixed play at innerHeight 730
+  // (`el.style.height = 'auto'`, real getBoundingClientRect()): median
+  // 244, p90/p95 336, one rare multi-split/multi-miss outlier at 616 (that
+  // one scrolls internally via this HUD's existing overflow-y-auto,
+  // same "routine max, not rarest-possible state" philosophy as every
+  // other HUD_HEIGHT entry). 340 sits right at the routine p90-p95
+  // ceiling with a small margin — matches `strategy`'s own reserve, the
+  // most structurally similar mode (same decisionLog/misses-list
+  // roundComplete shape, minus the bankroll/payout lines this mode has no
+  // chip system for).
+  indexPlays: 340,
   evasion: 350,
   counterDetection: 300,
   evidenceFlagging: 300,
