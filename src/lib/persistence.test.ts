@@ -83,7 +83,7 @@ describe('clearState', () => {
 })
 
 const DEFAULT_COUNTING_STATE: CountingState = {
-  settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', lateSurrender: false, startingBankroll: 1000 },
+  settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', startingBankroll: 1000 },
   bankroll: 1000,
   progress: {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
@@ -114,7 +114,7 @@ describe('loadCountingState', () => {
   it('fills in missing fields from a partial object', () => {
     localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { numDecks: 2 } }))
     expect(loadCountingState()).toEqual({
-      settings: { numDecks: 2, seatCount: 4, dealSpeed: 'medium', lateSurrender: false, startingBankroll: 1000 },
+      settings: { numDecks: 2, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', startingBankroll: 1000 },
       progress: DEFAULT_COUNTING_STATE.progress,
       bankroll: 1000,
     })
@@ -128,6 +128,21 @@ describe('loadCountingState', () => {
   it('a present bankroll is used as-is, independent of startingBankroll', () => {
     localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { startingBankroll: 500 }, bankroll: 275 }))
     expect(loadCountingState().bankroll).toBe(275)
+  })
+
+  it('migrates a pre-rule-matrix save (old boolean lateSurrender, no surrenderMode) to the new surrenderMode field', () => {
+    localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { lateSurrender: true } }))
+    expect(loadCountingState().settings.surrenderMode).toBe('late')
+  })
+
+  it('a pre-rule-matrix save with lateSurrender false migrates to surrenderMode "none"', () => {
+    localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { lateSurrender: false } }))
+    expect(loadCountingState().settings.surrenderMode).toBe('none')
+  })
+
+  it('a saved surrenderMode takes priority over a stale lateSurrender boolean, if somehow both are present', () => {
+    localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { lateSurrender: true, surrenderMode: 'none' } }))
+    expect(loadCountingState().settings.surrenderMode).toBe('none')
   })
 
   it('rejects a non-object personalBests value instead of throwing, for either format', () => {
@@ -250,7 +265,7 @@ describe('loadCountingState', () => {
 describe('saveCountingState / loadCountingState round trip', () => {
   it('persists settings and progress, including shoe countdown personal bests and detection sessions', () => {
     const state: CountingState = {
-      settings: { numDecks: 1, seatCount: 2, dealSpeed: 'fast', lateSurrender: true, startingBankroll: 2000 },
+      settings: { numDecks: 1, seatCount: 2, dealSpeed: 'fast', soft17Rule: 'H17', surrenderMode: 'late', startingBankroll: 2000 },
       bankroll: 1875.5,
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
@@ -285,7 +300,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
 describe('resetCountingProgress', () => {
   it('resets progress to defaults while leaving settings and the live bankroll untouched', () => {
     const state: CountingState = {
-      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', lateSurrender: true, startingBankroll: 1000 },
+      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', soft17Rule: 'H17', surrenderMode: 'late', startingBankroll: 1000 },
       bankroll: 640,
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
@@ -303,7 +318,7 @@ describe('resetCountingProgress', () => {
       },
     }
     expect(resetCountingProgress(state)).toEqual({
-      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', lateSurrender: true, startingBankroll: 1000 },
+      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', soft17Rule: 'H17', surrenderMode: 'late', startingBankroll: 1000 },
       bankroll: 640,
       progress: DEFAULT_COUNTING_STATE.progress,
     })
@@ -312,7 +327,7 @@ describe('resetCountingProgress', () => {
 
 describe('resetCountingMode', () => {
   const state: CountingState = {
-    settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', lateSurrender: false, startingBankroll: 1000 },
+    settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', startingBankroll: 1000 },
     bankroll: 730,
     progress: {
       runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
@@ -363,7 +378,7 @@ describe('resetCountingMode', () => {
 describe('resetBankroll', () => {
   it('resets the live bankroll to the current startingBankroll setting, leaving settings and progress untouched', () => {
     const state: CountingState = {
-      settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', lateSurrender: false, startingBankroll: 500 },
+      settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', startingBankroll: 500 },
       bankroll: 0,
       progress: DEFAULT_COUNTING_STATE.progress,
     }
@@ -375,7 +390,7 @@ describe('resetBankroll', () => {
 
   it('is independent of a customized startingBankroll (not hardcoded to 1000)', () => {
     const state: CountingState = {
-      settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', lateSurrender: false, startingBankroll: 2500 },
+      settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', startingBankroll: 2500 },
       bankroll: 12,
       progress: DEFAULT_COUNTING_STATE.progress,
     }

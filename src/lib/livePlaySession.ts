@@ -1,7 +1,7 @@
 import type { Action, Card } from '../types'
 import { createShoe, shuffle } from './shoe'
 import { hiLoValue } from './counting'
-import { getAction, getHardSoftAction, isPair } from './strategy'
+import { getActionForRules, getHardSoftActionForRules, isPair, type RuleConfig } from './strategy'
 import { handValue, isBlackjack, isBust } from './cards'
 import { resolveDealerHand } from './handResolution'
 import { type BetSpreadStep, baseBetUnits } from './playerProfiles'
@@ -211,13 +211,13 @@ function canSurrender(round: LiveRound): boolean {
 /**
  * The actions legally available for the round's current active hand. Empty
  * once the round is over (or, transiently, for a split-Aces hand, which is
- * never actually offered a decision). `surrenderEnabled` defaults to false
- * — Surrender is never offered unless the caller explicitly opts in with
- * the current late-surrender setting (Basic Strategy Mode and Live Play
- * both do; this default is what makes a plain `legalActions(round)` call
- * behave exactly as it did before this parameter existed).
+ * never actually offered a decision). `rules.surrenderMode` gates whether
+ * Surrender is ever offered — every caller (Basic Strategy Trainer, Live
+ * Play, Index Plays) must now pass a `RuleConfig` explicitly; there's no
+ * default, since silently defaulting a correctness-critical parameter is
+ * exactly what this rule matrix is trying to avoid.
  */
-export function legalActions(round: LiveRound, surrenderEnabled = false): Action[] {
+export function legalActions(round: LiveRound, rules: RuleConfig): Action[] {
   if (isRoundOver(round)) return []
   const hand = round.hands[round.activeHandIndex]
   if (hand.isSplitAces) return []
@@ -226,7 +226,7 @@ export function legalActions(round: LiveRound, surrenderEnabled = false): Action
   if (hand.isFirstDecision) {
     actions.push('Double')
     if (canSplit(round)) actions.push('Split')
-    if (surrenderEnabled && canSurrender(round)) actions.push('Surrender')
+    if (rules.surrenderMode !== 'none' && canSurrender(round)) actions.push('Surrender')
   }
   return actions
 }
@@ -253,15 +253,16 @@ function noDoubleAlternative(cards: Card[]): Action {
  * now) says is correct for the round's current active hand.
  *
  * `eligibleForSurrender` folds the setting AND `canSurrender`'s own
- * decision-point legality gate together before it ever reaches `getAction`
- * — so "chart says Surrender" can never surface as the correct answer at a
- * point where Surrender isn't actually a legal button (e.g. after a hit, or
- * on any hand past the first decision of a split).
+ * decision-point legality gate together before it ever reaches
+ * `getActionForRules` — so "chart says Surrender" can never surface as the
+ * correct answer at a point where Surrender isn't actually a legal button
+ * (e.g. after a hit, or on any hand past the first decision of a split).
  */
-export function correctActionFor(round: LiveRound, surrenderEnabled = false): Action {
+export function correctActionFor(round: LiveRound, rules: RuleConfig): Action {
   const hand = round.hands[round.activeHandIndex]
-  const eligibleForSurrender = surrenderEnabled && canSurrender(round)
-  const action = getAction(hand.cards, round.dealerUpcard, eligibleForSurrender)
+  const eligibleForSurrender = rules.surrenderMode !== 'none' && canSurrender(round)
+  const effectiveRules: RuleConfig = eligibleForSurrender ? rules : { ...rules, surrenderMode: 'none' }
+  const action = getActionForRules(hand.cards, round.dealerUpcard, effectiveRules)
 
   if (action === 'Split' && !canSplit(round)) {
     // Never surrender-eligible here: reaching this fallback with the hand
@@ -270,7 +271,7 @@ export function correctActionFor(round: LiveRound, surrenderEnabled = false): Ac
     // requirement — so eligibleForSurrender is always already false by the
     // time this branch is reachable. Passed explicitly rather than reused,
     // so that invariant doesn't have to be trusted implicitly here.
-    return getHardSoftAction(hand.cards, round.dealerUpcard, false)
+    return getHardSoftActionForRules(hand.cards, round.dealerUpcard, { ...rules, surrenderMode: 'none' })
   }
   if (action === 'Double' && !hand.isFirstDecision) return noDoubleAlternative(hand.cards)
   return action
@@ -347,8 +348,8 @@ export interface DecisionResult {
 }
 
 /** Grades `chosenAction` against what basic strategy indicates right now, then applies it. */
-export function decide(state: LivePlaySessionState, round: LiveRound, chosenAction: Action, surrenderEnabled = false): DecisionResult {
-  const correctAction = correctActionFor(round, surrenderEnabled)
+export function decide(state: LivePlaySessionState, round: LiveRound, chosenAction: Action, rules: RuleConfig): DecisionResult {
+  const correctAction = correctActionFor(round, rules)
   const { state: nextState, round: nextRound } = applyAction(state, round, chosenAction)
   return { chosenAction, correctAction, isCorrect: chosenAction === correctAction, state: nextState, round: nextRound }
 }

@@ -689,3 +689,100 @@ explicitly held until slice A's redeploy-and-verify.
   colors) and Live Play (felt panel around the dealer/hand area, the shoe
   rack replacing the old bare-text decks-remaining line, and the net-units
   line updating correctly — e.g. +1.0 after a won 1-unit hand).
+
+## Full rule matrix (Pass 1 of 3) — deck size × soft-17 × surrender mode
+
+Extends the strategy engine from one fixed rule set (6 decks, H17, DAS,
+optional late surrender) to a matrix of deck size (1/2/6 — the exact
+values `shoe.ts`'s `SHOE_SIZE_OPTIONS` already offers), dealer soft-17 rule
+(H17/S17), and surrender mode (none/late), for Basic Strategy Trainer and
+Live Play only — the same two-mode scope `lateSurrender` already had.
+Correctness-critical: a wrong cell teaches a wrong play, so every changed
+cell had to be cited, and anything that couldn't be reliably sourced was
+dropped rather than guessed.
+
+**Sourcing pivoted through three methods before landing on one that could
+be trusted — each rejection is worth keeping on record:**
+
+1. **A blog transcription (readybetgo.com's single-deck H17 chart) — REJECTED.**
+   Produced an 11-cell delta list, 5 of which were single-sourced. 3 of
+   those (pair 2,2 vs 2, pair 3,3 vs 2/3 → claimed "Hit") were later proven
+   flatly wrong: the blog had read a chart's NO-DAS conditional branch
+   while this app's rule set always has DAS on — those cells are actually
+   Split, matching the base chart, not a delta at all. A wrong cell would
+   have taught users to hit pairs they should split.
+2. **A manual pixel-read of four official Wizard of Odds chart GIFs —
+   REJECTED.** Same author/authority as the already-proven 6-deck source,
+   and careful (cross-checked against known-good cells, re-read twice per
+   chart) — but still produced a real error: a column-alignment slip on
+   the 2-deck "4,4" pair row invented a delta that doesn't exist (the row
+   is Split vs 5/6 only, identical to the 6-deck base — matching WoO's own
+   4-deck text: "Split 4s only if DAS is allowed and the dealer shows a 5
+   or 6"). Since the same careful process produced that error, every other
+   image-derived cell was untrustworthy by extension and discarded
+   wholesale rather than cherry-picked.
+3. **Wizard of Odds' Basic Strategy Calculator, driven by Playwright —
+   USED.** Same authority, but this page renders its chart as a real HTML
+   table wired to rule-parameter `<select>` inputs and a JS
+   `ComputeStrategy()` function — so it can be queried mechanically
+   (set the inputs, call the function, read the table's text) instead of
+   read by eye. No pixels, no column-counting, no OCR.
+
+**The self-check that makes method 3 trustworthy, kept as a permanent
+regression test** (`strategy.chartReference.test.ts`): the calculator's
+own 6-deck/H17/DAS-allowed/no-surrender output was diffed against
+`hardTotals`/`softTotals` — 0 differences. Its late-surrender output
+matched `HARD_SURRENDER_CELLS` exactly, except one cell — which turned out
+to be real.
+
+**Correctness fix to already-shipped code, found as a side effect:** pair
+8,8 vs dealer A was being surrendered unconditionally whenever late
+surrender was on, at every deck size. The calculator resolves that exact
+cell as `Rp` — "surrender only if double-after-split is NOT allowed,
+otherwise split." This app's rule set always has DAS on, so the cell
+should always be Split, never Surrender — the app had been grading it
+wrong. `effectivePairs` no longer applies any pair override for late
+surrender (the cell was the only one, and it's gone). Pinned by a
+dedicated regression test so it can't reappear.
+
+**Early surrender — dropped, not built.** The calculator has no explicit
+early-surrender option. The only working proxy (Surrender = any upcard +
+Peek = European/no-hole-card) also silently changes unrelated
+non-surrender cells — e.g. hard 11 vs 10/A flips from Double to Hit,
+because in a true no-hole-card game doubling into a possible dealer
+natural is worse EV. That's a real consequence of a *different* rule (no
+dealer hole card) this app doesn't model — `handResolution.ts` always
+deals and checks a hole card, matching real American peek behavior.
+Isolating "just the surrender cells" from that proxy is inference on top
+of an already-imperfect proxy, with no independent check on the result —
+unlike every other cell in this matrix, which is machine-extracted *and*
+self-check-validated. Early surrender is also essentially extinct in real
+casinos — Atlantic City, whose rules this app's default follows, offered
+it from 1978 and banned it in 1981 for being too player-favorable — so the
+payoff for shipping an unvalidated corner is small. Revisit only if a
+cleaner source (one that separates surrender timing from hole-card
+mechanics) turns up.
+
+**Engine design:** the existing `hardTotals`/`softTotals`/`pairs`/
+`getAction`/`getHardSoftAction`/`effectiveHardTotals`/`effectivePairs`
+stay completely untouched — every existing caller (detection family,
+evasion, table scan, Index Plays) keeps using the boolean surrender-only
+path exactly as before. The new `RuleConfig`-aware
+`resolveHardTotals`/`resolveSoftTotals`/`resolvePairs`/`getActionForRules`
+are additive, used only by `livePlaySession.ts`'s
+`legalActions`/`correctActionFor`/`decide` (now taking a `RuleConfig`
+instead of a bare surrender boolean — no default, so every call site is
+explicit) and, through those, by Basic Strategy Trainer and Live Play.
+1-deck gets two complete, independently sourced table sets (H17 and S17 —
+NOT shared: pair 9,9 vs A is Split under H17 but base Stand under S17, a
+real divergence a shared table would have gotten wrong one way or the
+other) rather than deltas layered on the 6-deck base, since the sourcing
+history above proved layering isn't safe at 1-deck (soft 18 vs 2 takes a
+*third*, different value at 1-deck than either the 6-deck base or the
+generic S17 revert would predict). 2-deck is small enough (4 cells for
+hard/soft, 2 for pairs, machine-extracted and confirmed non-zero — not the
+"reuse 6-deck" assumption an earlier draft of this plan made before the
+calculator data existed) to express as literal delta overlays instead.
+Index Plays stays pinned to a fixed `{ 6 decks, H17, no surrender }`
+`RuleConfig` constant, matching its existing untouched-rule-surface
+guarantee from the Index Plays play-out work earlier this session.

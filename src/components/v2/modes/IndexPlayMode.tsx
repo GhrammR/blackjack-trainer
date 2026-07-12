@@ -18,7 +18,7 @@ import {
   resolveDealer,
 } from '../../../lib/livePlaySession'
 import { categoryOfSituationKey } from '../../../lib/mastery'
-import { getSituationKey } from '../../../lib/strategy'
+import { getSituationKey, type RuleConfig } from '../../../lib/strategy'
 import { h17NoteFor, reasonFor as chartReasonFor } from '../../../lib/reasons'
 import { signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
@@ -55,14 +55,16 @@ import { CasinoTable } from '../table/CasinoTable'
  * on a tracked situation key — keeping the persisted stats' meaning
  * exactly "count-based deviation recognition accuracy," nothing else.
  *
- * Surrender stays disabled for the whole round (`legalActions`/`decide`
- * called with `surrenderEnabled = false`), matching today's exact
- * behavior — `generateScenario()` already computes `basicAction` without
- * surrender-awareness, so threading the global lateSurrender setting in
- * would touch the deviation-grading path itself, which is out of scope
- * here. Reusing `legalActions` for real does fix one thing for free: Split
- * now only appears for an actual pair, rather than every round showing
- * all 5 buttons unconditionally.
+ * Rule surface stays fixed at { 6 decks, H17, no surrender } (`FIXED_RULES`
+ * below) regardless of the live Settings rule matrix (strategy.ts's
+ * RuleConfig, added for Basic Strategy/Live Play) — matching today's exact
+ * behavior. `generateScenario()` already computes `basicAction`/
+ * `correctAction` against the fixed 6-deck/H17 chart with no
+ * surrender-awareness, so threading the live settings in here would touch
+ * the deviation-grading path itself, which is out of scope. Reusing
+ * `legalActions` for real does fix one thing for free: Split now only
+ * appears for an actual pair, rather than every round showing all 5
+ * buttons unconditionally.
  *
  * No chip wager system here (unlike Basic Strategy/Live Play) — betting
  * has nothing to do with what this mode teaches (deviation recognition,
@@ -93,6 +95,9 @@ interface IndexPlayModeProps {
 }
 
 const INDEX_PLAY_SITUATION_KEYS = new Set(INDEX_PLAYS.map((p) => p.situationKey))
+
+/** Index Plays' rule surface is fixed, independent of the live Settings rule matrix — see header comment. */
+const FIXED_RULES: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }
 
 /** The count-threshold "why" for the index decision specifically — distinct from reasons.ts's chart-based reasonFor. */
 function deviationReasonFor(scenario: IndexPlayScenario): string {
@@ -235,7 +240,7 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
       setPerDeviation(nextPerDeviation)
       onProgressChange({ attempts: nextAttempts, correct: nextCorrect, perDeviation: nextPerDeviation })
     } else {
-      const result = decide(session, round, action, false)
+      const result = decide(session, round, action, FIXED_RULES)
       nextState = result.state
       nextRound = result.round
       record = {
@@ -351,7 +356,7 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
                   : `Incorrect — correct play was ${lastDecision.correctAction}`}
               </p>
             )}
-            <ActionButtons onSelect={choose} actions={legalActions(round, false)} />
+            <ActionButtons onSelect={choose} actions={legalActions(round, FIXED_RULES)} />
           </div>
         )}
 

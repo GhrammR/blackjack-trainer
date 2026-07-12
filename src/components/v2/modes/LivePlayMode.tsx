@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Action, Card } from '../../../types'
+import type { RuleConfig } from '../../../lib/strategy'
 import { handValue, isBlackjack, isBust } from '../../../lib/cards'
 import { trueCount } from '../../../lib/counting'
 import { isValidSignedInt } from '../../../lib/format'
@@ -150,7 +151,7 @@ interface LivePlayProgress {
 
 interface LivePlayModeProps {
   numDecks: number
-  lateSurrender: boolean
+  rules: RuleConfig
   bankroll: number
   onBankrollChange: (bankroll: number) => void
   onResetBankroll: () => void
@@ -162,7 +163,7 @@ interface LivePlayModeProps {
 
 export function LivePlayMode({
   numDecks,
-  lateSurrender,
+  rules,
   bankroll,
   onBankrollChange,
   onResetBankroll,
@@ -254,7 +255,7 @@ export function LivePlayMode({
 
   function choose(action: Action) {
     if (!session || !round) return
-    const result = decide(session, round, action, lateSurrender)
+    const result = decide(session, round, action, rules)
     setSession(result.state)
     setRound(result.round)
     setLastDecision({
@@ -534,7 +535,7 @@ export function LivePlayMode({
               </p>
             )}
             {!isRoundOver(round) && (
-              <ActionButtons onSelect={choose} actions={legalActions(round, lateSurrender)} />
+              <ActionButtons onSelect={choose} actions={legalActions(round, rules)} />
             )}
           </div>
         )}

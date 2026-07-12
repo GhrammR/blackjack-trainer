@@ -1,6 +1,7 @@
 import type { Stats } from './adaptiveEngine'
 import type { PersonalBests, ShoeCountdownTotals } from './shoeCountdown'
 import { DEAL_SPEEDS, type DealSpeed } from './dealSpeed'
+import type { Soft17Rule, SurrenderMode } from './strategy'
 
 const STORAGE_KEY = 'double-down:v1'
 
@@ -77,12 +78,17 @@ export interface CountingSettings {
   /** Timed auto-deal pace for Running Count (the one mode that deals cards on a timer). */
   dealSpeed: DealSpeed
   /**
-   * Late surrender, applied to both Basic Strategy (grading) and Live Play
-   * (the play option) via strategy.ts's effectiveHardTotals/effectivePairs
-   * overlay — see strategy.ts and livePlaySession.ts. Default off, matching
-   * the base chart already proven correct by the chart-reference test.
+   * The full rule matrix (deck size × soft-17 rule × surrender mode),
+   * applied to both Basic Strategy (grading) and Live Play via
+   * strategy.ts's resolveHardTotals/resolveSoftTotals/resolvePairs — see
+   * strategy.ts and livePlaySession.ts. `numDecks` above doubles as the
+   * chart's deck-size axis (it already ranges over exactly {1, 2, 6}, the
+   * only three sizes this app's charts are sourced for — see shoe.ts's
+   * SHOE_SIZE_OPTIONS). Default H17/none, matching the base chart already
+   * proven correct by the chart-reference test.
    */
-  lateSurrender: boolean
+  soft17Rule: Soft17Rule
+  surrenderMode: SurrenderMode
   /**
    * The bankroll amount a "Reset Bankroll" action restores (chip wager
    * system, shared by Basic Strategy and Live Play — see
@@ -162,7 +168,8 @@ const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
   numDecks: 6,
   seatCount: 4,
   dealSpeed: 'medium',
-  lateSurrender: false,
+  soft17Rule: 'H17',
+  surrenderMode: 'none',
   startingBankroll: 1000,
 }
 
@@ -261,6 +268,17 @@ function parseAttemptsCorrectMap(value: unknown): Record<string, { attempts: num
   return result
 }
 
+/**
+ * `surrenderMode` migration: a state saved before this rule-matrix pass
+ * has no `surrenderMode` at all, only the old boolean `lateSurrender` —
+ * map `true` to `'late'` and `false`/absent to `'none'`, so existing
+ * saves keep their exact prior behavior instead of silently resetting.
+ */
+function parseSurrenderMode(r: Record<string, unknown>): SurrenderMode {
+  if (r.surrenderMode === 'none' || r.surrenderMode === 'late') return r.surrenderMode
+  return r.lateSurrender === true ? 'late' : DEFAULT_COUNTING_SETTINGS.surrenderMode
+}
+
 function parseSettings(raw: unknown): CountingSettings {
   if (!raw || typeof raw !== 'object') return DEFAULT_COUNTING_SETTINGS
   const r = raw as Record<string, unknown>
@@ -270,7 +288,8 @@ function parseSettings(raw: unknown): CountingSettings {
     dealSpeed: DEAL_SPEEDS.includes(r.dealSpeed as DealSpeed)
       ? (r.dealSpeed as DealSpeed)
       : DEFAULT_COUNTING_SETTINGS.dealSpeed,
-    lateSurrender: typeof r.lateSurrender === 'boolean' ? r.lateSurrender : DEFAULT_COUNTING_SETTINGS.lateSurrender,
+    soft17Rule: r.soft17Rule === 'H17' || r.soft17Rule === 'S17' ? r.soft17Rule : DEFAULT_COUNTING_SETTINGS.soft17Rule,
+    surrenderMode: parseSurrenderMode(r),
     startingBankroll: typeof r.startingBankroll === 'number' ? r.startingBankroll : DEFAULT_COUNTING_SETTINGS.startingBankroll,
   }
 }

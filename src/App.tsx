@@ -33,29 +33,26 @@ import {
 } from './lib/persistence'
 import { lifetimeAccuracy } from './lib/mastery'
 import { createShoe, shuffle } from './lib/shoe'
+import type { RuleConfig } from './lib/strategy'
 
 type ActiveOverlay = 'settings' | 'guides' | 'overview' | null
 
 /**
  * Rule badge shown in the header for whichever mode is active — makes the
- * active rule set explicit per mode. H17/DAS/3:2 stay fixed (the strategy
- * chart itself, not configurable yet — see CLAUDE.md §3). The deck count
- * shown, though, depends on what's actually being dealt in the current
- * mode: Basic Strategy and Index Plays have no real shoe (they use v1's
- * fixed-chart hand generator, always effectively 6D), while every other
- * mode — the counting-drill family and Live Play — deals from a real,
- * adjustable-size shoe driven by the Settings shoe-size (`numDecks`), so
- * the badge must track that setting rather than hardcoding 6D for them.
- * Surrender reflects the real, user-toggleable `lateSurrender` setting
- * (CountingSettings) — applied to both Basic Strategy and Live Play via
- * the shared livePlaySession.ts engine (see strategy.ts's
- * effectiveHardTotals/effectivePairs overlay) — rather than being
- * hardcoded per mode.
+ * active rule set explicit per mode. DAS/3:2 stay fixed app-wide. Deck
+ * size, soft-17 rule, and surrender mode now all come from the live
+ * `RuleConfig` (strategy.ts) for Basic Strategy and Live Play, which deal
+ * from — and grade against — the real Settings shoe-size/soft17/surrender
+ * combination. Index Plays is the one mode still pinned to a fixed
+ * `{ numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }` (its rule
+ * surface is deliberately untouched — see IndexPlayMode.tsx), so its badge
+ * shows that fixed config rather than the live settings.
  */
-const FIXED_DECK_MODES: ReadonlySet<ModeId> = new Set(['strategy', 'indexPlays'])
+const FIXED_RULE_MODES: ReadonlySet<ModeId> = new Set(['indexPlays'])
+const FIXED_RULES: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }
 
-function ruleBadgeText(lateSurrender: boolean, numDecks: number): string {
-  return `${numDecks}D · H17 · DAS · 3:2 · Surrender: ${lateSurrender ? 'on' : 'off'}`
+function ruleBadgeText(rules: RuleConfig): string {
+  return `${rules.numDecks}D · ${rules.soft17Rule} · DAS · 3:2 · Surrender: ${rules.surrenderMode === 'late' ? 'late' : 'off'}`
 }
 
 function App() {
@@ -175,6 +172,7 @@ function App() {
   }
 
   const { settings, progress } = counting
+  const rules: RuleConfig = { numDecks: settings.numDecks, soft17Rule: settings.soft17Rule, surrenderMode: settings.surrenderMode }
 
   // Only the two timer/keydown-driven modes need this — an overlay sitting
   // on top of a running Shoe Countdown must pause its stopwatch AND its
@@ -188,7 +186,7 @@ function App() {
         return (
           <BasicStrategyMode
             key={strategyResetKey}
-            lateSurrender={settings.lateSurrender}
+            rules={rules}
             bankroll={counting.bankroll}
             onBankrollChange={handleBankrollChange}
             onResetBankroll={handleResetBankroll}
@@ -268,7 +266,7 @@ function App() {
         return (
           <LivePlayMode
             numDecks={settings.numDecks}
-            lateSurrender={settings.lateSurrender}
+            rules={rules}
             bankroll={counting.bankroll}
             onBankrollChange={handleBankrollChange}
             onResetBankroll={handleResetBankroll}
@@ -316,8 +314,9 @@ function App() {
           {currentMode !== null && (
             <span className="hidden shrink-0 rounded-md bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-400 sm:inline-block">
               {ruleBadgeText(
-                counting.settings.lateSurrender,
-                FIXED_DECK_MODES.has(currentMode) ? 6 : counting.settings.numDecks,
+                FIXED_RULE_MODES.has(currentMode)
+                  ? FIXED_RULES
+                  : { numDecks: counting.settings.numDecks, soft17Rule: counting.settings.soft17Rule, surrenderMode: counting.settings.surrenderMode },
               )}
             </span>
           )}
@@ -401,7 +400,7 @@ function App() {
 
       {activeOverlay === 'guides' && (
         <Modal title="Guides" onClose={() => setActiveOverlay(null)}>
-          <GuidesView lateSurrender={settings.lateSurrender} />
+          <GuidesView rules={rules} />
         </Modal>
       )}
 

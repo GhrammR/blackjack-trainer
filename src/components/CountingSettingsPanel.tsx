@@ -75,14 +75,25 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress, ba
           </select>
         </label>
         <label className="flex items-center justify-between gap-2 text-slate-300">
-          Late Surrender (Basic Strategy, Live Play)
+          Dealer soft 17 (Basic Strategy, Live Play)
           <select
-            value={settings.lateSurrender ? 'on' : 'off'}
-            onChange={(e) => onSettingsChange({ ...settings, lateSurrender: e.target.value === 'on' })}
+            value={settings.soft17Rule}
+            onChange={(e) => onSettingsChange({ ...settings, soft17Rule: e.target.value as CountingSettings['soft17Rule'] })}
             className="rounded bg-slate-800 px-2 py-1 text-white"
           >
-            <option value="off">Off</option>
-            <option value="on">On</option>
+            <option value="H17">Hits (H17)</option>
+            <option value="S17">Stands (S17)</option>
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-2 text-slate-300">
+          Surrender (Basic Strategy, Live Play)
+          <select
+            value={settings.surrenderMode}
+            onChange={(e) => onSettingsChange({ ...settings, surrenderMode: e.target.value as CountingSettings['surrenderMode'] })}
+            className="rounded bg-slate-800 px-2 py-1 text-white"
+          >
+            <option value="none">Off</option>
+            <option value="late">Late</option>
           </select>
         </label>
         <div className="flex items-center justify-between gap-2 text-slate-300">

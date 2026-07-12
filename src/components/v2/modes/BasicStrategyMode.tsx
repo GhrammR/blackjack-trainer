@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Action } from '../../../types'
 import { ALL_SITUATION_KEYS, generateHand } from '../../../lib/handGenerator'
-import { getSituationKey } from '../../../lib/strategy'
+import { getSituationKey, type RuleConfig } from '../../../lib/strategy'
 import { handValue, isBust } from '../../../lib/cards'
 import { createShoe, shuffle } from '../../../lib/shoe'
 import {
@@ -40,12 +40,14 @@ import { CasinoTable } from '../table/CasinoTable'
  * offers it): `legalActions` already gates it on `isPair`, matching-rank
  * only — this mode simply never wired that gating in before.
  *
- * `lateSurrender` (the global setting) is threaded into both `legalActions`
- * and `decide` — before this prop existed, `legalActions` offered Surrender
- * unconditionally, which meant this mode showed a Surrender button that the
- * chart could never actually grade correct. Default off fixes that; on
- * makes the 7 sourced surrender cells (see strategy.ts) both offered and
- * graded correctly.
+ * `rules` (the live RuleConfig, built from the global settings — deck size,
+ * soft-17 rule, surrender mode) is threaded into `legalActions`/`decide`,
+ * which now resolve the chart via strategy.ts's resolveHardTotals/
+ * resolveSoftTotals/resolvePairs instead of the fixed 6-deck/H17 tables.
+ * `legalActions` only offers Surrender when `rules.surrenderMode !==
+ * 'none'` — before that gating existed, it offered Surrender
+ * unconditionally, which meant this mode showed a button the chart could
+ * never actually grade correct.
  *
  * CHIP WAGER (additive, parallel to grading — never merged into it):
  * `dealRoundFromHand` now draws a real hole card, which is what lets this
@@ -114,13 +116,13 @@ function HandGroup({ hand, isActive, outcome }: { hand: PlayHand; isActive: bool
 }
 
 interface BasicStrategyModeProps {
-  lateSurrender: boolean
+  rules: RuleConfig
   bankroll: number
   onBankrollChange: (bankroll: number) => void
   onResetBankroll: () => void
 }
 
-export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, onResetBankroll }: BasicStrategyModeProps) {
+export function BasicStrategyMode({ rules, bankroll, onBankrollChange, onResetBankroll }: BasicStrategyModeProps) {
   const [persisted] = useState(() => loadState())
   const [stats, setStats] = useState<Stats>(persisted.stats)
   const [handsPlayed, setHandsPlayed] = useState(persisted.handsPlayed)
@@ -174,7 +176,7 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
     // own gradable, trackable situation, feeding the weakness heatmap at
     // every real decision point encountered, not just the first.
     const situationKey = getSituationKey(hand.cards, round.dealerUpcard)
-    const result = decide(session, round, action, lateSurrender)
+    const result = decide(session, round, action, rules)
 
     const record: DecisionRecord = {
       situationKey,
@@ -304,7 +306,7 @@ export function BasicStrategyMode({ lateSurrender, bankroll, onBankrollChange, o
                   : `Incorrect — correct play was ${lastDecision.correctAction}`}
               </p>
             )}
-            <ActionButtons onSelect={handleChoose} actions={legalActions(round, lateSurrender)} />
+            <ActionButtons onSelect={handleChoose} actions={legalActions(round, rules)} />
           </div>
         )}
 

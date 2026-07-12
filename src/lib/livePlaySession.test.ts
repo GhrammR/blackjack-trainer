@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Card, Rank } from '../types'
+import type { RuleConfig } from './strategy'
 import {
   type LivePlaySessionState,
   type LiveRound,
@@ -23,6 +24,11 @@ import {
 } from './livePlaySession'
 
 const c = (rank: Rank): Card => ({ rank })
+
+// 6 decks/H17 (matches strategy.ts's proven base chart) — the two rule
+// configs these tests need, named for readability at each call site.
+const NO_SURRENDER: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }
+const LATE_SURRENDER: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'late' }
 
 function stateFrom(shoe: Card[], position = 0, count = 0): LivePlaySessionState {
   return { shoe, position, count }
@@ -52,7 +58,7 @@ describe('dealRound — natural blackjack auto-resolves', () => {
     expect(round.hands[0].done).toBe(true)
     expect(round.activeHandIndex).toBe(-1)
     expect(isRoundOver(round)).toBe(true)
-    expect(legalActions(round)).toEqual([])
+    expect(legalActions(round, NO_SURRENDER)).toEqual([])
   })
 
   it('resolves as a win against a non-blackjack dealer hand, and a push against a dealer natural', () => {
@@ -95,10 +101,10 @@ describe('dealRoundFromHand — builds a round from a caller-supplied hand (Basi
   it('feeds legalActions/decide/applyAction exactly like a dealt round, including a real pair offering Split', () => {
     // [0] = hole card, [1]/[2] = the two split hands' second cards.
     const { state, round } = dealRoundFromHand([c('8'), c('8')], c('9'), [c('2'), c('5'), c('4')])
-    expect(legalActions(round)).toContain('Split')
-    expect(correctActionFor(round)).toBe('Split')
+    expect(legalActions(round, NO_SURRENDER)).toContain('Split')
+    expect(correctActionFor(round, NO_SURRENDER)).toBe('Split')
 
-    const result = decide(state, round, 'Split')
+    const result = decide(state, round, 'Split', NO_SURRENDER)
     expect(result.isCorrect).toBe(true)
     expect(result.round.hands).toHaveLength(2)
   })
@@ -107,12 +113,12 @@ describe('dealRoundFromHand — builds a round from a caller-supplied hand (Basi
     const { round } = dealRoundFromHand([c('A'), c('K')], c('6'), [c('2')])
     // A natural blackjack (A+K) auto-resolves with no decision offered at all.
     expect(isRoundOver(round)).toBe(true)
-    expect(legalActions(round)).toEqual([])
+    expect(legalActions(round, NO_SURRENDER)).toEqual([])
   })
 
   it('does not offer Split for a non-pair, non-blackjack 2-card hand', () => {
     const { round } = dealRoundFromHand([c('9'), c('7')], c('6'), [c('2')])
-    expect(legalActions(round)).not.toContain('Split')
+    expect(legalActions(round, NO_SURRENDER)).not.toContain('Split')
   })
 
   it('auto-resolves a natural blackjack hand with no decision offered, same as dealRound', () => {
@@ -126,8 +132,8 @@ describe('dealRoundFromHand — builds a round from a caller-supplied hand (Basi
     const drawShoe = [c('2'), c('3')] // [0] = hole card; [1] = the Hit card, taking hard 12 vs 6 up to 15
     const { state, round } = dealRoundFromHand([c('6'), c('6')], c('6'), drawShoe)
     // 6,6 vs 6 is a real pair -> basic strategy says Split, not Hit.
-    expect(correctActionFor(round)).toBe('Split')
-    const result = decide(state, round, 'Hit')
+    expect(correctActionFor(round, NO_SURRENDER)).toBe('Split')
+    const result = decide(state, round, 'Hit', NO_SURRENDER)
     expect(result.isCorrect).toBe(false)
     expect(result.round.hands[0].cards).toEqual([c('6'), c('6'), c('3')])
   })
@@ -141,8 +147,8 @@ describe('legalActions', () => {
       dealerUpcard: c('9'),
       holeCard: c('2'),
     }
-    expect(legalActions(round)).toEqual(['Hit', 'Stand', 'Double'])
-    expect(legalActions(round, false)).toEqual(['Hit', 'Stand', 'Double'])
+    expect(legalActions(round, NO_SURRENDER)).toEqual(['Hit', 'Stand', 'Double'])
+    expect(legalActions(round, NO_SURRENDER)).toEqual(['Hit', 'Stand', 'Double'])
   })
 
   it('offers Hit/Stand/Double/Surrender on a non-pair first decision when surrenderEnabled', () => {
@@ -152,7 +158,7 @@ describe('legalActions', () => {
       dealerUpcard: c('9'),
       holeCard: c('2'),
     }
-    expect(legalActions(round, true)).toEqual(['Hit', 'Stand', 'Double', 'Surrender'])
+    expect(legalActions(round, LATE_SURRENDER)).toEqual(['Hit', 'Stand', 'Double', 'Surrender'])
   })
 
   it('also offers Split on a pair first decision when under the hand cap (Surrender only when enabled)', () => {
@@ -162,8 +168,8 @@ describe('legalActions', () => {
       dealerUpcard: c('9'),
       holeCard: c('2'),
     }
-    expect(legalActions(round)).toEqual(['Hit', 'Stand', 'Double', 'Split'])
-    expect(legalActions(round, true)).toEqual(['Hit', 'Stand', 'Double', 'Split', 'Surrender'])
+    expect(legalActions(round, NO_SURRENDER)).toEqual(['Hit', 'Stand', 'Double', 'Split'])
+    expect(legalActions(round, LATE_SURRENDER)).toEqual(['Hit', 'Stand', 'Double', 'Split', 'Surrender'])
   })
 
   it('excludes Split once the hand cap (4) is reached, even on an eligible pair', () => {
@@ -174,13 +180,13 @@ describe('legalActions', () => {
       dealerUpcard: c('9'),
       holeCard: c('2'),
     }
-    expect(legalActions(round, true)).not.toContain('Split')
+    expect(legalActions(round, LATE_SURRENDER)).not.toContain('Split')
   })
 
   it('excludes Surrender once any split has happened, even on a fresh hand\'s first decision and even when surrenderEnabled', () => {
     const hand = { cards: [c('8'), c('2')], isFirstDecision: true, isSplitAces: false, done: false, surrendered: false }
     const round: LiveRound = { hands: [hand, hand], activeHandIndex: 0, dealerUpcard: c('9'), holeCard: c('2') }
-    expect(legalActions(round, true)).not.toContain('Surrender')
+    expect(legalActions(round, LATE_SURRENDER)).not.toContain('Surrender')
   })
 
   it('only offers Hit/Stand on a non-first decision (after a Hit), regardless of surrenderEnabled', () => {
@@ -190,8 +196,8 @@ describe('legalActions', () => {
       dealerUpcard: c('9'),
       holeCard: c('2'),
     }
-    expect(legalActions(round)).toEqual(['Hit', 'Stand'])
-    expect(legalActions(round, true)).toEqual(['Hit', 'Stand'])
+    expect(legalActions(round, NO_SURRENDER)).toEqual(['Hit', 'Stand'])
+    expect(legalActions(round, LATE_SURRENDER)).toEqual(['Hit', 'Stand'])
   })
 
   it('never offers a decision on a split-Aces hand', () => {
@@ -201,7 +207,7 @@ describe('legalActions', () => {
       dealerUpcard: c('9'),
       holeCard: c('2'),
     }
-    expect(legalActions(round)).toEqual([])
+    expect(legalActions(round, NO_SURRENDER)).toEqual([])
   })
 
   it('returns no actions once the round is over', () => {
@@ -211,7 +217,7 @@ describe('legalActions', () => {
       dealerUpcard: c('9'),
       holeCard: c('2'),
     }
-    expect(legalActions(round)).toEqual([])
+    expect(legalActions(round, NO_SURRENDER)).toEqual([])
   })
 })
 
@@ -226,11 +232,11 @@ describe('correctActionFor', () => {
   }
 
   it('matches plain getAction for an ordinary hard-total first decision', () => {
-    expect(correctActionFor(roundFor([c('10'), c('6')], c('10'), true))).toBe('Hit') // hard 16 vs 10
+    expect(correctActionFor(roundFor([c('10'), c('6')], c('10'), true), NO_SURRENDER)).toBe('Hit') // hard 16 vs 10
   })
 
   it('matches the real pairs table when Split is legal', () => {
-    expect(correctActionFor(roundFor([c('8'), c('8')], c('10'), true))).toBe('Split')
+    expect(correctActionFor(roundFor([c('8'), c('8')], c('10'), true), NO_SURRENDER)).toBe('Split')
   })
 
   it('falls back to the hard/soft bypass when the chart says Split but the hand cap is reached', () => {
@@ -242,22 +248,22 @@ describe('correctActionFor', () => {
       holeCard: c('2'),
     }
     // hard 16 vs 10 (the hard/soft bypass reading of 8+8) is Hit, not Split.
-    expect(correctActionFor(round)).toBe('Hit')
+    expect(correctActionFor(round, NO_SURRENDER)).toBe('Hit')
   })
 
   it('falls back to Hit when the chart says Double but doubling is no longer legal (hard 11, below 18)', () => {
     // 2+3+6 = hard 11, reached via a Hit, so isFirstDecision is false.
-    expect(correctActionFor(roundFor([c('2'), c('3'), c('6')], c('5'), false))).toBe('Hit')
+    expect(correctActionFor(roundFor([c('2'), c('3'), c('6')], c('5'), false), NO_SURRENDER)).toBe('Hit')
   })
 
   it('falls back to Stand when the chart says Double but doubling is no longer legal (soft 18, at/above 18 — the one cell where the no-double fallback is NOT Hit)', () => {
     // A+2+5 = soft 18, reached via a Hit, so isFirstDecision is false. Vs dealer 5, basic strategy's
     // doubling-allowed answer is Double; soft 18 is strong enough to stand on once that's off the table.
-    expect(correctActionFor(roundFor([c('A'), c('2'), c('5')], c('5'), false))).toBe('Stand')
+    expect(correctActionFor(roundFor([c('A'), c('2'), c('5')], c('5'), false), NO_SURRENDER)).toBe('Stand')
   })
 
   it('still returns Double for the same soft-18-vs-5 hand when it IS the first decision', () => {
-    expect(correctActionFor(roundFor([c('A'), c('7')], c('5'), true))).toBe('Double')
+    expect(correctActionFor(roundFor([c('A'), c('7')], c('5'), true), NO_SURRENDER)).toBe('Double')
   })
 })
 
@@ -273,25 +279,25 @@ describe('correctActionFor — surrenderEnabled', () => {
 
   it('defaults to false: hard 16 vs 10 stays Hit even though it would be Surrender if enabled', () => {
     const round = roundFor([c('10'), c('6')], c('10'), true)
-    expect(correctActionFor(round)).toBe('Hit')
-    expect(correctActionFor(round, false)).toBe('Hit')
+    expect(correctActionFor(round, NO_SURRENDER)).toBe('Hit')
+    expect(correctActionFor(round, NO_SURRENDER)).toBe('Hit')
   })
 
   it('when enabled and legal (first decision, no split yet), returns Surrender for the sourced cells', () => {
-    expect(correctActionFor(roundFor([c('10'), c('6')], c('10'), true), true)).toBe('Surrender') // hard 16 vs 10
-    expect(correctActionFor(roundFor([c('10'), c('6')], c('A'), true), true)).toBe('Surrender') // hard 16 vs A
-    expect(correctActionFor(roundFor([c('10'), c('5')], c('A'), true), true)).toBe('Surrender') // hard 15 vs A
-    expect(correctActionFor(roundFor([c('10'), c('7')], c('A'), true), true)).toBe('Surrender') // hard 17 vs A
+    expect(correctActionFor(roundFor([c('10'), c('6')], c('10'), true), LATE_SURRENDER)).toBe('Surrender') // hard 16 vs 10
+    expect(correctActionFor(roundFor([c('10'), c('6')], c('A'), true), LATE_SURRENDER)).toBe('Surrender') // hard 16 vs A
+    expect(correctActionFor(roundFor([c('10'), c('5')], c('A'), true), LATE_SURRENDER)).toBe('Surrender') // hard 15 vs A
+    expect(correctActionFor(roundFor([c('10'), c('7')], c('A'), true), LATE_SURRENDER)).toBe('Surrender') // hard 17 vs A
   })
 
-  it('when enabled, pair 8,8 vs A returns Surrender instead of Split (the one pair override)', () => {
-    expect(correctActionFor(roundFor([c('8'), c('8')], c('A'), true), true)).toBe('Surrender')
+  it('when enabled, pair 8,8 vs A stays Split — the correctness fix (see DECISIONS.md): under our always-DAS-on rule set, that cell is never a surrender cell', () => {
+    expect(correctActionFor(roundFor([c('8'), c('8')], c('A'), true), LATE_SURRENDER)).toBe('Split')
   })
 
   it('when enabled but Surrender is not legal right now (not the first decision), falls back to the base no-surrender chart instead of Surrender', () => {
     // 3+3+10 = hard 16 vs 10, reached via a Hit, so isFirstDecision is false — Surrender is never legal
     // here even with the setting on; must fall back to the base chart's Hit, not "Surrender".
-    expect(correctActionFor(roundFor([c('3'), c('3'), c('10')], c('10'), false), true)).toBe('Hit')
+    expect(correctActionFor(roundFor([c('3'), c('3'), c('10')], c('10'), false), LATE_SURRENDER)).toBe('Hit')
   })
 
   it('when enabled but Surrender is not legal right now (already split), the Split-illegal hard/soft bypass never returns Surrender', () => {
@@ -302,13 +308,13 @@ describe('correctActionFor — surrenderEnabled', () => {
       dealerUpcard: c('10'), // hard 16 vs 10 would be Surrender if this were a legal surrender point
       holeCard: c('2'),
     }
-    expect(correctActionFor(round, true)).toBe('Hit')
+    expect(correctActionFor(round, LATE_SURRENDER)).toBe('Hit')
   })
 
   it('cells outside the sourced surrender list are unaffected when enabled', () => {
     // hard 16 vs 8 is not one of the 7 sourced surrender cells (only 9/10/A are) — stays Hit either way.
-    expect(correctActionFor(roundFor([c('10'), c('6')], c('8'), true))).toBe('Hit')
-    expect(correctActionFor(roundFor([c('10'), c('6')], c('8'), true), true)).toBe('Hit')
+    expect(correctActionFor(roundFor([c('10'), c('6')], c('8'), true), NO_SURRENDER)).toBe('Hit')
+    expect(correctActionFor(roundFor([c('10'), c('6')], c('8'), true), LATE_SURRENDER)).toBe('Hit')
   })
 })
 
@@ -385,7 +391,7 @@ describe('applyAction', () => {
     const { state: s1, round: dealt } = dealRound(stateFrom(shoe))
     const { state: s2, round: afterFirstSplit } = applyAction(s1, dealt, 'Split')
     expect(afterFirstSplit.hands[0].cards).toEqual([c('8'), c('8')]) // a fresh pair
-    expect(legalActions(afterFirstSplit)).toContain('Split')
+    expect(legalActions(afterFirstSplit, NO_SURRENDER)).toContain('Split')
 
     const { round: afterResplit } = applyAction(s2, afterFirstSplit, 'Split')
     expect(afterResplit.hands).toHaveLength(3)
@@ -412,8 +418,8 @@ describe('applyAction', () => {
     expect(round.hands).toHaveLength(4)
     expect(round.hands[2].cards).toEqual([c('8'), c('8')]) // still a pair, but at the cap
     const roundWithThatHandActive = { ...round, activeHandIndex: 2 }
-    expect(legalActions(roundWithThatHandActive)).not.toContain('Split')
-    expect(correctActionFor(roundWithThatHandActive)).not.toBe('Split')
+    expect(legalActions(roundWithThatHandActive, NO_SURRENDER)).not.toContain('Split')
+    expect(correctActionFor(roundWithThatHandActive, NO_SURRENDER)).not.toBe('Split')
   })
 })
 
@@ -421,7 +427,7 @@ describe('decide', () => {
   it('grades the chosen action against correctActionFor and applies it in one call', () => {
     const shoe = [c('10'), c('6'), c('10'), c('5')]
     const { state: afterDeal, round: dealt } = dealRound(stateFrom(shoe))
-    const result = decide(afterDeal, dealt, 'Stand') // hard 16 vs 10 -> basic strategy says Hit
+    const result = decide(afterDeal, dealt, 'Stand', NO_SURRENDER) // hard 16 vs 10 -> basic strategy says Hit
     expect(result.correctAction).toBe('Hit')
     expect(result.chosenAction).toBe('Stand')
     expect(result.isCorrect).toBe(false)
@@ -531,7 +537,7 @@ describe('full session integration', () => {
       ;({ state, round } = dealRound(state))
       let guard = 0
       while (!isRoundOver(round) && guard < 50) {
-        const actions = legalActions(round)
+        const actions = legalActions(round, NO_SURRENDER)
         expect(actions.length).toBeGreaterThan(0)
         const action = actions.includes('Stand') ? 'Stand' : actions[0] // always a legal, terminating choice
         ;({ state, round } = applyAction(state, round, action))
