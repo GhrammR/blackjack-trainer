@@ -67,7 +67,9 @@ export function clearState(): void {
  * touching the unrelated strategy-trainer streak/stats — see CLAUDE.md §11.
  */
 
-const COUNTING_STORAGE_KEY = 'double-down:counting:v1'
+// Exported so App.tsx's cross-tab `storage` event listener can filter to
+// exactly this key (see App.tsx's sync effect for why that listener exists).
+export const COUNTING_STORAGE_KEY = 'double-down:counting:v1'
 
 export interface CountingSettings {
   numDecks: number

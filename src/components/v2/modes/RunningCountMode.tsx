@@ -7,7 +7,7 @@ import { DEAL_SPEED_MS_PER_CARD, type DealSpeed } from '../../../lib/dealSpeed'
 import { isValidSignedInt, signed } from '../../../lib/format'
 import { HiddenCard, PlayingCard } from '../../PlayingCard'
 import { SignedNumberInput } from '../../SignedNumberInput'
-import { ERROR_TEXT, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
+import { ERROR_TEXT, PRIMARY_BUTTON, PRIMARY_BUTTON_LG, SECONDARY_BUTTON, SUCCESS_TEXT, HUD_HEIGHT } from '../../theme'
 import { CasinoTable } from '../table/CasinoTable'
 
 type Phase = 'idle' | 'dealing' | 'input' | 'feedback'
@@ -72,10 +72,31 @@ export function RunningCountMode({
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [roundsPlayed, setRoundsPlayed] = useState(initialProgress.roundsPlayed)
   const [roundsCorrect, setRoundsCorrect] = useState(initialProgress.roundsCorrect)
+  // Resume/start-fresh choice — the shoe/count deliberately persist across a
+  // tab switch away from Running Count and back (see RunningCountShoeState's
+  // doc comment: resetting mid-shoe was marking correct counts wrong). But
+  // the user still loses their place when they return, so re-mounting onto
+  // a shoe that's already partway through (`position > 0`) asks once,
+  // rather than silently resuming with no way to re-orient. Read ONCE at
+  // mount (not derived from the live `position` prop) so dealing rounds
+  // afterward doesn't make the prompt reappear. A fresh/unstarted shoe
+  // (`position === 0`) needs no prompt — nothing to choose between yet.
+  const [awaitingResumeChoice] = useState(() => shoeState.position > 0)
+  const [resumeChosen, setResumeChosen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const isFirstNumDecks = useRef(true)
 
   const needed = cardsPerRound(seatCount)
+  const showResumePrompt = awaitingResumeChoice && !resumeChosen
+
+  function resumeShoe() {
+    setResumeChosen(true)
+  }
+
+  function startFreshShoe() {
+    onShoeStateChange({ shoe: shuffle(createShoe(numDecks)), position: 0, sessionCount: 0 })
+    setResumeChosen(true)
+  }
 
   useEffect(() => {
     onProgressChange({ roundsPlayed, roundsCorrect })
@@ -236,7 +257,24 @@ export function RunningCountMode({
           {dealSpeed} pace · {cardsLeft} cards left
         </p>
 
-        {phase === 'idle' && (
+        {phase === 'idle' && showResumePrompt && (
+          <div className="flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-slate-400">You left a shoe in progress.</p>
+            {/* The running count is shown ONLY here, to re-orient after
+                returning — never during play, where it's the answer the
+                user is supposed to be computing. */}
+            <div className="flex flex-wrap justify-center gap-3">
+              <button type="button" onClick={resumeShoe} className={PRIMARY_BUTTON_LG}>
+                Resume shoe (Running Count: {signed(sessionCount)})
+              </button>
+              <button type="button" onClick={startFreshShoe} className={SECONDARY_BUTTON}>
+                Start fresh shoe
+              </button>
+            </div>
+          </div>
+        )}
+
+        {phase === 'idle' && !showResumePrompt && (
           <button type="button" onClick={startRound} className={PRIMARY_BUTTON_LG}>
             Deal Round
           </button>

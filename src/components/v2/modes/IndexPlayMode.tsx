@@ -38,11 +38,26 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
   const [correct, setCorrect] = useState(initialProgress.correct)
   const [perDeviation, setPerDeviation] = useState(initialProgress.perDeviation)
 
-  useEffect(() => {
-    onProgressChange({ attempts, correct, perDeviation })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempts, correct, perDeviation])
-
+  // Pull-down only — picks up EXTERNAL changes to progress (e.g. a "Reset
+  // Counting" action from the Settings modal while this mode stays
+  // mounted underneath it). There is deliberately no matching "push on
+  // every local state change" effect: an earlier version reactively
+  // pushed `{ attempts, correct, perDeviation }` up via a `useEffect`
+  // keyed on those three values, which — because `perDeviation` is a
+  // plain object rebuilt via spread — got a NEW reference on every
+  // round-trip even when its contents were unchanged. That defeated
+  // React's reference-equality bail-out and this pull-down effect's own
+  // `setPerDeviation(initialProgress.perDeviation)` call, so pushing up
+  // and pulling back down kept re-triggering each other — a real,
+  // observed-live infinite loop (attempts/accuracy oscillating between
+  // two stale values forever, matching the reported "flashes, then
+  // disappears" symptom). Every OTHER v2 mode uses this same push/pull
+  // effect pair safely because their progress fields are plain numbers,
+  // where Object.is correctly bails out on an unchanged value regardless
+  // of round-trips — Index Plays is the one mode whose progress includes
+  // a nested object (`perDeviation`), which is what exposed the bug.
+  // Pushing directly at the point of mutation (`choose()` below) instead
+  // of reactively means a pull-down here can never trigger a push back up.
   useEffect(() => {
     setAttempts(initialProgress.attempts)
     setCorrect(initialProgress.correct)
@@ -50,23 +65,26 @@ export function IndexPlayMode({ initialProgress, onProgressChange }: IndexPlayMo
   }, [initialProgress])
 
   function choose(action: Action) {
-    setChosenAction(action)
-    setAttempts((n) => n + 1)
     const isCorrect = action === scenario.correctAction
-    if (isCorrect) setCorrect((n) => n + 1)
-
+    const nextAttempts = attempts + 1
+    const nextCorrect = correct + (isCorrect ? 1 : 0)
+    let nextPerDeviation = perDeviation
     if (INDEX_PLAY_SITUATION_KEYS.has(scenario.situationKey)) {
-      setPerDeviation((prev) => {
-        const existing = prev[scenario.situationKey] ?? { attempts: 0, correct: 0 }
-        return {
-          ...prev,
-          [scenario.situationKey]: {
-            attempts: existing.attempts + 1,
-            correct: existing.correct + (isCorrect ? 1 : 0),
-          },
-        }
-      })
+      const existing = perDeviation[scenario.situationKey] ?? { attempts: 0, correct: 0 }
+      nextPerDeviation = {
+        ...perDeviation,
+        [scenario.situationKey]: {
+          attempts: existing.attempts + 1,
+          correct: existing.correct + (isCorrect ? 1 : 0),
+        },
+      }
     }
+
+    setChosenAction(action)
+    setAttempts(nextAttempts)
+    setCorrect(nextCorrect)
+    setPerDeviation(nextPerDeviation)
+    onProgressChange({ attempts: nextAttempts, correct: nextCorrect, perDeviation: nextPerDeviation })
   }
 
   function nextScenario() {

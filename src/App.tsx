@@ -20,6 +20,7 @@ import { IndexPlayHeatmapSection } from './components/IndexPlayHeatmapSection'
 import { GuidesView } from './components/GuidesView'
 import { SECTION_LABEL } from './components/theme'
 import {
+  COUNTING_STORAGE_KEY,
   type CountingModeKey,
   type CountingProgress,
   clearState,
@@ -78,8 +79,51 @@ function App() {
     saveCountingState(counting)
   }, [counting])
 
-  function handleProgressChange(progress: CountingProgress) {
-    setCounting((prev) => ({ ...prev, progress }))
+  /**
+   * Cross-tab sync: whenever ANOTHER tab of this app writes to the shared
+   * `counting` localStorage key, pick up its change here too.
+   *
+   * ROOT CAUSE this fixes (found while diagnosing the Index Plays
+   * attempts-flicker/undercounting bug): every `onProgressChange`/
+   * `onBankrollChange`/settings-change handler built its next value by
+   * spreading THIS tab's own in-memory `counting`/`progress` — e.g.
+   * `handleProgressChange({ ...progress, indexPlays })`. Within a single
+   * tab that's harmless (nothing else changes `progress` between
+   * renders). But with a SECOND tab of this same app open (confirmed live
+   * via two Playwright pages sharing one origin/localStorage — plausible
+   * in practice, e.g. the app left open in another window), the second
+   * tab's `progress` is a separate in-memory snapshot frozen since IT
+   * loaded. Any state change in that second tab — even something totally
+   * unrelated, like toggling a setting, or Running Count's own deal timer
+   * ticking — re-saved ITS stale copy of `progress.indexPlays` over
+   * whatever the first tab had just written, because every save writes
+   * the ENTIRE `counting` object to one shared key. That's the
+   * oscillation: tab A increments attempts and saves; tab B's unrelated
+   * activity re-saves its frozen-at-mount attempts count right back over
+   * it — repeating every time either tab's state changes, which is
+   * exactly the "flashes, then reappears" pattern (and why the Session
+   * Report's delta-from-baseline calculation only ever saw 1 attempt: the
+   * baseline-to-current delta kept getting clobbered back toward zero).
+   *
+   * The `storage` event only fires in OTHER tabs, never the one that made
+   * the write, so this can't self-trigger a loop — and unlike re-reading
+   * localStorage synchronously inside every update (tried first; broke
+   * under React 18 StrictMode's double-invoked updater functions, and
+   * raced with this tab's own not-yet-flushed writes), this keeps every
+   * write a plain, race-free `(prev) => ({ ...prev, ... })` and only pulls
+   * in a genuinely external change, exactly when the browser says one
+   * happened.
+   */
+  useEffect(() => {
+    function handleStorage(e: StorageEvent) {
+      if (e.key === COUNTING_STORAGE_KEY) setCounting(loadCountingState())
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
+
+  function handleProgressChange<K extends keyof CountingProgress>(mode: K, value: CountingProgress[K]) {
+    setCounting((prev) => ({ ...prev, progress: { ...prev.progress, [mode]: value } }))
   }
 
   // Bankroll (chip wager system) — shared by Basic Strategy and Live Play,
@@ -157,9 +201,7 @@ function App() {
             seatCount={settings.seatCount}
             dealSpeed={settings.dealSpeed}
             initialProgress={progress.runningCount}
-            onProgressChange={(runningCount) =>
-              handleProgressChange({ ...progress, runningCount })
-            }
+            onProgressChange={(runningCount) => handleProgressChange('runningCount', runningCount)}
             isPaused={isPaused}
             shoeState={runningCountShoe}
             onShoeStateChange={setRunningCountShoe}
@@ -170,7 +212,7 @@ function App() {
           <TrueCountMode
             numDecks={settings.numDecks}
             initialProgress={progress.trueCount}
-            onProgressChange={(trueCount) => handleProgressChange({ ...progress, trueCount })}
+            onProgressChange={(trueCount) => handleProgressChange('trueCount', trueCount)}
           />
         )
       case 'shoeCountdown':
@@ -178,7 +220,7 @@ function App() {
           <ShoeCountdownMode
             numDecks={settings.numDecks}
             initialProgress={progress.shoeCountdown}
-            onProgressChange={(shoeCountdown) => handleProgressChange({ ...progress, shoeCountdown })}
+            onProgressChange={(shoeCountdown) => handleProgressChange('shoeCountdown', shoeCountdown)}
             isPaused={isPaused}
           />
         )
@@ -186,7 +228,7 @@ function App() {
         return (
           <IndexPlayMode
             initialProgress={progress.indexPlays}
-            onProgressChange={(indexPlays) => handleProgressChange({ ...progress, indexPlays })}
+            onProgressChange={(indexPlays) => handleProgressChange('indexPlays', indexPlays)}
           />
         )
       case 'counterDetection':
@@ -194,7 +236,7 @@ function App() {
           <CounterDetectionMode
             numDecks={settings.numDecks}
             initialProgress={progress.detection}
-            onProgressChange={(detection) => handleProgressChange({ ...progress, detection })}
+            onProgressChange={(detection) => handleProgressChange('detection', detection)}
           />
         )
       case 'tableScan':
@@ -203,7 +245,7 @@ function App() {
             numDecks={settings.numDecks}
             seatCount={settings.seatCount}
             initialProgress={progress.tableScan}
-            onProgressChange={(tableScan) => handleProgressChange({ ...progress, tableScan })}
+            onProgressChange={(tableScan) => handleProgressChange('tableScan', tableScan)}
           />
         )
       case 'evidenceFlagging':
@@ -211,7 +253,7 @@ function App() {
           <EvidenceFlaggingMode
             numDecks={settings.numDecks}
             initialProgress={progress.evidence}
-            onProgressChange={(evidence) => handleProgressChange({ ...progress, evidence })}
+            onProgressChange={(evidence) => handleProgressChange('evidence', evidence)}
           />
         )
       case 'evasion':
@@ -219,7 +261,7 @@ function App() {
           <EvasionMode
             numDecks={settings.numDecks}
             initialProgress={progress.evasion}
-            onProgressChange={(evasion) => handleProgressChange({ ...progress, evasion })}
+            onProgressChange={(evasion) => handleProgressChange('evasion', evasion)}
           />
         )
       case 'livePlay':
@@ -231,7 +273,7 @@ function App() {
             onBankrollChange={handleBankrollChange}
             onResetBankroll={handleResetBankroll}
             initialProgress={progress.livePlay}
-            onProgressChange={(livePlay) => handleProgressChange({ ...progress, livePlay })}
+            onProgressChange={(livePlay) => handleProgressChange('livePlay', livePlay)}
           />
         )
       default:
