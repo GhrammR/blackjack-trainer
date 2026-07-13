@@ -78,17 +78,19 @@ export interface CountingSettings {
   /** Timed auto-deal pace for Running Count (the one mode that deals cards on a timer). */
   dealSpeed: DealSpeed
   /**
-   * The full rule matrix (deck size × soft-17 rule × surrender mode),
+   * The full rule matrix (deck size × soft-17 rule × surrender mode × DAS),
    * applied to both Basic Strategy (grading) and Live Play via
    * strategy.ts's resolveHardTotals/resolveSoftTotals/resolvePairs — see
    * strategy.ts and livePlaySession.ts. `numDecks` above doubles as the
    * chart's deck-size axis (it already ranges over exactly {1, 2, 6}, the
    * only three sizes this app's charts are sourced for — see shoe.ts's
-   * SHOE_SIZE_OPTIONS). Default H17/none, matching the base chart already
-   * proven correct by the chart-reference test.
+   * SHOE_SIZE_OPTIONS). Default H17/none/DAS-on, matching the base chart
+   * already proven correct by the chart-reference test.
    */
   soft17Rule: Soft17Rule
   surrenderMode: SurrenderMode
+  /** Double after split. Default true — existing/current behavior. */
+  das: boolean
   /**
    * The bankroll amount a "Reset Bankroll" action restores (chip wager
    * system, shared by Basic Strategy and Live Play — see
@@ -170,6 +172,7 @@ const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
   dealSpeed: 'medium',
   soft17Rule: 'H17',
   surrenderMode: 'none',
+  das: true,
   startingBankroll: 1000,
 }
 
@@ -290,6 +293,7 @@ function parseSettings(raw: unknown): CountingSettings {
       : DEFAULT_COUNTING_SETTINGS.dealSpeed,
     soft17Rule: r.soft17Rule === 'H17' || r.soft17Rule === 'S17' ? r.soft17Rule : DEFAULT_COUNTING_SETTINGS.soft17Rule,
     surrenderMode: parseSurrenderMode(r),
+    das: typeof r.das === 'boolean' ? r.das : DEFAULT_COUNTING_SETTINGS.das,
     startingBankroll: typeof r.startingBankroll === 'number' ? r.startingBankroll : DEFAULT_COUNTING_SETTINGS.startingBankroll,
   }
 }

@@ -39,20 +39,20 @@ type ActiveOverlay = 'settings' | 'guides' | 'overview' | null
 
 /**
  * Rule badge shown in the header for whichever mode is active — makes the
- * active rule set explicit per mode. DAS/3:2 stay fixed app-wide. Deck
- * size, soft-17 rule, and surrender mode now all come from the live
+ * active rule set explicit per mode. 3:2 stays fixed app-wide. Deck size,
+ * soft-17 rule, surrender mode, and DAS now all come from the live
  * `RuleConfig` (strategy.ts) for Basic Strategy and Live Play, which deal
- * from — and grade against — the real Settings shoe-size/soft17/surrender
- * combination. Index Plays is the one mode still pinned to a fixed
- * `{ numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }` (its rule
- * surface is deliberately untouched — see IndexPlayMode.tsx), so its badge
- * shows that fixed config rather than the live settings.
+ * from — and grade against — the real Settings shoe-size/soft17/surrender/
+ * DAS combination. Index Plays is the one mode still pinned to a fixed
+ * `{ numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: true }`
+ * (its rule surface is deliberately untouched — see IndexPlayMode.tsx), so
+ * its badge shows that fixed config rather than the live settings.
  */
 const FIXED_RULE_MODES: ReadonlySet<ModeId> = new Set(['indexPlays'])
-const FIXED_RULES: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }
+const FIXED_RULES: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: true }
 
 function ruleBadgeText(rules: RuleConfig): string {
-  return `${rules.numDecks}D · ${rules.soft17Rule} · DAS · 3:2 · Surrender: ${rules.surrenderMode === 'late' ? 'late' : 'off'}`
+  return `${rules.numDecks}D · ${rules.soft17Rule} · ${rules.das ? 'DAS' : 'No DAS'} · 3:2 · Surrender: ${rules.surrenderMode === 'late' ? 'late' : 'off'}`
 }
 
 function App() {
@@ -172,7 +172,7 @@ function App() {
   }
 
   const { settings, progress } = counting
-  const rules: RuleConfig = { numDecks: settings.numDecks, soft17Rule: settings.soft17Rule, surrenderMode: settings.surrenderMode }
+  const rules: RuleConfig = { numDecks: settings.numDecks, soft17Rule: settings.soft17Rule, surrenderMode: settings.surrenderMode, das: settings.das }
 
   // Only the two timer/keydown-driven modes need this — an overlay sitting
   // on top of a running Shoe Countdown must pause its stopwatch AND its
@@ -316,7 +316,7 @@ function App() {
               {ruleBadgeText(
                 FIXED_RULE_MODES.has(currentMode)
                   ? FIXED_RULES
-                  : { numDecks: counting.settings.numDecks, soft17Rule: counting.settings.soft17Rule, surrenderMode: counting.settings.surrenderMode },
+                  : { numDecks: counting.settings.numDecks, soft17Rule: counting.settings.soft17Rule, surrenderMode: counting.settings.surrenderMode, das: counting.settings.das },
               )}
             </span>
           )}

@@ -97,7 +97,7 @@ interface IndexPlayModeProps {
 const INDEX_PLAY_SITUATION_KEYS = new Set(INDEX_PLAYS.map((p) => p.situationKey))
 
 /** Index Plays' rule surface is fixed, independent of the live Settings rule matrix — see header comment. */
-const FIXED_RULES: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }
+const FIXED_RULES: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: true }
 
 /** The count-threshold "why" for the index decision specifically — distinct from reasons.ts's chart-based reasonFor. */
 function deviationReasonFor(scenario: IndexPlayScenario): string {

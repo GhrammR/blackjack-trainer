@@ -69,6 +69,18 @@ import type { Action } from '../types'
  * the threshold itself, basic strategy is still correct).
  */
 
+/**
+ * The Strategy Chart's true-count slider (GuidesView.tsx) is NOT gated on
+ * DAS because DAS produces zero hard-total deltas — machine-verified
+ * across all 24 (deck × soft17 × surrender × DAS) combinations when the
+ * rule matrix's DAS axis was added — and every current INDEX_PLAYS entry
+ * below is a hard-total situation. NOTE: the classic Illustrious 18 also
+ * includes split-10,10-vs-5 and split-10,10-vs-6 (PAIR plays), which this
+ * dataset deliberately omits (see the header comment above). If a PAIR
+ * index is ever added here, DAS becomes relevant to it and this no-gate
+ * decision must be revisited.
+ */
+
 export interface IndexPlay {
   situationKey: string
   threshold: number

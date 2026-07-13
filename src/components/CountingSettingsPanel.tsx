@@ -96,6 +96,17 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress, ba
             <option value="late">Late</option>
           </select>
         </label>
+        <label className="flex items-center justify-between gap-2 text-slate-300">
+          Double after split (Basic Strategy, Live Play)
+          <select
+            value={settings.das ? 'on' : 'off'}
+            onChange={(e) => onSettingsChange({ ...settings, das: e.target.value === 'on' })}
+            className="rounded bg-slate-800 px-2 py-1 text-white"
+          >
+            <option value="on">Allowed</option>
+            <option value="off">Not allowed</option>
+          </select>
+        </label>
         <div className="flex items-center justify-between gap-2 text-slate-300">
           Counting system
           <span className="text-slate-500">Hi-Lo</span>

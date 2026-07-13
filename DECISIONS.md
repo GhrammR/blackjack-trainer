@@ -786,3 +786,95 @@ calculator data existed) to express as literal delta overlays instead.
 Index Plays stays pinned to a fixed `{ 6 decks, H17, no surrender }`
 `RuleConfig` constant, matching its existing untouched-rule-surface
 guarantee from the Index Plays play-out work earlier this session.
+
+## Double-after-split (DAS) as a 4th rule axis
+
+Extends the rule matrix from Pass 1 (deck size × soft-17 × surrender mode)
+with a 4th axis: `das: boolean` in `RuleConfig`, default `true` (existing/
+current behavior). Matrix is now 3 decks × 2 soft17 × 2 surrender × 2 DAS
+= 24 sourced combinations. Same extraction pipeline as Pass 1 (Wizard of
+Odds' Basic Strategy Calculator, driven via Playwright, `das` `<select>`
+Allowed/Not Allowed) — no new sourcing method needed.
+
+**Why DAS was worth its own pass, not folded into Pass 1 as an
+afterthought:** this app had already been bitten twice by DAS-adjacent
+errors. The readybetgo blog transcription (rejected during Pass 1
+sourcing) had read the NO-DAS branch of several conditional cells (2,2 v
+2, 3,3 v 2/3 → Hit under no-DAS, Split under DAS) as if they applied
+unconditionally. And the already-shipped pair-8,8-vs-A bug (found and
+fixed during Pass 1) exists *because* WoO's calculator codes that cell
+`Rp` — "surrender only if DAS is NOT allowed, otherwise split" — meaning
+DAS state changes what the correct play even is for that one cell. Adding
+DAS as a real, toggleable axis was the way to make both of those errors
+structurally impossible to reintroduce, rather than trusting a
+DAS-always-on assumption baked silently into the rest of the matrix.
+
+**Mandatory self-check (run first, before trusting any new data):**
+re-extracted 6-deck/H17/DAS-ON, both surrender modes, and diffed against
+the shipped `hardTotals`/`softTotals`/`pairs`/`effectiveHardTotals(true)`/
+`effectivePairs(true)` — 0 differences. The pipeline had not drifted since
+Pass 1.
+
+**Finding: DAS is pair-table-only.** Machine-verified across all 24
+combinations — zero hard-total or soft-total cells ever differ between
+DAS-on and DAS-off, at any deck size or soft-17 rule. This makes
+mechanical sense (DAS only changes the EV of a post-split hand's own
+double, so it can only move a *splitting* decision) but wasn't assumed —
+it's the direct, measured result of the extraction. `resolveHardTotals`/
+`resolveSoftTotals` in `strategy.ts` don't take a `das` branch at all, by
+design, because there's nothing to branch on; only `resolvePairs` applies
+a DAS-off overlay (`DAS_OFF_PAIR_DELTA`).
+
+**Independent validation of the 6-deck DAS-off deltas (2,2v2, 2,2v3, 3,3v2,
+3,3v3, 4,4v5, 4,4v6, 6,6v2):** these seven cells exactly match WoO's own
+prose on the 4-deck strategy page ("Split 2s and 3s against 4-7, and
+against 2 or 3 if DAS... Split 4s only if DAS and dealer 5 or 6... Split
+6s against 3-6, and against 2 if DAS") — a second, independent WoO source
+confirming the calculator extraction. Also internally self-consistent with
+Pass 1's own data: at 1-deck, pair 4,4 vs 5/6 goes to **Double** (not Hit)
+with DAS off, because a pair of 4s is a hard 8, and the 1-deck extraction
+already has hard 8 vs 5/6 → Double — the DAS pull agrees with the
+deck-size pull rather than contradicting it.
+
+**Pair 8,8 vs dealer A — the one cell that's dynamic across the full DAS ×
+surrender × deck × soft17 grid.** The naive rule of thumb ("surrender iff
+DAS is not allowed") turns out to be wrong outside a specific corner:
+Surrender only fires at **2-deck or 6-deck, combined with H17, DAS off,
+and late surrender**. It stays Split at 1-deck (any soft17 rule, DAS off
+or on) and under S17 at any deck size (DAS off or on) — the WoO EV
+crossover for this exact cell only happens in that one combination.
+Reported as a correction to an initial hypothesis, not asserted — the
+extraction data is the source of truth, not the rule of thumb. Encoded as
+a literal, independently-keyed cell list (`DAS_OFF_LATE_SURRENDER_PAIR_CELLS`
+in `strategy.ts`, keyed by deck bucket and soft17 rule), not derived from
+any other table, and pinned by a dedicated test
+(`strategy.chartReference.test.ts`'s "pair 8,8 vs A" describe block) that
+walks the full grid rather than spot-checking one cell.
+
+**Slider/DAS interaction — decided, not assumed.** The true-count slider
+(Pass 3, `GuidesView.tsx`) shows Illustrious 18 deviations, all 14 of
+which are hard-total situations (`indexPlays.ts`). Since DAS produces zero
+hard-total deltas (measured above) and the slider never touches a pair
+cell, DAS cannot affect anything the slider displays — so the slider stays
+gated only to 6-deck (Pass 3's existing gate), with **no new DAS gate and
+no new UI caveat**. This is a measured conclusion (DAS's hard-total delta
+count is exactly zero, checked across all 24 combinations), not an
+assumption that "DAS probably doesn't matter for hit/stand/double." Flagged
+directly in `indexPlays.ts` as a code comment noting the dependency: if a
+future pass ever adds a pair-based index play (the two real
+Illustrious-18 entries this dataset already omits — 10,10 vs 5 and vs 6,
+per the Step 9 header comment — are exactly that), DAS becomes relevant
+and this no-gate decision must be revisited.
+
+**Where DAS threads through:** `RuleConfig.das` (default `true`);
+`CountingSettings.das` in `persistence.ts` (default `true`, with
+migration — an absent field parses as `true`, preserving every existing
+save's current behavior exactly); a DAS selector in
+`CountingSettingsPanel.tsx`; `App.tsx`'s rule badge (previously hardcoded
+literal "DAS" text — now reads `rules.das` and shows "DAS" or "No DAS");
+`IndexPlayMode.tsx`'s pinned `FIXED_RULES` constant gains `das: true`
+(its rule surface stays fixed, unaffected by the live setting, matching
+its existing documented behavior); a 4th selector in `GuidesView.tsx`'s
+Strategy Chart section, so all 24 combinations are browsable. Detection
+family, evasion, table scan, and Index Plays' grading path are untouched —
+same scope boundary as every other rule-matrix axis.

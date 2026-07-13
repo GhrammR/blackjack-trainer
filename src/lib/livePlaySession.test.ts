@@ -27,8 +27,8 @@ const c = (rank: Rank): Card => ({ rank })
 
 // 6 decks/H17 (matches strategy.ts's proven base chart) — the two rule
 // configs these tests need, named for readability at each call site.
-const NO_SURRENDER: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }
-const LATE_SURRENDER: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'late' }
+const NO_SURRENDER: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: true }
+const LATE_SURRENDER: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'late', das: true }
 
 function stateFrom(shoe: Card[], position = 0, count = 0): LivePlaySessionState {
   return { shoe, position, count }

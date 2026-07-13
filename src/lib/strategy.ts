@@ -223,8 +223,9 @@ export function getHardSoftSituationKey(playerHand: Card[], dealerUpcard: Card):
 }
 
 /**
- * The full rule matrix (deck size × soft-17 rule × surrender mode), used by
- * Basic Strategy Trainer and Live Play only — the detection family,
+ * The full rule matrix (deck size × soft-17 rule × surrender mode ×
+ * double-after-split), used by Basic Strategy Trainer and Live Play only —
+ * the detection family,
  * evasion, table scan, and Index Plays all keep using `getAction`/
  * `getHardSoftAction`/`effectiveHardTotals`/`effectivePairs` above,
  * completely unchanged, matching `lateSurrender`'s existing documented
@@ -256,6 +257,8 @@ export interface RuleConfig {
   numDecks: number
   soft17Rule: Soft17Rule
   surrenderMode: SurrenderMode
+  /** Double after split. Defaults to true (current/existing behavior) everywhere a RuleConfig is constructed without it. */
+  das: boolean
 }
 
 function deckBucket(numDecks: number): 1 | 2 | 6 {
@@ -453,6 +456,122 @@ function applyS17Soft(base: Record<number, Record<DealerUpcardKey, Action>>): Re
   return result
 }
 
+// ── Double-after-split (DAS) overlay. Machine-extracted the same way as
+// every other axis (WoO's Basic Strategy Calculator, `das` <select>
+// Allowed/Not Allowed), self-check-validated: re-extracting 6D/H17/DAS-ON
+// (both surrender modes) against the shipped base tables produced 0
+// differences before any of this data was trusted.
+//
+// DAS is PAIR-TABLE-ONLY — machine-verified across all 24 (deck × soft17 ×
+// surrender × das) combinations: zero hard-total or soft-total cells ever
+// differ between DAS-on and DAS-off. This is exactly what you'd expect
+// mechanically (DAS only changes the EV of a post-split hand's own double,
+// so it can only move a *splitting* decision), but it's not assumed here —
+// `resolveHardTotals`/`resolveSoftTotals` below don't take a DAS branch at
+// all, by design, because the extraction proved there's nothing to branch
+// on.
+interface PairCellDelta {
+  rank: PairRankKey
+  dealer: DealerUpcardKey
+  action: Action
+}
+
+/** DAS-off structural deltas — cells that revert to Hit/Double/Stand instead of Split when DAS isn't allowed, independent of surrender mode. Pair 8,8-vs-A is deliberately NOT here — see DAS_OFF_LATE_SURRENDER_PAIR_CELLS below, since that cell's DAS-off behavior also depends on surrender mode and soft17 rule. */
+const DAS_OFF_PAIR_DELTA: Record<1 | 2 | 6, Record<Soft17Rule, PairCellDelta[]>> = {
+  1: {
+    H17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '8', action: 'Hit' },
+      { rank: '4', dealer: '4', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Double' },
+      { rank: '4', dealer: '6', action: 'Double' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+      { rank: '9', dealer: 'A', action: 'Stand' },
+    ],
+    S17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '8', action: 'Hit' },
+      { rank: '4', dealer: '4', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Double' },
+      { rank: '4', dealer: '6', action: 'Double' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+      // pair 9,9 vs A is already base Stand under S17 (unlike H17's Split) — no DAS-off delta needed here, matching the existing H17/S17 pairs-table split.
+    ],
+  },
+  2: {
+    H17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+    ],
+    S17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+    ],
+  },
+  6: {
+    H17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '2', action: 'Hit' },
+    ],
+    S17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '2', action: 'Hit' },
+    ],
+  },
+}
+
+/**
+ * Pair 8,8 vs dealer A, DAS-off + late-surrender only: the WoO EV
+ * crossover for this specific cell only happens at 2-deck/6-deck combined
+ * with H17 — confirmed directly from the extraction, NOT derived from the
+ * "surrender only if DAS not allowed" rule of thumb (which turned out to
+ * be an oversimplification). At 1-deck, and under S17 at any deck size,
+ * this cell stays Split even with DAS off — genuinely different, sourced
+ * behavior, not an omission.
+ */
+const DAS_OFF_LATE_SURRENDER_PAIR_CELLS: Partial<Record<1 | 2 | 6, Partial<Record<Soft17Rule, { rank: PairRankKey; dealer: DealerUpcardKey }[]>>>> = {
+  2: { H17: [{ rank: '8', dealer: 'A' }] },
+  6: { H17: [{ rank: '8', dealer: 'A' }] },
+}
+
+function applyPairDeltaList(
+  base: Record<PairRankKey, Record<DealerUpcardKey, Action>>,
+  deltas: PairCellDelta[],
+): Record<PairRankKey, Record<DealerUpcardKey, Action>> {
+  if (deltas.length === 0) return base
+  const result = { ...base }
+  for (const d of deltas) result[d.rank] = { ...result[d.rank], [d.dealer]: d.action }
+  return result
+}
+
 export function resolveHardTotals(rules: RuleConfig): Record<number, Record<DealerUpcardKey, Action>> {
   let base: Record<number, Record<DealerUpcardKey, Action>>
   if (rules.numDecks === 1) {
@@ -480,8 +599,17 @@ export function resolvePairs(rules: RuleConfig): Record<PairRankKey, Record<Deal
   } else {
     base = rules.numDecks === 2 ? applyPairDelta(pairs, TWO_DECK_PAIR_DELTA, 'Split') : pairs
   }
+  const bucket = deckBucket(rules.numDecks)
+  if (!rules.das) {
+    base = applyPairDeltaList(base, DAS_OFF_PAIR_DELTA[bucket][rules.soft17Rule])
+  }
   if (rules.surrenderMode === 'none') return base
-  return applyPairDelta(base, LATE_SURRENDER_CELLS[deckBucket(rules.numDecks)][rules.soft17Rule].pair, 'Surrender')
+  base = applyPairDelta(base, LATE_SURRENDER_CELLS[bucket][rules.soft17Rule].pair, 'Surrender')
+  if (!rules.das) {
+    const dasOffSurrenderCells = DAS_OFF_LATE_SURRENDER_PAIR_CELLS[bucket]?.[rules.soft17Rule]
+    if (dasOffSurrenderCells) base = applyPairDelta(base, dasOffSurrenderCells, 'Surrender')
+  }
+  return base
 }
 
 /** getAction's RuleConfig-aware counterpart, used only by Basic Strategy Trainer and Live Play (see header comment above). */

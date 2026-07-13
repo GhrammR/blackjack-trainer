@@ -17,7 +17,7 @@ import { PAGE_WRAPPER, SECTION_LABEL } from './theme'
  * the grader. The `rules` prop is the current live RuleConfig, used only
  * to SEED the Strategy Chart section's own local rule state (see
  * `StrategyChartSection`) — the chart's selectors are independent of the
- * app's real training settings so the user can browse any of the 12
+ * app's real training settings so the user can browse any of the 24
  * sourced combinations without changing what they train under.
  */
 
@@ -195,7 +195,7 @@ function deviationOverrideFor(category: 'hard' | 'soft' | 'pair', trueCount: num
 }
 
 /**
- * Interactive reference chart (Pass 2) — browses any of the 12 sourced
+ * Interactive reference chart (Pass 2) — browses any of the 24 sourced
  * rule combinations independently of the app's real training settings.
  * `chartRules` is local state, seeded from the live `rules` prop on mount
  * only (so the chart opens showing what the user is currently training
@@ -267,6 +267,17 @@ function StrategyChartSection({ rules }: { rules: RuleConfig }) {
           >
             <option value="none">Off</option>
             <option value="late">Late</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          DAS
+          <select
+            value={chartRules.das ? 'on' : 'off'}
+            onChange={(e) => setChartRules((r) => ({ ...r, das: e.target.value === 'on' }))}
+            className={RULE_SELECT_CLASS}
+          >
+            <option value="on">Allowed</option>
+            <option value="off">Not allowed</option>
           </select>
         </label>
       </div>

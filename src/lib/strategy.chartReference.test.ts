@@ -16,6 +16,7 @@ import {
   resolveSoftTotals,
   softTotals,
   type RuleConfig,
+  type SurrenderMode,
 } from './strategy'
 import type { Action, DealerUpcardKey, PairRankKey } from '../types'
 
@@ -319,14 +320,14 @@ describe('correctness fix: pair 8,8 vs A late surrender', () => {
 
 describe('resolveHardTotals/resolveSoftTotals/resolvePairs — calculator self-check', () => {
   it('at the default RuleConfig (6 decks, H17, no surrender), resolves to the literal base tables by reference', () => {
-    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none' }
+    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: true }
     expect(resolveHardTotals(rules)).toBe(hardTotals)
     expect(resolveSoftTotals(rules)).toBe(softTotals)
     expect(resolvePairs(rules)).toBe(pairs)
   })
 
   it('at 6 decks/H17/late surrender, matches the already-proven SURRENDER_HARD_REFERENCE/SURRENDER_PAIR_REFERENCE exactly', () => {
-    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'late' }
+    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'late', das: true }
     const resolvedHard = resolveHardTotals(rules)
     const resolvedPairs = resolvePairs(rules)
     for (const total of Object.keys(SURRENDER_HARD_REFERENCE).map(Number)) {
@@ -356,14 +357,14 @@ S17_SOFT_REFERENCE[19]['6'] = 'Stand'
 
 describe('resolveHardTotals/resolveSoftTotals — S17 (6-deck and 2-deck share the base chart)', () => {
   it('at 6 decks/S17/no-surrender, reverts exactly the 3 known H17 cells (11 vs A, soft 18 vs 2, soft 19 vs 6)', () => {
-    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'S17', surrenderMode: 'none' }
+    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'S17', surrenderMode: 'none', das: true }
     for (const dealer of DEALER_KEYS) expect(resolveHardTotals(rules)[11][dealer], `hard 11 vs ${dealer}`).toBe(S17_HARD_REFERENCE[11][dealer])
     for (const dealer of DEALER_KEYS) expect(resolveSoftTotals(rules)[18][dealer], `soft 18 vs ${dealer}`).toBe(S17_SOFT_REFERENCE[18][dealer])
     for (const dealer of DEALER_KEYS) expect(resolveSoftTotals(rules)[19][dealer], `soft 19 vs ${dealer}`).toBe(S17_SOFT_REFERENCE[19][dealer])
   })
 
   it('at 2 decks/S17/no-surrender, soft 18/19 revert the same way, but hard 11 vs A does NOT stay Hit — the 2-deck-specific delta re-adds Double on top (see the 2-deck describe block below)', () => {
-    const rules: RuleConfig = { numDecks: 2, soft17Rule: 'S17', surrenderMode: 'none' }
+    const rules: RuleConfig = { numDecks: 2, soft17Rule: 'S17', surrenderMode: 'none', das: true }
     for (const dealer of DEALER_KEYS) expect(resolveSoftTotals(rules)[18][dealer], `soft 18 vs ${dealer}`).toBe(S17_SOFT_REFERENCE[18][dealer])
     for (const dealer of DEALER_KEYS) expect(resolveSoftTotals(rules)[19][dealer], `soft 19 vs ${dealer}`).toBe(S17_SOFT_REFERENCE[19][dealer])
     expect(resolveHardTotals(rules)[11].A).toBe('Double')
@@ -391,12 +392,12 @@ describe('1-deck tables — H17 vs S17 divergence, pinned explicitly', () => {
   })
 
   it('resolveHardTotals/resolveSoftTotals/resolvePairs at 1 deck return the standalone oneDeck* tables directly, not a derived copy', () => {
-    expect(resolveHardTotals({ numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none' })).toBe(oneDeckHardTotalsH17)
-    expect(resolveSoftTotals({ numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none' })).toBe(oneDeckSoftTotalsH17)
-    expect(resolvePairs({ numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none' })).toBe(oneDeckPairsH17)
-    expect(resolveHardTotals({ numDecks: 1, soft17Rule: 'S17', surrenderMode: 'none' })).toBe(oneDeckHardTotalsS17)
-    expect(resolveSoftTotals({ numDecks: 1, soft17Rule: 'S17', surrenderMode: 'none' })).toBe(oneDeckSoftTotalsS17)
-    expect(resolvePairs({ numDecks: 1, soft17Rule: 'S17', surrenderMode: 'none' })).toBe(oneDeckPairsS17)
+    expect(resolveHardTotals({ numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none', das: true })).toBe(oneDeckHardTotalsH17)
+    expect(resolveSoftTotals({ numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none', das: true })).toBe(oneDeckSoftTotalsH17)
+    expect(resolvePairs({ numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none', das: true })).toBe(oneDeckPairsH17)
+    expect(resolveHardTotals({ numDecks: 1, soft17Rule: 'S17', surrenderMode: 'none', das: true })).toBe(oneDeckHardTotalsS17)
+    expect(resolveSoftTotals({ numDecks: 1, soft17Rule: 'S17', surrenderMode: 'none', das: true })).toBe(oneDeckSoftTotalsS17)
+    expect(resolvePairs({ numDecks: 1, soft17Rule: 'S17', surrenderMode: 'none', das: true })).toBe(oneDeckPairsS17)
   })
 })
 
@@ -445,14 +446,14 @@ const TWO_DECK_PAIR: PairDelta[] = [{ rank: '6', dealer: '7' }, { rank: '7', dea
 
 describe('2-deck — machine-extracted deltas vs the 6-deck base (no-surrender)', () => {
   it('H17: hard 9 vs 2 doubles; soft 14 vs 4 doubles; pair 6,6 vs 7 and 7,7 vs 8 split', () => {
-    const rules: RuleConfig = { numDecks: 2, soft17Rule: 'H17', surrenderMode: 'none' }
+    const rules: RuleConfig = { numDecks: 2, soft17Rule: 'H17', surrenderMode: 'none', das: true }
     expectHardMatches(resolveHardTotals(rules), withHardDeltas(hardTotals, TWO_DECK_HARD_H17, 'Double'), '2D H17')
     expectHardMatches(resolveSoftTotals(rules), withHardDeltas(softTotals, TWO_DECK_SOFT_H17, 'Double'), '2D H17 soft')
     expectPairMatches(resolvePairs(rules), withPairDeltas(pairs, TWO_DECK_PAIR, 'Split'), '2D H17')
   })
 
   it('S17: hard 9 vs 2 AND hard 11 vs A double; soft has NO delta (unlike H17); pairs match H17', () => {
-    const rules: RuleConfig = { numDecks: 2, soft17Rule: 'S17', surrenderMode: 'none' }
+    const rules: RuleConfig = { numDecks: 2, soft17Rule: 'S17', surrenderMode: 'none', das: true }
     expectHardMatches(resolveHardTotals(rules), withHardDeltas(S17_HARD_REFERENCE as Record<number, Record<DealerUpcardKey, Action>>, TWO_DECK_HARD_S17, 'Double'), '2D S17')
     expectHardMatches(resolveSoftTotals(rules), S17_SOFT_REFERENCE, '2D S17 soft (no delta)')
     expectPairMatches(resolvePairs(rules), withPairDeltas(pairs, TWO_DECK_PAIR, 'Split'), '2D S17')
@@ -484,7 +485,7 @@ describe('late surrender — machine-extracted cell lists for every (deck, rule)
 
   it.each(cases)('$numDecks deck(s)/$rule: exactly the cited cells become Surrender, nothing else', ({ numDecks, rule }) => {
     const cells = LATE_SURRENDER[String(numDecks) as '1' | '2' | '6'][rule]
-    const rules: RuleConfig = { numDecks, soft17Rule: rule, surrenderMode: 'late' }
+    const rules: RuleConfig = { numDecks, soft17Rule: rule, surrenderMode: 'late', das: true }
     const noSurrenderRules: RuleConfig = { ...rules, surrenderMode: 'none' }
 
     const resolvedHard = resolveHardTotals(rules)
@@ -503,7 +504,7 @@ describe('late surrender — machine-extracted cell lists for every (deck, rule)
 
   it('no soft-total cell is ever a surrender cell, at any deck size or rule', () => {
     for (const { numDecks, rule } of cases) {
-      const soft = resolveSoftTotals({ numDecks, soft17Rule: rule, surrenderMode: 'late' })
+      const soft = resolveSoftTotals({ numDecks, soft17Rule: rule, surrenderMode: 'late', das: true })
       for (const row of Object.values(soft)) {
         for (const dealer of DEALER_KEYS) expect(row[dealer]).not.toBe('Surrender')
       }
@@ -513,10 +514,187 @@ describe('late surrender — machine-extracted cell lists for every (deck, rule)
 
 describe('getHardSoftActionForRules', () => {
   it('never returns Split, even for a dealt pair, at any rule config', () => {
-    const rules: RuleConfig = { numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none' }
+    const rules: RuleConfig = { numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none', das: true }
     // 8,8 read as a hard 16 (never routed through the pairs table)
     const eight = { rank: '8' as const }
     const dealerTen = { rank: '10' as const }
     expect(getHardSoftActionForRules([eight, eight], dealerTen, rules)).not.toBe('Split')
+  })
+})
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════
+ * Double-after-split (DAS) axis. SOURCE: same WoO Basic Strategy Calculator
+ * pipeline as the rest of this file, `das` <select> (Allowed/Not Allowed).
+ *
+ * SELF-CHECK: re-extracting 6D/H17/DAS-ON (both surrender modes) reproduced
+ * hardTotals/softTotals/pairs and effectiveHardTotals(true)/effectivePairs(true)
+ * with ZERO differences before any DAS-off data was trusted.
+ *
+ * DAS is PAIR-TABLE-ONLY: machine-verified across all 24 (deck × soft17 ×
+ * surrender × das) combinations that zero hard-total or soft-total cells
+ * ever differ between DAS-on and DAS-off — resolveHardTotals/
+ * resolveSoftTotals don't take a `das` branch at all, by design. Only
+ * resolvePairs is exercised below.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+type PairDeltaWithAction = { rank: PairRankKey; dealer: DealerUpcardKey; action: Action }
+
+function withPairDeltasExplicit(base: Record<PairRankKey, Record<DealerUpcardKey, Action>>, deltas: PairDeltaWithAction[]) {
+  const out = { ...base } as Record<PairRankKey, Record<DealerUpcardKey, Action>>
+  for (const d of deltas) out[d.rank] = { ...out[d.rank], [d.dealer]: d.action }
+  return out
+}
+
+// Machine-extracted DAS-off deltas vs. the DAS-on base, no-surrender — cited in strategy.ts's DAS_OFF_PAIR_DELTA.
+const DAS_OFF_DELTAS: Record<1 | 2 | 6, Record<'H17' | 'S17', PairDeltaWithAction[]>> = {
+  1: {
+    H17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '8', action: 'Hit' },
+      { rank: '4', dealer: '4', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Double' },
+      { rank: '4', dealer: '6', action: 'Double' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+      { rank: '9', dealer: 'A', action: 'Stand' },
+    ],
+    S17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '8', action: 'Hit' },
+      { rank: '4', dealer: '4', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Double' },
+      { rank: '4', dealer: '6', action: 'Double' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+    ],
+  },
+  2: {
+    H17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+    ],
+    S17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '7', action: 'Hit' },
+      { rank: '7', dealer: '8', action: 'Hit' },
+    ],
+  },
+  6: {
+    H17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '2', action: 'Hit' },
+    ],
+    S17: [
+      { rank: '2', dealer: '2', action: 'Hit' },
+      { rank: '2', dealer: '3', action: 'Hit' },
+      { rank: '3', dealer: '2', action: 'Hit' },
+      { rank: '3', dealer: '3', action: 'Hit' },
+      { rank: '4', dealer: '5', action: 'Hit' },
+      { rank: '4', dealer: '6', action: 'Hit' },
+      { rank: '6', dealer: '2', action: 'Hit' },
+    ],
+  },
+}
+
+describe('resolveHardTotals/resolveSoftTotals — DAS produces zero deltas at any combination', () => {
+  const cases: { numDecks: 1 | 2 | 6; rule: 'H17' | 'S17'; surrenderMode: SurrenderMode }[] = [
+    { numDecks: 1, rule: 'H17', surrenderMode: 'none' }, { numDecks: 1, rule: 'S17', surrenderMode: 'late' },
+    { numDecks: 2, rule: 'H17', surrenderMode: 'late' }, { numDecks: 2, rule: 'S17', surrenderMode: 'none' },
+    { numDecks: 6, rule: 'H17', surrenderMode: 'none' }, { numDecks: 6, rule: 'S17', surrenderMode: 'late' },
+  ]
+
+  it.each(cases)('$numDecks deck(s)/$rule/surrender=$surrenderMode: hard/soft totals are identical with DAS on vs. off', ({ numDecks, rule, surrenderMode }) => {
+    const dasOn: RuleConfig = { numDecks, soft17Rule: rule, surrenderMode, das: true }
+    const dasOff: RuleConfig = { numDecks, soft17Rule: rule, surrenderMode, das: false }
+    expectHardMatches(resolveHardTotals(dasOff), resolveHardTotals(dasOn), `${numDecks}D ${rule} DAS-off hard`)
+    expectHardMatches(resolveSoftTotals(dasOff), resolveSoftTotals(dasOn), `${numDecks}D ${rule} DAS-off soft`)
+  })
+})
+
+describe('resolvePairs — DAS-off deltas, machine-extracted per (deck, rule) combination', () => {
+  const cases: { numDecks: 1 | 2 | 6; rule: 'H17' | 'S17' }[] = [
+    { numDecks: 1, rule: 'H17' }, { numDecks: 1, rule: 'S17' },
+    { numDecks: 2, rule: 'H17' }, { numDecks: 2, rule: 'S17' },
+    { numDecks: 6, rule: 'H17' }, { numDecks: 6, rule: 'S17' },
+  ]
+
+  it.each(cases)('$numDecks deck(s)/$rule, no surrender: exactly the cited pair cells change with DAS off', ({ numDecks, rule }) => {
+    const dasOn: RuleConfig = { numDecks, soft17Rule: rule, surrenderMode: 'none', das: true }
+    const dasOff: RuleConfig = { numDecks, soft17Rule: rule, surrenderMode: 'none', das: false }
+    const expected = withPairDeltasExplicit(resolvePairs(dasOn), DAS_OFF_DELTAS[numDecks][rule])
+    expectPairMatches(resolvePairs(dasOff), expected, `${numDecks}D ${rule} DAS-off pairs`)
+  })
+})
+
+describe('pair 8,8 vs A — the one cell that is dynamic across the full DAS × surrender × deck × soft17 grid', () => {
+  it('is Split whenever DAS is on, regardless of surrender mode, deck size, or soft17 rule', () => {
+    const combos: RuleConfig[] = [
+      { numDecks: 1, soft17Rule: 'H17', surrenderMode: 'none', das: true },
+      { numDecks: 1, soft17Rule: 'H17', surrenderMode: 'late', das: true },
+      { numDecks: 1, soft17Rule: 'S17', surrenderMode: 'late', das: true },
+      { numDecks: 2, soft17Rule: 'H17', surrenderMode: 'late', das: true },
+      { numDecks: 2, soft17Rule: 'S17', surrenderMode: 'late', das: true },
+      { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'late', das: true },
+      { numDecks: 6, soft17Rule: 'S17', surrenderMode: 'late', das: true },
+    ]
+    for (const rules of combos) {
+      expect(resolvePairs(rules)['8'].A, JSON.stringify(rules)).toBe('Split')
+    }
+  })
+
+  it('is Split with DAS off at 1-deck (either soft17 rule) and under S17 at 2/6-deck — even with late surrender', () => {
+    const combos: RuleConfig[] = [
+      { numDecks: 1, soft17Rule: 'H17', surrenderMode: 'late', das: false },
+      { numDecks: 1, soft17Rule: 'S17', surrenderMode: 'late', das: false },
+      { numDecks: 2, soft17Rule: 'S17', surrenderMode: 'late', das: false },
+      { numDecks: 6, soft17Rule: 'S17', surrenderMode: 'late', das: false },
+    ]
+    for (const rules of combos) {
+      expect(resolvePairs(rules)['8'].A, JSON.stringify(rules)).toBe('Split')
+    }
+  })
+
+  it('is Surrender ONLY at 2-deck or 6-deck, combined with H17, DAS off, and late surrender — the genuine crossover, not derived from a "surrender iff DAS off" rule of thumb', () => {
+    const combos: RuleConfig[] = [
+      { numDecks: 2, soft17Rule: 'H17', surrenderMode: 'late', das: false },
+      { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'late', das: false },
+    ]
+    for (const rules of combos) {
+      expect(resolvePairs(rules)['8'].A, JSON.stringify(rules)).toBe('Surrender')
+    }
+  })
+
+  it('stays Split with DAS off + H17 if surrender is OFF — surrender mode alone does not trigger the crossover', () => {
+    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: false }
+    expect(resolvePairs(rules)['8'].A).toBe('Split')
+  })
+})
+
+describe('resolvePairs — reference equality preserved at the default RuleConfig with DAS explicit', () => {
+  it('das: true (the default) still returns the literal base pairs object at 6D/H17/no-surrender', () => {
+    const rules: RuleConfig = { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: true }
+    expect(resolvePairs(rules)).toBe(pairs)
   })
 })

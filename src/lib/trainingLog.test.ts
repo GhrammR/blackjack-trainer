@@ -12,7 +12,7 @@ function statsWith(attempts: number, correct: number): PersistedState['stats'] {
 
 function emptyCountingState(): CountingState {
   return {
-    settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', startingBankroll: 1000 },
+    settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, startingBankroll: 1000 },
     bankroll: 1000,
     progress: {
       runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
