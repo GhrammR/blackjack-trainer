@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Action } from '../types'
 import { resolveHardTotals, resolveSoftTotals, resolvePairs, type RuleConfig, type Soft17Rule, type SurrenderMode } from '../lib/strategy'
 import { SHOE_SIZE_OPTIONS } from '../lib/shoe'
-import { INDEX_PLAYS } from '../lib/indexPlays'
+import { INDEX_PLAYS, indicatedDeviation } from '../lib/indexPlays'
 import { hiLoValue, MIN_DECKS_REMAINING } from '../lib/counting'
 import { EV_BET_RAMP } from '../lib/livePlaySession'
 import { PAGE_WRAPPER, SECTION_LABEL } from './theme'
@@ -47,15 +47,27 @@ const HEADER_CELL = `${CELL_BORDER} border-b-2 border-b-slate-500 bg-slate-800 p
 const HEADER_ROW_LABEL_CORNER =
   'sticky left-0 z-20 w-16 border border-slate-700/70 border-b-2 border-b-slate-500 border-r-2 border-r-slate-500 bg-slate-800'
 
-function ActionCell({ action }: { action: Action }) {
+/**
+ * `dimmed`/`deviated` are additive, Pass-3-only concerns (the true-count
+ * slider) — both default falsy, so every existing caller (Illustrious 18's
+ * table, StrategyTable's own default usage) is unaffected. `deviated`
+ * takes a ring border distinct from the H/S/D/P/R fill palette, so a cell
+ * that's flipped to a different action because of the count reads as
+ * "this moved" independent of which action it moved to.
+ */
+function ActionCell({ action, dimmed, deviated }: { action: Action; dimmed?: boolean; deviated?: boolean }) {
   return (
-    <td className={`w-11 ${CELL_BORDER} px-1 py-1.5 text-center text-xs font-semibold ${ACTION_STYLE[action]}`}>
+    <td
+      className={`w-11 ${CELL_BORDER} px-1 py-1.5 text-center text-xs font-semibold ${ACTION_STYLE[action]} ${
+        dimmed ? 'opacity-30' : ''
+      } ${deviated ? 'ring-2 ring-inset ring-yellow-300' : ''}`}
+    >
       {ACTION_ABBREV[action]}
     </td>
   )
 }
 
-function ActionLegend() {
+function ActionLegend({ showDeviationSwatch }: { showDeviationSwatch?: boolean } = {}) {
   return (
     <div className="flex flex-wrap gap-3 text-xs text-slate-400">
       {(Object.keys(ACTION_ABBREV) as Action[]).map((action) => (
@@ -64,6 +76,12 @@ function ActionLegend() {
           {ACTION_ABBREV[action]} = {action}
         </span>
       ))}
+      {showDeviationSwatch && (
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-4 w-4 rounded bg-slate-700 ring-2 ring-inset ring-yellow-300" />
+          deviated at this count
+        </span>
+      )}
     </div>
   )
 }
@@ -76,14 +94,19 @@ function ActionLegend() {
  * column makes it easy to find e.g. "16 vs 10" by scanning to the
  * intersection without losing track of either axis.
  */
+/** Pass-3 per-cell override: swap the shown action and/or mark it dimmed/deviated. Optional — omitting it renders exactly as before. */
+type CellOverride = (rowKey: string, dealerKey: string) => { action?: Action; dimmed?: boolean; deviated?: boolean } | undefined
+
 function StrategyTable({
   title,
   rowLabel,
   rows,
+  cellOverride,
 }: {
   title: string
   rowLabel: (key: string) => string
   rows: Record<string, Record<string, Action>>
+  cellOverride?: CellOverride
 }) {
   const rowKeys = Object.keys(rows)
   return (
@@ -111,9 +134,17 @@ function StrategyTable({
                 >
                   {rowLabel(key)}
                 </th>
-                {DEALER_COLUMNS.map((d) => (
-                  <ActionCell key={d} action={rows[key][d]} />
-                ))}
+                {DEALER_COLUMNS.map((d) => {
+                  const override = cellOverride?.(key, d)
+                  return (
+                    <ActionCell
+                      key={d}
+                      action={override?.action ?? rows[key][d]}
+                      dimmed={override?.dimmed}
+                      deviated={override?.deviated}
+                    />
+                  )
+                })}
               </tr>
             ))}
           </tbody>
@@ -128,11 +159,40 @@ function StrategyTable({
 const RULE_SELECT_CLASS = 'rounded bg-slate-800 px-2 py-1 text-white'
 
 type ChartTab = 'hard' | 'soft' | 'pairs'
-const CHART_TABS: { id: ChartTab; label: string }[] = [
-  { id: 'hard', label: 'Hard Totals' },
-  { id: 'soft', label: 'Soft Totals' },
-  { id: 'pairs', label: 'Pairs' },
+const CHART_TABS: { id: ChartTab; label: string; category: 'hard' | 'soft' | 'pair' }[] = [
+  { id: 'hard', label: 'Hard Totals', category: 'hard' },
+  { id: 'soft', label: 'Soft Totals', category: 'soft' },
+  { id: 'pairs', label: 'Pairs', category: 'pair' },
 ]
+
+const TRUE_COUNT_MIN = -6
+const TRUE_COUNT_MAX = 10
+
+/**
+ * Pass 3: true-count deviation overlay. Only ever enabled at 6 decks — the
+ * Illustrious 18 (`INDEX_PLAYS`) is a shoe-game (4-8 deck) list; single-
+ * and double-deck play uses genuinely different, unsourced numbers (a
+ * different problem from the existing, much smaller H17-vs-S17 precision
+ * gap `indexPlays.ts`'s own header already flags and accepts). Surrender
+ * mode isn't gated — none of the 14 entries are surrender-related.
+ *
+ * A cell is "eligible" (not dimmed) purely by having a matching
+ * `situationKey` in `INDEX_PLAYS`, independent of whether its threshold is
+ * currently crossed — so the user can see which ~14 cells are even
+ * capable of moving before sweeping the slider. Built off the category
+ * prefix (same convention `formatSituation` already uses below), so this
+ * stays correct if `INDEX_PLAYS` ever grows a soft/pair entry rather than
+ * being hardcoded to "hard totals only".
+ */
+function deviationOverrideFor(category: 'hard' | 'soft' | 'pair', trueCount: number): CellOverride {
+  return (rowKey, dealerKey) => {
+    const situationKey = `${category}-${rowKey}-vs-${dealerKey}`
+    const isEligible = INDEX_PLAYS.some((play) => play.situationKey === situationKey)
+    if (!isEligible) return { dimmed: true }
+    const deviation = indicatedDeviation(situationKey, trueCount)
+    return deviation ? { action: deviation.deviateTo, deviated: true } : {}
+  }
+}
 
 /**
  * Interactive reference chart (Pass 2) — browses any of the 12 sourced
@@ -147,6 +207,12 @@ const CHART_TABS: { id: ChartTab; label: string }[] = [
 function StrategyChartSection({ rules }: { rules: RuleConfig }) {
   const [chartRules, setChartRules] = useState<RuleConfig>(rules)
   const [tab, setTab] = useState<ChartTab>('hard')
+  const [sliderOn, setSliderOn] = useState(false)
+  const [trueCount, setTrueCount] = useState(0)
+
+  const sliderAvailable = chartRules.numDecks === 6
+  const overlayActive = sliderOn && sliderAvailable
+  const activeCategory = CHART_TABS.find((t) => t.id === tab)!.category
 
   return (
     <section className="flex flex-col gap-4">
@@ -165,7 +231,13 @@ function StrategyChartSection({ rules }: { rules: RuleConfig }) {
           Decks
           <select
             value={chartRules.numDecks}
-            onChange={(e) => setChartRules((r) => ({ ...r, numDecks: Number(e.target.value) }))}
+            onChange={(e) => {
+              const numDecks = Number(e.target.value)
+              setChartRules((r) => ({ ...r, numDecks }))
+              // Force the overlay off rather than leaving it on-but-inert — the
+              // Illustrious 18 isn't sourced outside 6 decks (see deviationOverrideFor).
+              if (numDecks !== 6) setSliderOn(false)
+            }}
             className={RULE_SELECT_CLASS}
           >
             {SHOE_SIZE_OPTIONS.map((d) => (
@@ -199,7 +271,52 @@ function StrategyChartSection({ rules }: { rules: RuleConfig }) {
         </label>
       </div>
 
-      <ActionLegend />
+      <div className="flex flex-col gap-2 rounded border border-slate-700 bg-slate-800/40 p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={sliderOn}
+              disabled={!sliderAvailable}
+              onChange={(e) => setSliderOn(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Show true-count deviations (Illustrious 18)
+          </label>
+          {sliderAvailable ? (
+            overlayActive && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min={TRUE_COUNT_MIN}
+                  max={TRUE_COUNT_MAX}
+                  step={1}
+                  value={trueCount}
+                  onChange={(e) => setTrueCount(Number(e.target.value))}
+                  className="w-40"
+                  aria-label="True count"
+                />
+                <span className="w-12 font-mono text-sm text-slate-200">
+                  TC: {trueCount >= 0 ? `+${trueCount}` : trueCount}
+                </span>
+              </div>
+            )
+          ) : (
+            <span className="text-xs text-slate-500">
+              Not available at {chartRules.numDecks} deck{chartRules.numDecks === 1 ? '' : 's'} — the
+              Illustrious 18 thresholds below are only sourced for 6-deck shoes.
+            </span>
+          )}
+        </div>
+        {overlayActive && (
+          <p className="text-xs text-slate-500">
+            Illustrious 18 thresholds are sourced for S17 shoe games; the H17 drift is small and these
+            are commonly taught as one set (see <code>indexPlays.ts</code>).
+          </p>
+        )}
+      </div>
+
+      <ActionLegend showDeviationSwatch={overlayActive} />
 
       <div className="flex gap-1 border-b border-slate-700">
         {CHART_TABS.map((t) => (
@@ -221,6 +338,7 @@ function StrategyChartSection({ rules }: { rules: RuleConfig }) {
           title="Hard Totals"
           rowLabel={(k) => k}
           rows={resolveHardTotals(chartRules) as unknown as Record<string, Record<string, Action>>}
+          cellOverride={overlayActive ? deviationOverrideFor(activeCategory, trueCount) : undefined}
         />
       )}
       {tab === 'soft' && (
@@ -228,6 +346,7 @@ function StrategyChartSection({ rules }: { rules: RuleConfig }) {
           title="Soft Totals (with an Ace)"
           rowLabel={(k) => `A,${Number(k) - 11}`}
           rows={resolveSoftTotals(chartRules) as unknown as Record<string, Record<string, Action>>}
+          cellOverride={overlayActive ? deviationOverrideFor(activeCategory, trueCount) : undefined}
         />
       )}
       {tab === 'pairs' && (
@@ -235,6 +354,7 @@ function StrategyChartSection({ rules }: { rules: RuleConfig }) {
           title="Pairs"
           rowLabel={(k) => `${k},${k}`}
           rows={resolvePairs(chartRules) as unknown as Record<string, Record<string, Action>>}
+          cellOverride={overlayActive ? deviationOverrideFor(activeCategory, trueCount) : undefined}
         />
       )}
     </section>
