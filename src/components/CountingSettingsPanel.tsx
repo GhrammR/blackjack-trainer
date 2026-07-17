@@ -2,6 +2,7 @@ import { SHOE_SIZE_OPTIONS } from '../lib/shoe'
 import type { CountingProgress, CountingSettings } from '../lib/persistence'
 import { formatPace, formatSeconds } from '../lib/format'
 import { DEAL_SPEEDS, DEAL_SPEED_LABELS, type DealSpeed } from '../lib/dealSpeed'
+import { RULE_PRESETS, presetMatches } from '../lib/rulePresets'
 
 const SEAT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6] as const
 
@@ -32,6 +33,27 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress, ba
     <div className="flex w-full flex-col items-center gap-8">
       <section className="flex w-full flex-col gap-3 rounded-lg bg-slate-800/50 p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Settings</h2>
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rule presets</span>
+          <div className="flex flex-wrap gap-2">
+            {RULE_PRESETS.map((preset) => {
+              const active = presetMatches(preset, settings)
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  title={preset.subtitle}
+                  onClick={() => onSettingsChange({ ...settings, ...preset.config })}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+                    active ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <label className="flex items-center justify-between gap-2 text-slate-300">
           Shoe size
           <select
