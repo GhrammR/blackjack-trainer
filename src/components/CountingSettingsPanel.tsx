@@ -6,6 +6,18 @@ import { RULE_PRESETS, presetMatches } from '../lib/rulePresets'
 
 const SEAT_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6] as const
 
+/**
+ * UI options for the manual "Split to" selector. Only 2 and 4 are sourced
+ * for this app's presets (see rulePresets.ts) — 3 is included because it's
+ * a real cap at some houses and `maxSplitHands` is deliberately typed as
+ * `number`, not a `2 | 4` union, precisely so a value like this is just
+ * another option, not a type change. Manual selection here is independent
+ * of the presets, so picking a preset and then changing deck size (or any
+ * other axis) manually never leaves maxSplitHands stuck at a stale preset
+ * value with no way back — this selector is always available.
+ */
+const SPLIT_HAND_OPTIONS = [2, 3, 4] as const
+
 interface CountingSettingsPanelProps {
   settings: CountingSettings
   onSettingsChange: (settings: CountingSettings) => void
@@ -127,6 +139,20 @@ export function CountingSettingsPanel({ settings, onSettingsChange, progress, ba
           >
             <option value="on">Allowed</option>
             <option value="off">Not allowed</option>
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-2 text-slate-300">
+          Split to (Basic Strategy, Live Play)
+          <select
+            value={settings.maxSplitHands}
+            onChange={(e) => onSettingsChange({ ...settings, maxSplitHands: Number(e.target.value) })}
+            className="rounded bg-slate-800 px-2 py-1 text-white"
+          >
+            {SPLIT_HAND_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n} hands
+              </option>
+            ))}
           </select>
         </label>
         <div className="flex items-center justify-between gap-2 text-slate-300">

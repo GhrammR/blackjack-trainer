@@ -172,7 +172,13 @@ function App() {
   }
 
   const { settings, progress } = counting
-  const rules: RuleConfig = { numDecks: settings.numDecks, soft17Rule: settings.soft17Rule, surrenderMode: settings.surrenderMode, das: settings.das }
+  const rules: RuleConfig = {
+    numDecks: settings.numDecks,
+    soft17Rule: settings.soft17Rule,
+    surrenderMode: settings.surrenderMode,
+    das: settings.das,
+    maxSplitHands: settings.maxSplitHands,
+  }
 
   // Only the two timer/keydown-driven modes need this — an overlay sitting
   // on top of a running Shoe Countdown must pause its stopwatch AND its

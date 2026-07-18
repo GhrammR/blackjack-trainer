@@ -183,6 +183,16 @@ describe('legalActions', () => {
     expect(legalActions(round, LATE_SURRENDER)).not.toContain('Split')
   })
 
+  it('respects a configured maxSplitHands lower than the default 4 (e.g. double-deck: cap at 2)', () => {
+    const pairHand = { cards: [c('8'), c('8')], isFirstDecision: true, isSplitAces: false, done: false, surrendered: false }
+    const DOUBLE_DECK_CAP_2: RuleConfig = { numDecks: 2, soft17Rule: 'H17', surrenderMode: 'none', das: false, maxSplitHands: 2 }
+    const underCap: LiveRound = { hands: [pairHand], activeHandIndex: 0, dealerUpcard: c('9'), holeCard: c('2') }
+    expect(legalActions(underCap, DOUBLE_DECK_CAP_2)).toContain('Split')
+
+    const atCap: LiveRound = { hands: [pairHand, pairHand], activeHandIndex: 0, dealerUpcard: c('9'), holeCard: c('2') }
+    expect(legalActions(atCap, DOUBLE_DECK_CAP_2)).not.toContain('Split')
+  })
+
   it('excludes Surrender once any split has happened, even on a fresh hand\'s first decision and even when surrenderEnabled', () => {
     const hand = { cards: [c('8'), c('2')], isFirstDecision: true, isSplitAces: false, done: false, surrendered: false }
     const round: LiveRound = { hands: [hand, hand], activeHandIndex: 0, dealerUpcard: c('9'), holeCard: c('2') }
@@ -385,6 +395,19 @@ describe('applyAction', () => {
     expect(isRoundOver(round)).toBe(true) // both new hands are already done -> nothing left to act on
   })
 
+  it('Split Aces get exactly one card each and are never offered a decision (or re-split), even at maxSplitHands: 4', () => {
+    const shoe = [c('A'), c('A'), c('9'), c('3'), c('5'), c('6')]
+    const { state: afterDeal, round: dealt } = dealRound(stateFrom(shoe))
+    const { round } = applyAction(afterDeal, dealt, 'Split')
+    for (const hand of round.hands) {
+      expect(hand.cards).toHaveLength(2) // exactly one extra card beyond the original split Ace
+      expect(hand.isSplitAces).toBe(true)
+      expect(hand.done).toBe(true)
+    }
+    expect(legalActions({ ...round, activeHandIndex: 0 }, NO_SURRENDER)).toEqual([]) // NO_SURRENDER defaults to maxSplitHands: 4
+    expect(legalActions({ ...round, activeHandIndex: 1 }, NO_SURRENDER)).toEqual([])
+  })
+
   it('supports resplitting: a post-split hand that draws into a new pair can split again, growing the hand count', () => {
     // Initial 8,8 splits into [8,8] and [8,5]; the first resulting [8,8] is itself a fresh pair under the cap.
     const shoe = [c('8'), c('8'), c('10'), c('5'), c('8'), c('5'), c('2'), c('3')]
@@ -417,9 +440,26 @@ describe('applyAction', () => {
 
     expect(round.hands).toHaveLength(4)
     expect(round.hands[2].cards).toEqual([c('8'), c('8')]) // still a pair, but at the cap
+
     const roundWithThatHandActive = { ...round, activeHandIndex: 2 }
     expect(legalActions(roundWithThatHandActive, NO_SURRENDER)).not.toContain('Split')
     expect(correctActionFor(roundWithThatHandActive, NO_SURRENDER)).not.toBe('Split')
+  })
+
+  it('stops offering Split at a configured maxSplitHands: 2 (double-deck), one split sooner than the 4-hand default', () => {
+    const DOUBLE_DECK_CAP_2: RuleConfig = { numDecks: 2, soft17Rule: 'H17', surrenderMode: 'none', das: false, maxSplitHands: 2 }
+    const shoe = [c('8'), c('8'), c('10'), c('5'), c('8'), c('5')]
+    let state = stateFrom(shoe)
+    let round: LiveRound
+    ;({ state, round } = dealRound(state))
+    ;({ state, round } = applyAction(state, round, 'Split'))
+
+    expect(round.hands).toHaveLength(2)
+    const roundWithFirstHandActive = { ...round, activeHandIndex: 0 }
+    expect(legalActions(roundWithFirstHandActive, DOUBLE_DECK_CAP_2)).not.toContain('Split')
+    expect(correctActionFor(roundWithFirstHandActive, DOUBLE_DECK_CAP_2)).not.toBe('Split')
+    // The same hands, under the 4-hand default, would still be splittable.
+    expect(legalActions(roundWithFirstHandActive, NO_SURRENDER)).toContain('Split')
   })
 })
 

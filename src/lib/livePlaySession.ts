@@ -1,7 +1,7 @@
 import type { Action, Card } from '../types'
 import { createShoe, shuffle } from './shoe'
 import { hiLoValue } from './counting'
-import { getActionForRules, getHardSoftActionForRules, isPair, type RuleConfig } from './strategy'
+import { effectiveMaxSplitHands, getActionForRules, getHardSoftActionForRules, isPair, type RuleConfig } from './strategy'
 import { handValue, isBlackjack, isBust } from './cards'
 import { resolveDealerHand } from './handResolution'
 import { type BetSpreadStep, baseBetUnits } from './playerProfiles'
@@ -21,12 +21,17 @@ import { type BetSpreadStep, baseBetUnits } from './playerProfiles'
  * Split replaces the current hand with two new ones (or, for a pair of
  * Aces, two immediately-terminal one-card hands) and `activeHandIndex`
  * advances to the next not-yet-done hand once the current one finishes.
- * Resplitting is allowed up to MAX_HANDS total (the standard real-table
- * cap); split Aces never get hit again (the near-universal real rule).
+ * Resplitting is allowed up to `rules.maxSplitHands` total (see
+ * strategy.ts's `effectiveMaxSplitHands` — sourced values are 4 for 6-deck
+ * configs, 2 for double-deck, per an internal tribal gaming regulatory
+ * training manual documenting a specific casino's posted rules; see
+ * DECISIONS.md). Aces can never be resplit and split Aces never get hit
+ * again (both hardcoded, not rule-config-driven — every sourced config this
+ * app knows about agrees on both, so a toggle would be unsourced
+ * flexibility; see DECISIONS.md).
  */
 
 const SAFETY_MARGIN = 20
-const MAX_HANDS = 4
 
 export interface LivePlaySessionState {
   shoe: Card[]
@@ -197,9 +202,9 @@ export function isRoundOver(round: LiveRound): boolean {
   return round.activeHandIndex === -1
 }
 
-function canSplit(round: LiveRound): boolean {
+function canSplit(round: LiveRound, rules: RuleConfig): boolean {
   const hand = round.hands[round.activeHandIndex]
-  return hand.isFirstDecision && hand.cards.length === 2 && isPair(hand.cards) && round.hands.length < MAX_HANDS
+  return hand.isFirstDecision && hand.cards.length === 2 && isPair(hand.cards) && round.hands.length < effectiveMaxSplitHands(rules)
 }
 
 /** Surrender is only legal as the very first decision of the round, before any split has happened. */
@@ -225,7 +230,7 @@ export function legalActions(round: LiveRound, rules: RuleConfig): Action[] {
   const actions: Action[] = ['Hit', 'Stand']
   if (hand.isFirstDecision) {
     actions.push('Double')
-    if (canSplit(round)) actions.push('Split')
+    if (canSplit(round, rules)) actions.push('Split')
     if (rules.surrenderMode !== 'none' && canSurrender(round)) actions.push('Surrender')
   }
   return actions
@@ -264,9 +269,9 @@ export function correctActionFor(round: LiveRound, rules: RuleConfig): Action {
   const effectiveRules: RuleConfig = eligibleForSurrender ? rules : { ...rules, surrenderMode: 'none' }
   const action = getActionForRules(hand.cards, round.dealerUpcard, effectiveRules)
 
-  if (action === 'Split' && !canSplit(round)) {
+  if (action === 'Split' && !canSplit(round, rules)) {
     // Never surrender-eligible here: reaching this fallback with the hand
-    // cap already hit requires round.hands.length >= MAX_HANDS, which is
+    // cap already hit requires round.hands.length >= effectiveMaxSplitHands(rules), which is
     // mutually exclusive with canSurrender's round.hands.length === 1
     // requirement — so eligibleForSurrender is always already false by the
     // time this branch is reachable. Passed explicitly rather than reused,

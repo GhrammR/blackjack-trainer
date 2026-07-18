@@ -259,6 +259,29 @@ export interface RuleConfig {
   surrenderMode: SurrenderMode
   /** Double after split. Defaults to true (current/existing behavior) everywhere a RuleConfig is constructed without it. */
   das: boolean
+  /**
+   * Max hands reachable by repeated splitting of one dealt pair (livePlaySession.ts's
+   * canSplit/correctActionFor). Optional, defaulting to DEFAULT_MAX_SPLIT_HANDS via
+   * effectiveMaxSplitHands below, so every existing RuleConfig literal that doesn't set
+   * it (the ~35 chart-lookup literals in strategy.chartReference.test.ts included) keeps
+   * working unchanged — this axis never affects chart cells (WoO's calculator, this app's
+   * sourced-chart-data reference, exposes no resplit/max-splits parameter at all; see
+   * DECISIONS.md), only live split legality in Live Play / Basic Strategy Trainer.
+   * Deliberately typed as `number`, not a `2 | 4` union — split-to-3 is a real rule at
+   * some houses, and a two-value union would bake "only 2 or 4 exist" into the type
+   * itself (the same lesson as the one-deck pairs table: don't let a convenient
+   * assumption become structural). 2 and 4 are simply the two values this app currently
+   * sources presets for, not the only values the type permits.
+   */
+  maxSplitHands?: number
+}
+
+/** Sourced default: 4 (6-deck config, and the pre-existing hardcoded behavior this replaces). See RuleConfig.maxSplitHands. */
+export const DEFAULT_MAX_SPLIT_HANDS = 4
+
+/** `rules.maxSplitHands`, or DEFAULT_MAX_SPLIT_HANDS when absent. */
+export function effectiveMaxSplitHands(rules: RuleConfig): number {
+  return rules.maxSplitHands ?? DEFAULT_MAX_SPLIT_HANDS
 }
 
 function deckBucket(numDecks: number): 1 | 2 | 6 {

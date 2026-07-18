@@ -92,6 +92,16 @@ export interface CountingSettings {
   /** Double after split. Default true — existing/current behavior. */
   das: boolean
   /**
+   * Max hands reachable by repeated splitting of one dealt pair — see
+   * strategy.ts's `RuleConfig.maxSplitHands`/`effectiveMaxSplitHands`.
+   * Sourced values are 4 (6-deck configs) and 2 (double-deck); typed as
+   * `number` (not a union) so a future sourced value is just a new number,
+   * not a type change. `parseSettings` clamps to [MIN_SPLIT_HANDS,
+   * MAX_SPLIT_HANDS] and falls back to the default on anything absent or
+   * out of range.
+   */
+  maxSplitHands: number
+  /**
    * The bankroll amount a "Reset Bankroll" action restores (chip wager
    * system, shared by Basic Strategy and Live Play — see
    * livePlaySession.ts's handPayout/roundPayout). Changing this does NOT
@@ -173,8 +183,13 @@ const DEFAULT_COUNTING_SETTINGS: CountingSettings = {
   soft17Rule: 'H17',
   surrenderMode: 'none',
   das: true,
+  maxSplitHands: 4,
   startingBankroll: 1000,
 }
+
+/** Sanity bounds for `maxSplitHands`, not a sourced constraint — just wide enough to hold every known real-table value (2-4) with headroom, while rejecting nonsense (0, negative, fractional, absurdly large). */
+const MIN_SPLIT_HANDS = 1
+const MAX_SPLIT_HANDS = 8
 
 const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
   runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
@@ -294,6 +309,13 @@ function parseSettings(raw: unknown): CountingSettings {
     soft17Rule: r.soft17Rule === 'H17' || r.soft17Rule === 'S17' ? r.soft17Rule : DEFAULT_COUNTING_SETTINGS.soft17Rule,
     surrenderMode: parseSurrenderMode(r),
     das: typeof r.das === 'boolean' ? r.das : DEFAULT_COUNTING_SETTINGS.das,
+    maxSplitHands:
+      typeof r.maxSplitHands === 'number' &&
+      Number.isInteger(r.maxSplitHands) &&
+      r.maxSplitHands >= MIN_SPLIT_HANDS &&
+      r.maxSplitHands <= MAX_SPLIT_HANDS
+        ? r.maxSplitHands
+        : DEFAULT_COUNTING_SETTINGS.maxSplitHands,
     startingBankroll: typeof r.startingBankroll === 'number' ? r.startingBankroll : DEFAULT_COUNTING_SETTINGS.startingBankroll,
   }
 }

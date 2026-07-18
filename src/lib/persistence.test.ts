@@ -83,7 +83,7 @@ describe('clearState', () => {
 })
 
 const DEFAULT_COUNTING_STATE: CountingState = {
-  settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, startingBankroll: 1000 },
+  settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, maxSplitHands: 4, startingBankroll: 1000 },
   bankroll: 1000,
   progress: {
     runningCount: { roundsPlayed: 0, roundsCorrect: 0 },
@@ -114,7 +114,7 @@ describe('loadCountingState', () => {
   it('fills in missing fields from a partial object', () => {
     localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { numDecks: 2 } }))
     expect(loadCountingState()).toEqual({
-      settings: { numDecks: 2, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, startingBankroll: 1000 },
+      settings: { numDecks: 2, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, maxSplitHands: 4, startingBankroll: 1000 },
       progress: DEFAULT_COUNTING_STATE.progress,
       bankroll: 1000,
     })
@@ -153,6 +153,23 @@ describe('loadCountingState', () => {
   it('a saved das: false is honored, not overridden by the default', () => {
     localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { das: false } }))
     expect(loadCountingState().settings.das).toBe(false)
+  })
+
+  it('a pre-maxSplitHands save (no field) migrates to the default of 4', () => {
+    localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { numDecks: 6, soft17Rule: 'H17', surrenderMode: 'none', das: true } }))
+    expect(loadCountingState().settings.maxSplitHands).toBe(4)
+  })
+
+  it('a saved maxSplitHands: 2 is honored, not overridden by the default', () => {
+    localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { maxSplitHands: 2 } }))
+    expect(loadCountingState().settings.maxSplitHands).toBe(2)
+  })
+
+  it('an out-of-range or malformed maxSplitHands (negative, fractional, non-numeric, absurdly large) falls back to the default of 4', () => {
+    for (const bad of [0, -1, 2.5, '4', null, 9999]) {
+      localStorage.setItem('double-down:counting:v1', JSON.stringify({ settings: { maxSplitHands: bad } }))
+      expect(loadCountingState().settings.maxSplitHands).toBe(4)
+    }
   })
 
   it('rejects a non-object personalBests value instead of throwing, for either format', () => {
@@ -275,7 +292,7 @@ describe('loadCountingState', () => {
 describe('saveCountingState / loadCountingState round trip', () => {
   it('persists settings and progress, including shoe countdown personal bests and detection sessions', () => {
     const state: CountingState = {
-      settings: { numDecks: 1, seatCount: 2, dealSpeed: 'fast', soft17Rule: 'H17', surrenderMode: 'late', das: true, startingBankroll: 2000 },
+      settings: { numDecks: 1, seatCount: 2, dealSpeed: 'fast', soft17Rule: 'H17', surrenderMode: 'late', das: true, maxSplitHands: 4, startingBankroll: 2000 },
       bankroll: 1875.5,
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
@@ -310,7 +327,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
 describe('resetCountingProgress', () => {
   it('resets progress to defaults while leaving settings and the live bankroll untouched', () => {
     const state: CountingState = {
-      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', soft17Rule: 'H17', surrenderMode: 'late', das: true, startingBankroll: 1000 },
+      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', soft17Rule: 'H17', surrenderMode: 'late', das: true, maxSplitHands: 4, startingBankroll: 1000 },
       bankroll: 640,
       progress: {
         runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
@@ -328,7 +345,7 @@ describe('resetCountingProgress', () => {
       },
     }
     expect(resetCountingProgress(state)).toEqual({
-      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', soft17Rule: 'H17', surrenderMode: 'late', das: true, startingBankroll: 1000 },
+      settings: { numDecks: 8, seatCount: 6, dealSpeed: 'slow', soft17Rule: 'H17', surrenderMode: 'late', das: true, maxSplitHands: 4, startingBankroll: 1000 },
       bankroll: 640,
       progress: DEFAULT_COUNTING_STATE.progress,
     })
@@ -337,7 +354,7 @@ describe('resetCountingProgress', () => {
 
 describe('resetCountingMode', () => {
   const state: CountingState = {
-    settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, startingBankroll: 1000 },
+    settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, maxSplitHands: 4, startingBankroll: 1000 },
     bankroll: 730,
     progress: {
       runningCount: { roundsPlayed: 10, roundsCorrect: 8 },
@@ -388,7 +405,7 @@ describe('resetCountingMode', () => {
 describe('resetBankroll', () => {
   it('resets the live bankroll to the current startingBankroll setting, leaving settings and progress untouched', () => {
     const state: CountingState = {
-      settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, startingBankroll: 500 },
+      settings: { numDecks: 2, seatCount: 3, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, maxSplitHands: 4, startingBankroll: 500 },
       bankroll: 0,
       progress: DEFAULT_COUNTING_STATE.progress,
     }
@@ -400,7 +417,7 @@ describe('resetBankroll', () => {
 
   it('is independent of a customized startingBankroll (not hardcoded to 1000)', () => {
     const state: CountingState = {
-      settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, startingBankroll: 2500 },
+      settings: { numDecks: 6, seatCount: 4, dealSpeed: 'medium', soft17Rule: 'H17', surrenderMode: 'none', das: true, maxSplitHands: 4, startingBankroll: 2500 },
       bankroll: 12,
       progress: DEFAULT_COUNTING_STATE.progress,
     }

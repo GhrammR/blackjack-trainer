@@ -878,3 +878,96 @@ its existing documented behavior); a 4th selector in `GuidesView.tsx`'s
 Strategy Chart section, so all 24 combinations are browsable. Detection
 family, evasion, table scan, and Index Plays' grading path are untouched —
 same scope boundary as every other rule-matrix axis.
+
+## Split limits + split-Aces rules as a config-driven axis
+
+**Source.** An internal Squaxin Island Tribal Gaming Regulatory Agency
+training manual (revised 5-11-19) documenting that casino's own posted
+rules. **Authoritative for rules only, not for strategy cells** —
+`hardTotals`/`softTotals`/`pairs`/the deck-size and DAS overlays in
+`strategy.ts` stay entirely machine-extracted from WoO's Basic Strategy
+Calculator, per the sourcing discipline established in the earlier rule-
+matrix passes. Nothing in this pass touches a chart cell. The document is
+7 years old as of this writing; the double-deck ruleset in particular
+should be re-confirmed as current before it's treated as authoritative for
+a future pass.
+
+**The sourced rules:**
+- 6-deck shoe: H17, DAS, double any two cards, split to **4 hands**, no
+  re-split Aces, cannot hit split Aces, no surrender, 3:2. This exactly
+  matches the app's default `RuleConfig`/`CountingSettings` — independent
+  confirmation for that config.
+- Double deck: H17, **no DAS**, double any two cards, split to **2 hands
+  only**, no re-split Aces, cannot hit split Aces, no surrender, 3:2.
+
+**Audit finding before any code changed.** `livePlaySession.ts` was
+already correctly enforcing the 6-deck sourced rules — a hardcoded
+`MAX_HANDS = 4` constant, plus `splitHand()` marking a split-Ace hand
+`done: true` the instant it's dealt its one card (so it can never become
+the active hand again, structurally preventing both re-splitting Aces and
+hitting a split Ace — double-enforced by `legalActions` also returning
+`[]` for any `isSplitAces` hand). What was actually broken: none of this
+was rule-config-driven. Every game — double-deck included — was allowing
+a 4-hand split cap, directly contradicting the sourced double-deck rule of
+2.
+
+**Chart-cell question — checked, not assumed.** Does the number of
+permitted splits affect any basic-strategy chart cell (e.g. does a tighter
+split cap change whether pair 8,8 vs 10 should split at all)? Verified
+directly: WoO's Basic Strategy Calculator — this app's sole chart-data
+source — exposes no resplit / max-splits parameter anywhere in its
+interface (confirmed via WebFetch of the calculator page: its inputs are
+Decks, Soft 17, Double After Split, Surrender, Dealer Peek — nothing
+about split count). **No cell deltas can be sourced for this axis, so
+none are inferred.** (Splitting strategy — whether to take the *first*
+split — plausibly doesn't depend on a resplit cap that only matters after
+that decision is already made, but that reasoning is explicitly flagged as
+unsourced theory, not a chart fact, and nothing in the shipped chart
+tables relies on it.)
+
+**Why no `resplitAces`/`hitSplitAces` toggles.** Both sourced configs
+(6-deck and double-deck) agree on both behaviors — no re-split Aces, no
+hitting a split Ace. Adding toggles for axes with zero sourced variation
+would be unsourced flexibility, not a real rule surface. Kept hardcoded in
+`livePlaySession.ts`'s `splitHand()`, with a comment noting they're
+constant across every sourced config this app knows about, not universal
+blackjack law.
+
+**`maxSplitHands` typed as `number`, not `2 | 4`.** A two-value union would
+bake "only 2 or 4 exist" into the type — split-to-3 is a real rule at some
+houses, and a third sourced value later would then be a type change
+rippling through `RuleConfig`, `CountingSettings`, `rulePresets.ts`, and
+`persistence.ts`, instead of just a new number. Same lesson as the
+one-deck pairs table (Pass 1): don't let a convenient assumption become
+structural. `RuleConfig.maxSplitHands` is optional (defaulting to 4 via
+`effectiveMaxSplitHands`), so the ~35 pre-existing chart-lookup
+`RuleConfig` literals in `strategy.chartReference.test.ts` — which never
+read this field — needed no changes. `CountingSettings.maxSplitHands` is
+required (it's the persisted, always-fully-specified live setting);
+`parseSettings` clamps to a generous, non-sourced sanity range
+(`[1, 8]`) and falls back to the default of 4 on anything absent,
+non-integer, or out of range.
+
+**Third rule preset — "Double Deck (H17 · No DAS)".** 2D/H17/no-DAS/no-
+surrender/`maxSplitHands: 2`, per the same training manual. Labeled
+generically by ruleset, not by casino, matching the existing presets'
+convention of never naming a specific property in a preset label. Unlike
+the merged "Washington & Vegas Strip" preset (independently confirmed by
+two separate public/regulator sources), this double-deck ruleset rests on
+one internal document only — flagged in the header comment as not yet
+cross-checked against a second source.
+
+**Gap found during verification, fixed before commit:** the first build of
+this pass left `maxSplitHands` settable only via the three presets. Picking
+the Double Deck preset (cap 2) and then manually changing deck size to 6
+left the user stuck on a 6-deck game capped at 2 splits, with no way back
+except another preset. Fixed with a manual "Split to" selector in
+`CountingSettingsPanel.tsx` (options 2/3/4 — 3 isn't sourced for any preset
+here, but is included since it's a real cap at some houses and
+`maxSplitHands`'s whole point is not constraining the type to sourced
+values only), independent of and always available alongside the presets —
+the same pattern as the existing soft17/surrender/DAS selectors. Chosen
+over the alternative (silently resetting `maxSplitHands` to 4 on a manual
+deck-size change) because this is a real, user-facing rule axis that
+deserves direct control, not a special-cased reset tied to one other
+field's changing.
