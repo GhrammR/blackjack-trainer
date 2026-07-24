@@ -248,6 +248,33 @@ function indexPlaysBlock(current: CountingProgress['indexPlays'], base: Counting
   }
 }
 
+const TWO_BET_CATEGORY_LABELS: Record<keyof CountingProgress['twoBets']['perCategory'], string> = {
+  hardDouble: 'hard doubles',
+  softDouble: 'soft doubles',
+  split: 'splits',
+}
+
+function twoBetsBlock(current: CountingProgress['twoBets'], base: CountingProgress['twoBets']): ModeBlock | null {
+  const attempts = delta(current.attempts, base.attempts)
+  if (attempts <= 0) return null
+  const correct = delta(current.correct, base.correct)
+
+  const perCategory = (Object.keys(TWO_BET_CATEGORY_LABELS) as (keyof CountingProgress['twoBets']['perCategory'])[])
+    .map((category) => {
+      const catAttempts = delta(current.perCategory[category].attempts, base.perCategory[category].attempts)
+      if (catAttempts <= 0) return null
+      const catCorrect = delta(current.perCategory[category].correct, base.perCategory[category].correct)
+      return `${TWO_BET_CATEGORY_LABELS[category]}: ${pctStr(catCorrect, catAttempts)}`
+    })
+    .filter((line): line is string => line !== null)
+
+  return {
+    title: 'Two Bets in a Circle',
+    what: 'recognizing which decisions (Double/Soft Double/Split) actually carry surveillance signal',
+    stats: [`attempts: ${attempts}`, `correct: ${correct}`, `accuracy: ${pctStr(correct, attempts)}`, ...perCategory],
+  }
+}
+
 function sessionsBlock(
   title: string,
   what: string,
@@ -323,6 +350,10 @@ export function buildTrainingLogText(
       playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0,
       trueCountAttempts: 0, trueCountCorrect: 0, betAttempts: 0, betCorrect: 0,
     },
+    twoBets: {
+      attempts: 0, correct: 0,
+      perCategory: { hardDouble: { attempts: 0, correct: 0 }, softDouble: { attempts: 0, correct: 0 }, split: { attempts: 0, correct: 0 } },
+    },
   }
 
   const p = counting.progress
@@ -338,6 +369,7 @@ export function buildTrainingLogText(
     trueCountBlock(p.trueCount, baseCounting.trueCount),
     ...shoeCountdownBlocks(p.shoeCountdown, baseCounting.shoeCountdown),
     indexPlaysBlock(p.indexPlays, baseCounting.indexPlays),
+    twoBetsBlock(p.twoBets, baseCounting.twoBets),
     sessionsBlock(
       'Counter Detection',
       'judging whether a single observed player is counting cards',

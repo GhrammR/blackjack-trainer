@@ -10,7 +10,13 @@ interface ModeSwitcherProps {
 // GlobalSettingsModal.tsx's per-mode reset dropdown — native, mobile-friendly,
 // no new widget to build or risk.
 const MODE_GROUPS: { label: string; modes: { id: ModeId; label: string }[] }[] = [
-  { label: 'Basic Strategy', modes: [{ id: 'strategy', label: 'Strategy Trainer' }] },
+  {
+    label: 'Basic Strategy',
+    modes: [
+      { id: 'strategy', label: 'Strategy Trainer' },
+      { id: 'twoBets', label: 'Two Bets in a Circle' },
+    ],
+  },
   {
     label: 'Counting Fundamentals',
     modes: [

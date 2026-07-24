@@ -971,3 +971,104 @@ over the alternative (silently resetting `maxSplitHands` to 4 on a manual
 deck-size change) because this is a real, user-facing rule axis that
 deserves direct control, not a special-cased reset tied to one other
 field's changing.
+
+## "Two Bets in a Circle" — a surveillance drill for Double/Soft-Double/Split only
+
+**Source and framing.** A professional game-protection memo (George D.
+Joseph, Worldwide Casino Consulting, held by the tribal gaming agency): ~70%
+of basic-strategy decisions are "no-brainers" that reveal nothing about a
+player's skill; Doubles, Soft Doubles, and Splits ("two bets in a circle")
+are the ~30% that actually distinguish a skilled player — in BOTH
+directions. A correct two-bet is diagnostic; an incorrect one ("very
+telling," per the memo) is exactly as diagnostic. New mode, `twoBetsDrill.ts`
++ `TwoBetsMode.tsx`, built as a distinct mode rather than a Basic Strategy
+filter because the pedagogical framing inverts: not "what's the right play?"
+but "which of my decisions actually carry surveillance signal?"
+
+**Scenario pools** (`twoBetsDrill.ts`'s `candidateKeys`): hard totals
+{8,9,10,11}, soft totals 13-19, all 10 pair ranks, each × 10 dealer keys.
+Hard 8 is included specifically because it's a real Double at 1-deck vs
+dealer 5/6 (`oneDeckHardTotalsH17`/`S17`) even though it never doubles at 2-
+or 6-deck — the memo's own "hard 8 vs 9 never doubles" example, generalized
+to every deck size this app supports. 12+ excluded (no sourced config ever
+doubles a hard 12). Pair 10,10 is a permanent guaranteed trap under every
+rule config (`pairs['10']` is `row({}, 'Stand')` with no override anywhere);
+pair 5,5 resolves via the hard-10 bypass to Double vs weak dealer cards, Hit
+vs strong ones — confirmed by unit test it never lands in the Split pool
+either way.
+
+**Classification reuses the engine, doesn't reimplement it.** For each
+candidate key: `generateHand` → `dealRoundFromHand` → `correctActionFor(round,
+rules)` — the exact same call Live Play uses, so `maxSplitHands`/DAS/
+surrender-mode legality are all handled for free. A candidate whose correct
+action resolves to Surrender (e.g. pair 8,8 vs A under DAS-off + late
+surrender) is excluded from both the correct and trap pools entirely — this
+mode is strictly Double/Split vs. Hit/Stand, not a Surrender drill.
+
+**Rule-aware, confirmed with a live example.** Soft 18 vs dealer 2 is Double
+under H17, Stand under S17 — one of `reasons.ts`'s three existing
+H17-vs-S17-divergent cells. Verified by direct unit test
+(`twoBetsDrill.test.ts`): `classifyTwoBetCandidates` puts `soft-18-vs-2` in
+`softDouble.correct` at H17 and in `softDouble.trap` at S17 — the same key
+flips category purely from the live rule config, proving the rule-awareness
+actually works rather than being asserted.
+
+**Mix: 65% correct / 35% trap, decided per-category** (not one global roll),
+so no category is trap-starved by pool-size skew (100 pair keys vs 70 soft vs
+40 hard). Category selection is uniform 1/3 each, so per-category progress
+stats get comparable sample sizes regardless of that same skew.
+
+**Play-out, not decision-only** — mirrors `IndexPlayMode.tsx` exactly: the
+round's first decision (`decisionLog.length === 0`) is graded against
+`scenario.correctAction` and applied via `applyAction` directly; every
+decision after the first (a non-busting hit, either half of a split) is
+graded normally via `decide()` against the live chart, since this mode's
+whole lesson lives in the first decision only.
+
+**Persistence — a fixed 3-key category map, not a dynamic Record.**
+`CountingProgress.twoBets.perCategory` has exactly `hardDouble`/`softDouble`/
+`split`, always, unlike `indexPlays.perDeviation`'s open-ended situation-key
+map — so `persistence.ts` parses it with a plain 3-field object instead of a
+generic map parser. `TwoBetsMode.tsx` follows Index Plays' pull-down-only
+progress pattern exactly (`useEffect([initialProgress])` pulls down; every
+push happens directly at the point of mutation inside `choose()`) — this is
+the specific pairing that caused Index Plays' real, observed infinite loop
+when it was done the other way (a reactive push-on-every-local-change
+effect racing a nested object reference across a localStorage round-trip);
+repeating that pairing here would reproduce the same bug on `perCategory`.
+
+**Feedback reuses `reasons.ts` completely unchanged** —
+`reasonFor(categoryOfSituationKey(key), correctAction)` already had every
+needed entry (`'pairs-Stand'`, `'pairs-Hit'`, `'hard-Double'`, etc.) plus
+`h17NoteFor` for the one overlapping cell. One new line, local to
+`TwoBetsMode.tsx` (not added to `reasons.ts`, since it's specific to this
+mode's framing): on a missed trap where the user wrongly chose Double/Split,
+an explicit surveillance-framing sentence — the mode's actual lesson stated
+outright, not left implicit in the chart reason.
+
+**Product placement, confirmed with the user rather than assumed:** lives in
+the **Basic Strategy** Lobby/ModeSwitcher group (mechanically it's a
+chart-grading drill with no simulated opponent — closest kin to Strategy
+Trainer, not the detection-family drills), and counts as an **11th required
+mode** for the "Double Down" pinnacle achievement (`achievements.ts`'s
+`allModes`), consistent with every other mode's precedent.
+
+**HUD_HEIGHT — measured, not guessed.** Live Playwright pass at innerHeight
+730 (`el.style.height = 'auto'` per phase, ~150 sampled decisions/rounds):
+deciding phase flat at 144 (no true-count line here, unlike Index Plays, so
+no per-hand variance); roundComplete is the variable one — median 328, p90
+400, p95 452, max 472 (a rare multi-miss hand with every optional note line
+present: chart reason + h17Note + this mode's own trap warning, all at once).
+Set to 460 — just above the p90-p95 ceiling with a small margin, same
+philosophy as every other `HUD_HEIGHT` entry — the rare 472px outlier
+scrolls internally via the HUD's existing `overflow-y-auto`. Also verified
+live: the trap-warning line renders correctly on a wrong Double/Split
+against a genuine trap hand (soft 19 vs 10 → correct Stand), per-category
+progress persists across a reload, and the per-mode reset option
+(`GlobalSettingsModal.tsx`) clears only `twoBets`'s stats, confirmed by
+directly driving the reset flow.
+
+**Untouched, as scoped:** `strategy.ts`, `resolveHardTotals`/
+`resolveSoftTotals`/`resolvePairs`, `strategy.chartReference.test.ts`, and
+every existing mode's grading path. Purely a new scenario-selection layer
+plus a new play-out component on top of already-proven engine functions.

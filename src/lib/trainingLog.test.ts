@@ -30,6 +30,10 @@ function emptyCountingState(): CountingState {
         playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0,
         trueCountAttempts: 0, trueCountCorrect: 0, betAttempts: 0, betCorrect: 0,
       },
+      twoBets: {
+        attempts: 0, correct: 0,
+        perCategory: { hardDouble: { attempts: 0, correct: 0 }, softDouble: { attempts: 0, correct: 0 }, split: { attempts: 0, correct: 0 } },
+      },
     },
   }
 }
@@ -259,6 +263,32 @@ describe('buildTrainingLogText — Live Play (four independent skills)', () => {
     expect(text).toContain('  - count: 75.0%')
     expect(text).toContain('  - true count: 50.0%')
     expect(text).toContain('  - bet sizing: 80.0%')
+  })
+
+  it('reports Two Bets in a Circle attempts/correct/accuracy plus a per-category breakdown, omitting untouched categories', () => {
+    const now = emptyCountingState()
+    now.progress.twoBets = {
+      attempts: 20,
+      correct: 15,
+      perCategory: {
+        hardDouble: { attempts: 10, correct: 8 },
+        softDouble: { attempts: 0, correct: 0 },
+        split: { attempts: 10, correct: 7 },
+      },
+    }
+    const text = buildTrainingLogText(emptyV1(), now, null)
+    expect(text).toMatch(/Two Bets in a Circle\n-+\n/)
+    expect(text).toContain('  - attempts: 20')
+    expect(text).toContain('  - correct: 15')
+    expect(text).toContain('  - accuracy: 75.0%')
+    expect(text).toContain('  - hard doubles: 80.0%')
+    expect(text).toContain('  - splits: 70.0%')
+    expect(text).not.toContain('soft doubles')
+  })
+
+  it('omits the Two Bets in a Circle block entirely when there are no attempts', () => {
+    const text = buildTrainingLogText(emptyV1(), emptyCountingState(), null)
+    expect(text).not.toContain('Two Bets in a Circle')
   })
 })
 

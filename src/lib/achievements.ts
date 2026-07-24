@@ -17,9 +17,10 @@ export interface Achievements {
   evidenceFlagging: AchievementTiers
   evasion: AchievementTiers
   livePlay: AchievementTiers
+  twoBets: AchievementTiers
   /** Tier-1 and tier-2 earned in all four Counting Fundamentals modes. */
   fundamentalsComplete: boolean
-  /** Tier-3 earned in all ten modes — the pinnacle achievement. */
+  /** Tier-3 earned in all eleven modes — the pinnacle achievement. */
   doubleDown: boolean
 }
 
@@ -141,13 +142,21 @@ export function computeAchievements(
       rate(lp.betCorrect, lp.betAttempts) >= 0.80,
   }
 
+  // ── Two Bets in a Circle ──────────────────────────────────────────────────────
+  const tb = p.twoBets
+  const twoBets: AchievementTiers = {
+    tier1: tb.attempts >= 1,
+    tier2: tb.attempts >= 25 && rate(tb.correct, tb.attempts) >= 0.80,
+    tier3: tb.attempts >= 75 && rate(tb.correct, tb.attempts) >= 0.90,
+  }
+
   // ── Curriculum ────────────────────────────────────────────────────────────────
   const countingModes = [runningCount, trueCount, shoeCountdown, indexPlays]
   const fundamentalsComplete = countingModes.every((m) => m.tier1 && m.tier2)
 
   const allModes = [
     strategy, runningCount, trueCount, shoeCountdown, indexPlays,
-    counterDetection, tableScan, evidenceFlagging, evasion, livePlay,
+    counterDetection, tableScan, evidenceFlagging, evasion, livePlay, twoBets,
   ]
   const doubleDown = allModes.every((m) => m.tier3)
 
@@ -162,6 +171,7 @@ export function computeAchievements(
     evidenceFlagging,
     evasion,
     livePlay,
+    twoBets,
     fundamentalsComplete,
     doubleDown,
   }

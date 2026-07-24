@@ -98,6 +98,10 @@ const DEFAULT_COUNTING_STATE: CountingState = {
     evasion: { sessionsPlayed: 0, bestEdgeCapturedPct: null, lowestHeat: null },
     indexPlays: { attempts: 0, correct: 0, perDeviation: {} },
     livePlay: { playAttempts: 0, playCorrect: 0, countAttempts: 0, countCorrect: 0, trueCountAttempts: 0, trueCountCorrect: 0, betAttempts: 0, betCorrect: 0 },
+    twoBets: {
+      attempts: 0, correct: 0,
+      perCategory: { hardDouble: { attempts: 0, correct: 0 }, softDouble: { attempts: 0, correct: 0 }, split: { attempts: 0, correct: 0 } },
+    },
   },
 }
 
@@ -279,6 +283,43 @@ describe('loadCountingState', () => {
     expect(indexPlays.perDeviation).toEqual({ 'hard-16-vs-10': { attempts: 5, correct: 4 } })
   })
 
+  it('parses twoBets.perCategory\'s 3 fixed keys, defaulting a missing key to {attempts:0, correct:0}', () => {
+    localStorage.setItem(
+      'double-down:counting:v1',
+      JSON.stringify({
+        progress: {
+          twoBets: {
+            attempts: 30,
+            correct: 22,
+            perCategory: {
+              hardDouble: { attempts: 10, correct: 8 },
+              split: { attempts: 20, correct: 14 },
+              // softDouble deliberately omitted — should default, not throw.
+            },
+          },
+        },
+      }),
+    )
+    const twoBets = loadCountingState().progress.twoBets
+    expect(twoBets.attempts).toBe(30)
+    expect(twoBets.correct).toBe(22)
+    expect(twoBets.perCategory).toEqual({
+      hardDouble: { attempts: 10, correct: 8 },
+      softDouble: { attempts: 0, correct: 0 },
+      split: { attempts: 20, correct: 14 },
+    })
+  })
+
+  it('a pre-twoBets save (no field at all) migrates to all-zero defaults instead of throwing', () => {
+    localStorage.setItem('double-down:counting:v1', JSON.stringify({ progress: { runningCount: { roundsPlayed: 3, roundsCorrect: 2 } } }))
+    const twoBets = loadCountingState().progress.twoBets
+    expect(twoBets).toEqual({
+      attempts: 0,
+      correct: 0,
+      perCategory: { hardDouble: { attempts: 0, correct: 0 }, softDouble: { attempts: 0, correct: 0 }, split: { attempts: 0, correct: 0 } },
+    })
+  })
+
   it('rejects non-number evasion personal bests, defaulting to null instead of throwing', () => {
     localStorage.setItem(
       'double-down:counting:v1',
@@ -317,6 +358,7 @@ describe('saveCountingState / loadCountingState round trip', () => {
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
         indexPlays: { attempts: 20, correct: 15, perDeviation: { 'hard-16-vs-10': { attempts: 5, correct: 4 } } },
         livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27, betAttempts: 20, betCorrect: 16 },
+        twoBets: { attempts: 15, correct: 12, perCategory: { hardDouble: { attempts: 5, correct: 4 }, softDouble: { attempts: 5, correct: 4 }, split: { attempts: 5, correct: 4 } } },
       },
     }
     saveCountingState(state)
@@ -342,6 +384,7 @@ describe('resetCountingProgress', () => {
         evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
         indexPlays: { attempts: 20, correct: 15, perDeviation: {} },
         livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27, betAttempts: 20, betCorrect: 16 },
+        twoBets: { attempts: 15, correct: 12, perCategory: { hardDouble: { attempts: 5, correct: 4 }, softDouble: { attempts: 5, correct: 4 }, split: { attempts: 5, correct: 4 } } },
       },
     }
     expect(resetCountingProgress(state)).toEqual({
@@ -369,6 +412,7 @@ describe('resetCountingMode', () => {
       evasion: { sessionsPlayed: 4, bestEdgeCapturedPct: 72.5, lowestHeat: 2 },
       indexPlays: { attempts: 20, correct: 15, perDeviation: { 'hard-16-vs-10': { attempts: 5, correct: 4 } } },
       livePlay: { playAttempts: 50, playCorrect: 44, countAttempts: 12, countCorrect: 10, trueCountAttempts: 30, trueCountCorrect: 27, betAttempts: 20, betCorrect: 16 },
+      twoBets: { attempts: 15, correct: 12, perCategory: { hardDouble: { attempts: 5, correct: 4 }, softDouble: { attempts: 5, correct: 4 }, split: { attempts: 5, correct: 4 } } },
     },
   }
 

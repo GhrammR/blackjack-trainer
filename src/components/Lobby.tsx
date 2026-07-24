@@ -14,6 +14,7 @@ export type ModeId =
   | 'evidenceFlagging'
   | 'evasion'
   | 'livePlay'
+  | 'twoBets'
 
 interface LobbyProps {
   strategySnapshot: { handsPlayed: number; currentStreak: number; lifetimeAccuracy: number }
@@ -232,6 +233,12 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
       ? 'Not started'
       : `${lp.playAttempts} play attempts · plays: ${pct(lp.playCorrect, lp.playAttempts)} · count: ${pct(lp.countCorrect, lp.countAttempts)} · TC: ${pct(lp.trueCountCorrect, lp.trueCountAttempts)}`
 
+  const tb = p.twoBets
+  const tbStat =
+    tb.attempts === 0
+      ? 'Not started'
+      : `${tb.attempts} attempts · ${pct(tb.correct, tb.attempts)} correct`
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8">
 
@@ -245,6 +252,13 @@ export function Lobby({ strategySnapshot, countingProgress: p, numDecks, onEnter
             stat={strategyStat}
             tiers={ach.strategy}
             onClick={() => onEnter('strategy')}
+          />
+          <ModeCard
+            name="Two Bets in a Circle"
+            description="Only Double, Soft Double, and Split decisions — the ~30% of hands that actually reveal whether a player knows what they're doing, in either direction."
+            stat={tbStat}
+            tiers={ach.twoBets}
+            onClick={() => onEnter('twoBets')}
           />
         </div>
       </section>

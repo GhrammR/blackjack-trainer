@@ -9,6 +9,7 @@ import { TableScanMode } from './components/v2/modes/TableScanMode'
 import { EvidenceFlaggingMode } from './components/v2/modes/EvidenceFlaggingMode'
 import { EvasionMode } from './components/v2/modes/EvasionMode'
 import { LivePlayMode } from './components/v2/modes/LivePlayMode'
+import { TwoBetsMode } from './components/v2/modes/TwoBetsMode'
 import { CasinoTable } from './components/v2/table/CasinoTable'
 import { Lobby, type ModeId } from './components/Lobby'
 import { ModeSwitcher } from './components/ModeSwitcher'
@@ -17,6 +18,7 @@ import { GlobalSettingsModal } from './components/GlobalSettingsModal'
 import { TrainingSessionRecord } from './components/TrainingSessionRecord'
 import { StrategyHeatmapSection } from './components/StrategyHeatmapSection'
 import { IndexPlayHeatmapSection } from './components/IndexPlayHeatmapSection'
+import { TwoBetsCategorySection } from './components/TwoBetsCategorySection'
 import { GuidesView } from './components/GuidesView'
 import { SECTION_LABEL } from './components/theme'
 import {
@@ -268,6 +270,14 @@ function App() {
             onProgressChange={(evasion) => handleProgressChange('evasion', evasion)}
           />
         )
+      case 'twoBets':
+        return (
+          <TwoBetsMode
+            rules={rules}
+            initialProgress={progress.twoBets}
+            onProgressChange={(twoBets) => handleProgressChange('twoBets', twoBets)}
+          />
+        )
       case 'livePlay':
         return (
           <LivePlayMode
@@ -391,6 +401,7 @@ function App() {
 
       {currentMode === 'strategy' && <StrategyHeatmapSection />}
       {currentMode === 'indexPlays' && <IndexPlayHeatmapSection />}
+      {currentMode === 'twoBets' && <TwoBetsCategorySection />}
       <TrainingSessionRecord />
 
       {activeOverlay === 'overview' && (

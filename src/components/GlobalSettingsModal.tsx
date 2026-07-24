@@ -51,6 +51,7 @@ type ModeResetTarget = 'strategy' | CountingModeKey
 
 const MODE_RESET_OPTIONS: { key: ModeResetTarget; label: string }[] = [
   { key: 'strategy', label: 'Basic Strategy' },
+  { key: 'twoBets', label: 'Two Bets in a Circle' },
   { key: 'runningCount', label: 'Running Count' },
   { key: 'trueCount', label: 'True Count' },
   { key: 'shoeCountdown', label: 'Shoe Countdown' },

@@ -113,4 +113,16 @@ export const HUD_HEIGHT = {
   tableScan: 250,
   runningCount: 180,
   shoeCountdown: 250,
+  // twoBets: re-measured live (Playwright, `el.style.height = 'auto'` per
+  // phase, real getBoundingClientRect()) at innerHeight 730 across 150
+  // sampled decisions/rounds: deciding phase is flat at 144 (no per-hand
+  // variance — no true-count line, unlike Index Plays); roundComplete is
+  // the variable one (attempts/accuracy line + decisionLog misses, each
+  // possibly carrying a chart reason, an h17Note, AND this mode's own
+  // trap-warning line) — median 328, p90 400, p95 452, max 472 (a rare
+  // multi-miss hand with every optional note line present). 460 sits just
+  // above the p90-p95 ceiling with a small margin, same philosophy as every
+  // other HUD_HEIGHT entry — the rare 472px outlier scrolls internally via
+  // this HUD's existing overflow-y-auto instead of being reserved for.
+  twoBets: 460,
 } as const

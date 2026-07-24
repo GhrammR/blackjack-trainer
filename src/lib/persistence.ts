@@ -162,6 +162,23 @@ export interface CountingProgress {
     betAttempts: number
     betCorrect: number
   }
+  /**
+   * "Two Bets in a Circle" (twoBetsDrill.ts) — a fixed 3-key category map,
+   * not a dynamic Record like indexPlays' perDeviation, since there are
+   * exactly 3 categories (hardDouble/softDouble/split), ever. Tracks overall
+   * attempts/correct plus the same split per category — the per-category
+   * breakdown is this mode's actual diagnostic value (which of the three the
+   * user misreads most).
+   */
+  twoBets: {
+    attempts: number
+    correct: number
+    perCategory: {
+      hardDouble: { attempts: number; correct: number }
+      softDouble: { attempts: number; correct: number }
+      split: { attempts: number; correct: number }
+    }
+  }
 }
 
 export interface CountingState {
@@ -212,6 +229,15 @@ const DEFAULT_COUNTING_PROGRESS: CountingProgress = {
     trueCountCorrect: 0,
     betAttempts: 0,
     betCorrect: 0,
+  },
+  twoBets: {
+    attempts: 0,
+    correct: 0,
+    perCategory: {
+      hardDouble: { attempts: 0, correct: 0 },
+      softDouble: { attempts: 0, correct: 0 },
+      split: { attempts: 0, correct: 0 },
+    },
   },
 }
 
@@ -286,6 +312,15 @@ function parseAttemptsCorrectMap(value: unknown): Record<string, { attempts: num
   return result
 }
 
+/** Validates a single `{ attempts, correct }` stat, for twoBets.perCategory's 3 fixed keys — unlike parseAttemptsCorrectMap, no key enumeration is needed since the key set never varies. */
+function parseCategoryStat(value: unknown): { attempts: number; correct: number } {
+  const r = (value ?? {}) as Record<string, unknown>
+  return {
+    attempts: typeof r.attempts === 'number' ? r.attempts : 0,
+    correct: typeof r.correct === 'number' ? r.correct : 0,
+  }
+}
+
 /**
  * `surrenderMode` migration: a state saved before this rule-matrix pass
  * has no `surrenderMode` at all, only the old boolean `lateSurrender` —
@@ -342,6 +377,8 @@ export function parseProgress(raw: unknown): CountingProgress {
   const ea = (r.evasion ?? {}) as Record<string, unknown>
   const ip = (r.indexPlays ?? {}) as Record<string, unknown>
   const lp = (r.livePlay ?? {}) as Record<string, unknown>
+  const tb = (r.twoBets ?? {}) as Record<string, unknown>
+  const tbCat = (tb.perCategory ?? {}) as Record<string, unknown>
 
   return {
     runningCount: {
@@ -398,6 +435,15 @@ export function parseProgress(raw: unknown): CountingProgress {
       trueCountCorrect: typeof lp.trueCountCorrect === 'number' ? lp.trueCountCorrect : 0,
       betAttempts: typeof lp.betAttempts === 'number' ? lp.betAttempts : 0,
       betCorrect: typeof lp.betCorrect === 'number' ? lp.betCorrect : 0,
+    },
+    twoBets: {
+      attempts: typeof tb.attempts === 'number' ? tb.attempts : 0,
+      correct: typeof tb.correct === 'number' ? tb.correct : 0,
+      perCategory: {
+        hardDouble: parseCategoryStat(tbCat.hardDouble),
+        softDouble: parseCategoryStat(tbCat.softDouble),
+        split: parseCategoryStat(tbCat.split),
+      },
     },
   }
 }
